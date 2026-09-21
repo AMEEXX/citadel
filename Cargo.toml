@@ -1,0 +1,5 @@
+﻿[workspace]
+members = [
+    "guard-*",
+]
+resolver = "2"
