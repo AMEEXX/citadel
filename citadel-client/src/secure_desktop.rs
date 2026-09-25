@@ -31,6 +31,7 @@ pub struct SecureDesktop {
     original_desktop: HDESK,
     secure_desktop: HDESK,
     desktop_name: String,
+    switched: bool,
 }
 
 fn to_wide_null(s: &str) -> Vec<u16> {
@@ -38,20 +39,19 @@ fn to_wide_null(s: &str) -> Vec<u16> {
 }
 
 impl SecureDesktop {
-    /// Creates a new isolated desktop and switches display output to it.
-    pub fn create_and_switch() -> Result<Self, String> {
+    /// Creates an isolated Win32 Desktop object in the background WITHOUT switching
+    /// the physical display yet. This allows the kiosk application/browser to launch
+    /// and initialize invisibly before the user's monitors are switched over.
+    pub fn create() -> Result<Self, String> {
         unsafe {
-            // 1. Capture current desktop handle so we can cleanly return on exit
             let thread_id = GetCurrentThreadId();
             let original_desktop = GetThreadDesktop(thread_id)
                 .map_err(|e| format!("Failed to get current thread desktop: {:?}", e))?;
 
-            // 2. Generate a unique secure desktop name
             let pid = GetCurrentProcessId();
             let desktop_name = format!("CitadelSecureDesktop_{}", pid);
             let wide_name = to_wide_null(&desktop_name);
 
-            // 3. Create dedicated desktop with full access mask
             let secure_desktop = CreateDesktopW(
                 PCWSTR(wide_name.as_ptr()),
                 PCWSTR::null(),
@@ -61,16 +61,8 @@ impl SecureDesktop {
                 None,
             ).map_err(|e| format!("CreateDesktopW failed: {:?}", e))?;
 
-            // 4. Associate the calling thread with the secure desktop so any window it creates appears there
-            SetThreadDesktop(secure_desktop)
-                .map_err(|e| format!("SetThreadDesktop on secure desktop failed: {:?}", e))?;
-
-            // 5. Switch physical screen output to the secure desktop
-            SwitchDesktop(secure_desktop)
-                .map_err(|e| format!("SwitchDesktop failed: {:?}", e))?;
-
             eprintln!(
-                "[CITADEL CLIENT] SECURE DESKTOP ACTIVE: Isolated display plane '{}' created and switched.",
+                "[CITADEL CLIENT] SECURE DESKTOP CREATED: Isolated display plane '{}' prepared in background.",
                 desktop_name
             );
 
@@ -78,8 +70,46 @@ impl SecureDesktop {
                 original_desktop,
                 secure_desktop,
                 desktop_name,
+                switched: false,
             })
         }
+    }
+
+    /// Switches physical screen output to the secure desktop.
+    /// CRITICAL: Must ONLY be called after the browser process has been launched
+    /// and verified alive, preventing blank/black screen situations.
+    pub fn switch_to_secure(&mut self) -> Result<(), String> {
+        if self.switched {
+            return Ok(());
+        }
+
+        unsafe {
+            SetThreadDesktop(self.secure_desktop)
+                .map_err(|e| format!("SetThreadDesktop on secure desktop failed: {:?}", e))?;
+
+            SwitchDesktop(self.secure_desktop)
+                .map_err(|e| format!("SwitchDesktop failed: {:?}", e))?;
+
+            self.switched = true;
+            eprintln!(
+                "[CITADEL CLIENT] SECURE DESKTOP ACTIVE: Switched display output to '{}'.",
+                self.desktop_name
+            );
+
+            Ok(())
+        }
+    }
+
+    /// Creates a new isolated desktop and switches display output to it immediately.
+    pub fn create_and_switch() -> Result<Self, String> {
+        let mut sd = Self::create()?;
+        sd.switch_to_secure()?;
+        Ok(sd)
+    }
+
+    /// Returns true if the physical display is currently switched to the secure desktop.
+    pub fn is_switched(&self) -> bool {
+        self.switched
     }
 
     /// Desktop name identifier for process startup info.
@@ -95,7 +125,8 @@ impl SecureDesktop {
     /// Launches an isolated application directly onto this secure desktop.
     pub fn launch_on_desktop(&self, exe_path: &Path, args: &[&str]) -> Result<PROCESS_INFORMATION, String> {
         unsafe {
-            let mut wide_desktop = to_wide_null(&self.desktop_name);
+            let full_dname = format!("WinSta0\\\\{}", self.desktop_name);
+            let mut wide_desktop = to_wide_null(&full_dname);
             let mut si = STARTUPINFOW::default();
             si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
             si.lpDesktop = PWSTR(wide_desktop.as_mut_ptr());
@@ -128,16 +159,17 @@ impl SecureDesktop {
     /// Restores the default user desktop and closes the secure desktop.
     pub fn restore(&mut self) {
         unsafe {
-            if !self.original_desktop.is_invalid() {
+            if self.switched && !self.original_desktop.is_invalid() {
                 let _ = SwitchDesktop(self.original_desktop);
                 let _ = SetThreadDesktop(self.original_desktop);
+                self.switched = false;
+                eprintln!("[CITADEL CLIENT] SECURE DESKTOP RELEASED: Returned to original Windows desktop.");
             }
             if !self.secure_desktop.is_invalid() {
                 let _ = CloseDesktop(self.secure_desktop);
                 self.secure_desktop = HDESK::default();
             }
         }
-        eprintln!("[CITADEL CLIENT] SECURE DESKTOP RELEASED: Returned to original Windows desktop.");
     }
 }
 

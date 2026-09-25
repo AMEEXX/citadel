@@ -53,30 +53,57 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let server_ip = resolve_server_endpoint(default_server_ip, server_port);
 
-    // 2. Initialize comprehensive SEB-style multi-layered security coordinator:
-    //    Registry hardening, WFP network lock, Explorer kill, Secure Desktop creation,
-    //    health-monitored keyboard hook, and anti-cheat sensors.
-    let guard = ClientLockdownGuard::new(server_ip, server_port)
+    // Pre-flight check: ensure the exam server is reachable before engaging lockdown
+    let target = SocketAddr::from((server_ip, server_port));
+    if TcpStream::connect_timeout(&target, Duration::from_millis(800)).is_err() {
+        eprintln!("====================================================================");
+        eprintln!(" [CITADEL ERROR] Cannot connect to exam server at {}:{}", server_ip, server_port);
+        eprintln!(" Please start 'citadel-server.exe' first before running the client.");
+        eprintln!(" Kiosk lockdown aborted safely. Normal desktop preserved.");
+        eprintln!("====================================================================");
+        std::thread::sleep(Duration::from_secs(4));
+        return Err(format!("Exam server at {}:{} is not reachable", server_ip, server_port).into());
+    }
+
+    // 2. Initialize security coordinator (prepares secure desktop in background)
+    let mut guard = ClientLockdownGuard::new(server_ip, server_port)
         .map_err(|e| format!("Failed to initialize security guard: {}", e))?;
 
     // 3. Launch isolated full-screen kiosk browser directly on the Secure Desktop
+    //    and verify it is alive before switching physical screen & killing explorer
     let mut kiosk_child = match guard.launch_browser() {
         Ok(child) => child,
         Err(e) => {
-            eprintln!("[CITADEL CLIENT] Could not launch browser kiosk: {:?}", e);
+            eprintln!("[CITADEL CLIENT] Could not launch browser kiosk: {}", e);
+            eprintln!("[CITADEL CLIENT] Lockdown aborted safely. Restoring normal desktop...");
+            std::thread::sleep(Duration::from_secs(3));
             return Ok(());
         }
     };
 
-    // 4. Supervision loop
+    // 4. Supervision loop with dead-process watchdog
+    let mut consecutive_dead_checks = 0;
     loop {
-        // Check if candidate finished exam and browser window closed
+        // Check if candidate finished exam and browser window closed normally
         if let Ok(Some(_status)) = kiosk_child.try_wait() {
+            eprintln!("[CITADEL CLIENT] Exam browser closed. Concluding session...");
             break;
+        }
+
+        // Check if browser process is still alive
+        if !kiosk_child.is_alive() {
+            consecutive_dead_checks += 1;
+            if consecutive_dead_checks >= 6 { // 3 seconds of confirmed dead process
+                eprintln!("[CITADEL CLIENT] Browser window disappeared unexpectedly. Emergency restoring desktop...");
+                break;
+            }
+        } else {
+            consecutive_dead_checks = 0;
         }
 
         // Check if proctor emergency override combination was triggered (Ctrl+Shift+Alt+F12)
         if is_emergency_override_triggered() {
+            eprintln!("[CITADEL CLIENT] Proctor emergency override triggered. Restoring normal desktop...");
             let _ = kiosk_child.kill();
             break;
         }

@@ -2,13 +2,16 @@
 //!
 //! Orchestrates the multi-layered kiosk lockdown architecture:
 //! 1. Failsafe crash and panic handlers
-//! 2. Registry policy hardening (DisableTaskMgr, NoWinKeys, etc.)
-//! 3. Kernel WFP zero-internet network isolation
-//! 4. Explorer shell termination & watchdog
-//! 5. Secure Win32 desktop creation & display switch
-//! 6. System keyboard hook with 5-second health watchdog
-//! 7. Active anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
-//! 8. Clipboard flusher and background process watchdog
+//! 2. Safe deferred desktop preparation (creates isolated desktop in background)
+//! 3. Kiosk browser launch & startup health verification
+//! 4. Full OS-level lockdown engagement ONLY after browser is verified alive:
+//!    - Registry policy hardening (DisableTaskMgr, NoWinKeys, etc.)
+//!    - Kernel WFP zero-internet network isolation
+//!    - Explorer shell termination & watchdog
+//!    - Physical display plane switch to Secure Desktop
+//!    - System keyboard hook with health watchdog
+//!    - Active anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
+//!    - Clipboard flusher and background process watchdog
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -86,23 +89,23 @@ pub fn elevate_self(args: &[String]) -> Result<(), String> {
 }
 
 pub struct ClientLockdownGuard {
-    // Fields are dropped in declaration order:
+    // Fields are dropped in declaration order on exit/panic:
     // 1. Hotkey handle unhooks and stops health watchdog
-    _hotkey_handle: HotkeyLockHandle,
-    // 2. Secure desktop switches back to Default and closes HDESK
+    _hotkey_handle: Option<HotkeyLockHandle>,
+    // 2. Secure desktop switches back to Default desktop and closes HDESK
     _secure_desktop: SecureDesktop,
     // 3. Explorer lock stops watchdog and relaunches explorer.exe
-    _explorer_lock: ExplorerLock,
+    _explorer_lock: Option<ExplorerLock>,
     // 4. Auxiliary shell and input guards drop
-    _taskbar_lock: TaskbarLock,
-    _touchpad_lock: TouchpadLock,
-    _foreground_lock: ForegroundLock,
-    _clipboard_guard: ClipboardGuard,
-    _process_watchdog: ProcessWatchdog,
+    _taskbar_lock: Option<TaskbarLock>,
+    _touchpad_lock: Option<TouchpadLock>,
+    _foreground_lock: Option<ForegroundLock>,
+    _clipboard_guard: Option<ClipboardGuard>,
+    _process_watchdog: Option<ProcessWatchdog>,
     // 5. WFP engine removes kernel firewall rules
-    _wfp_engine: WfpEngine,
+    _wfp_engine: Option<WfpEngine>,
     // 6. Registry lock restores Task Manager, WinKeys, Lock, etc.
-    _registry_lock: RegistryLock,
+    _registry_lock: Option<RegistryLock>,
 
     stop_signal: Arc<AtomicBool>,
     sensor_thread: Option<JoinHandle<()>>,
@@ -112,56 +115,102 @@ pub struct ClientLockdownGuard {
 }
 
 impl ClientLockdownGuard {
-    /// Initializes full-system kiosk lockdown.
-    /// Requires Administrator privilege — fails if elevation is not present.
+    /// Prepares the client lockdown in the background without affecting the user's display.
+    /// Requires Administrator privileges.
     pub fn new(server_ip: Ipv4Addr, server_port: u16) -> Result<Self, String> {
         if !is_elevated() {
             return Err("CITADEL Lockdown requires Administrator privileges to engage kernel network filtering and hardware lock.".to_string());
         }
 
-        // 0. Install failsafe panic & console close crash recovery handlers
+        // Install failsafe panic & console close crash recovery handlers
         install_crash_safety();
 
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
-        // 1. FIRST: Registry Hardening (neutering Task Manager, Lock, Sign-Out before anything else)
-        let registry_lock = RegistryLock::acquire()
-            .map_err(|e| format!("Failed to apply registry security policies: {}", e))?;
-
-        // 2. SECOND: Install WFP Zero-Internet Filter in Windows Kernel
-        let mut wfp_engine = WfpEngine::open_dynamic()
-            .map_err(|e| format!("Failed to open WFP engine: {:?}", e))?;
-
-        wfp_engine.install_college_lan_policy(server_ip, server_port)
-            .map_err(|e| format!("Failed to apply WFP zero-internet firewall rule: {:?}", e))?;
-
-        eprintln!(
-            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
-            server_ip, server_port
-        );
-
-        // 3. THIRD: Kill Explorer shell & start explorer watchdog
-        let explorer_lock = ExplorerLock::acquire();
-
-        // 4. FOURTH: Create and switch to isolated Win32 Secure Desktop
-        let secure_desktop = SecureDesktop::create_and_switch()
+        // Create isolated Win32 Desktop in background (physical display is NOT switched yet)
+        let secure_desktop = SecureDesktop::create()
             .map_err(|e| format!("Failed to create isolated Secure Desktop: {}", e))?;
 
-        // 5. FIFTH: Install Keyboard Hook with Health Watchdog on the Secure Desktop
-        let hotkey_handle = install_hotkey_lock_with_desktop(Some(secure_desktop.handle()))
+        Ok(ClientLockdownGuard {
+            _hotkey_handle: None,
+            _secure_desktop: secure_desktop,
+            _explorer_lock: None,
+            _taskbar_lock: None,
+            _touchpad_lock: None,
+            _foreground_lock: None,
+            _clipboard_guard: None,
+            _process_watchdog: None,
+            _wfp_engine: None,
+            _registry_lock: None,
+            stop_signal,
+            sensor_thread: None,
+            violations,
+            server_ip,
+            server_port,
+        })
+    }
+
+    pub fn server_endpoint(&self) -> String {
+        format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
+    }
+
+    pub fn secure_desktop_name(&self) -> &str {
+        self._secure_desktop.name()
+    }
+
+    /// Spawns the locked kiosk browser directly on the isolated secure desktop plane,
+    /// verifies that the browser process is healthy and active, and ONLY THEN engages
+    /// the full OS lockdown and switches the physical display.
+    ///
+    /// This eliminates blank/black screen situations by ensuring a working render surface
+    /// is already present before any desktop transition.
+    pub fn launch_browser(&mut self) -> Result<KioskProcess, String> {
+        let endpoint = self.server_endpoint();
+
+        // 1. Spawn browser directly onto the background secure desktop plane
+        eprintln!("[CITADEL CLIENT] Launching exam kiosk browser onto secure desktop...");
+        let kiosk_child = launch_kiosk_on_desktop(&endpoint, Some(self.secure_desktop_name()))?;
+
+        // 2. Browser verified alive — now engage registry policies (neutering Task Manager, Lock, etc.)
+        let registry_lock = RegistryLock::acquire()
+            .map_err(|e| format!("Failed to apply registry security policies: {}", e))?;
+        self._registry_lock = Some(registry_lock);
+
+        // 3. Install WFP Zero-Internet Filter in Windows Kernel
+        let mut wfp_engine = WfpEngine::open_dynamic()
+            .map_err(|e| format!("Failed to open WFP engine: {:?}", e))?;
+        wfp_engine.install_college_lan_policy(self.server_ip, self.server_port)
+            .map_err(|e| format!("Failed to apply WFP zero-internet firewall rule: {:?}", e))?;
+        eprintln!(
+            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
+            self.server_ip, self.server_port
+        );
+        self._wfp_engine = Some(wfp_engine);
+
+        // 4. Suppress Windows Explorer shell
+        self._explorer_lock = Some(ExplorerLock::acquire());
+
+        // 5. Seamlessly switch physical screen output to the Secure Desktop (browser already rendered!)
+        self._secure_desktop.switch_to_secure()
+            .map_err(|e| format!("Failed to switch physical display to Secure Desktop: {}", e))?;
+
+        // 6. Install Keyboard Hook on the active Secure Desktop
+        let hotkey_handle = install_hotkey_lock_with_desktop(Some(self._secure_desktop.handle()))
             .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
+        self._hotkey_handle = Some(hotkey_handle);
 
-        // 6. Auxiliary input & shell guards
-        let taskbar_lock = TaskbarLock::acquire();
-        let touchpad_lock = TouchpadLock::acquire();
-        let foreground_lock = ForegroundLock::start();
-        let clipboard_guard = ClipboardGuard::start();
-        let process_watchdog = ProcessWatchdog::start(violations.clone());
+        // 7. Auxiliary input & shell guards
+        self._taskbar_lock = Some(TaskbarLock::acquire());
+        self._touchpad_lock = Some(TouchpadLock::acquire());
+        self._foreground_lock = Some(ForegroundLock::start());
+        self._clipboard_guard = Some(ClipboardGuard::start());
+        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone()));
 
-        // 7. Background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
-        let stop_clone = stop_signal.clone();
-        let viol_clone = violations.clone();
+        // 8. Background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
+        let stop_clone = self.stop_signal.clone();
+        let viol_clone = self.violations.clone();
+        let server_port = self.server_port;
         let sensor_thread = thread::spawn(move || {
             let allowed_ports = [server_port];
             while !stop_clone.load(Ordering::Relaxed) {
@@ -200,38 +249,9 @@ impl ClientLockdownGuard {
                 thread::sleep(Duration::from_secs(2));
             }
         });
+        self.sensor_thread = Some(sensor_thread);
 
-        Ok(ClientLockdownGuard {
-            _hotkey_handle: hotkey_handle,
-            _secure_desktop: secure_desktop,
-            _explorer_lock: explorer_lock,
-            _taskbar_lock: taskbar_lock,
-            _touchpad_lock: touchpad_lock,
-            _foreground_lock: foreground_lock,
-            _clipboard_guard: clipboard_guard,
-            _process_watchdog: process_watchdog,
-            _wfp_engine: wfp_engine,
-            _registry_lock: registry_lock,
-            stop_signal,
-            sensor_thread: Some(sensor_thread),
-            violations,
-            server_ip,
-            server_port,
-        })
-    }
-
-    pub fn server_endpoint(&self) -> String {
-        format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
-    }
-
-    pub fn secure_desktop_name(&self) -> &str {
-        self._secure_desktop.name()
-    }
-
-    /// Spawns the locked kiosk browser directly on the isolated secure desktop plane.
-    pub fn launch_browser(&self) -> Result<KioskProcess, String> {
-        let endpoint = self.server_endpoint();
-        launch_kiosk_on_desktop(&endpoint, Some(self.secure_desktop_name()))
+        Ok(kiosk_child)
     }
 
     pub fn get_violations(&self) -> Vec<String> {

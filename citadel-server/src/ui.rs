@@ -673,12 +673,14 @@ pub fn render_portal_html() -> &'static str {
     // EXAM LOGIC & COMMUNICATION
     // =========================================================================
 
+    const fullQuestionsCache = {};
+
     async function init() {
       try {
         const res = await fetch('/api/v1/questions');
         questions = await res.json();
         renderTabs();
-        loadQuestion(0);
+        await loadQuestion(0);
         startTimer();
       } catch (err) {
         document.getElementById('results-console').innerHTML = `<span style="color: #ef4444;">Error connecting to CITADEL Exam Server: ${err.message}</span>`;
@@ -689,20 +691,21 @@ pub fn render_portal_html() -> &'static str {
       const tabsHeader = document.getElementById('question-tabs');
       tabsHeader.innerHTML = questions.map((q, idx) => `
         <button class="tab-btn ${idx === 0 ? 'active' : ''}" onclick="loadQuestion(${idx})">
-          <span>Q${q.number}</span>
-          <span class="badge-points">${q.points} pts</span>
+          <span>Q${q.number || idx + 1}</span>
+          <span class="badge-points">${q.points || 0} pts</span>
         </button>
       `).join('');
     }
 
-    function loadQuestion(idx) {
+    async function loadQuestion(idx) {
       // Save current code
       if (questions[currentQIndex]) {
         codeStorage[`${questions[currentQIndex].id}_${currentLang}`] = document.getElementById('code-editor').value;
       }
 
       currentQIndex = idx;
-      const q = questions[idx];
+      const summary = questions[idx];
+      if (!summary) return;
 
       // Update active tab style
       const tabBtns = document.querySelectorAll('.tab-btn');
@@ -710,9 +713,23 @@ pub fn render_portal_html() -> &'static str {
         btn.classList.toggle('active', i === idx);
       });
 
+      // Fetch full question if not already in cache
+      if (!fullQuestionsCache[summary.id]) {
+        try {
+          const res = await fetch(`/api/v1/questions/${summary.id}`);
+          if (res.ok) {
+            fullQuestionsCache[summary.id] = await res.json();
+          }
+        } catch (e) {
+          console.error("Failed to fetch full question:", e);
+        }
+      }
+
+      const q = fullQuestionsCache[summary.id] || summary;
+
       // Render question content
       const diffClass = q.difficulty === 'Easy' ? 'diff-easy' : (q.difficulty === 'Medium' ? 'diff-medium' : 'diff-hard');
-      const tagsHtml = q.tags.map(t => `<span class="tag-item">${t}</span>`).join('');
+      const tagsHtml = (q.tags || []).map(t => `<span class="tag-item">${t}</span>`).join('');
 
       let samplesHtml = '';
       if (q.sample_cases && q.sample_cases.length > 0) {
@@ -728,30 +745,32 @@ pub fn render_portal_html() -> &'static str {
         `).join('');
       }
 
+      const constraintsHtml = (q.constraints || []).map(c => `<li style="margin-bottom: 4px;"><code>${c}</code></li>`).join('');
+
       document.getElementById('question-body').innerHTML = `
         <div class="q-meta">
-          <span class="badge-diff ${diffClass}">${q.difficulty}</span>
-          <span class="badge-points">${q.points} Points</span>
+          <span class="badge-diff ${diffClass}">${q.difficulty || 'Easy'}</span>
+          <span class="badge-points">${q.points || 0} Points</span>
           ${tagsHtml}
         </div>
-        <h2 class="q-title">${q.number}. ${q.title}</h2>
-        <div class="q-desc">${q.description}</div>
+        <h2 class="q-title">${q.number || idx + 1}. ${q.title}</h2>
+        <div class="q-desc">${q.description || 'Loading question description...'}</div>
 
         <div class="section-title">Input Format</div>
-        <div class="q-desc">${q.input_format}</div>
+        <div class="q-desc">${q.input_format || ''}</div>
 
         <div class="section-title">Output Format</div>
-        <div class="q-desc">${q.output_format}</div>
+        <div class="q-desc">${q.output_format || ''}</div>
 
         <div class="section-title">Constraints</div>
         <ul style="padding-left: 20px; font-size: 13px; color: #cbd5e1; margin-bottom: 16px;">
-          ${q.constraints.map(c => `<li style="margin-bottom: 4px;"><code>${c}</code></li>`).join('')}
+          ${constraintsHtml}
         </ul>
 
         ${samplesHtml}
       `;
 
-      // Restore code
+      // Restore code or set starter template
       const storageKey = `${q.id}_${currentLang}`;
       if (codeStorage[storageKey]) {
         document.getElementById('code-editor').value = codeStorage[storageKey];
@@ -764,7 +783,9 @@ pub fn render_portal_html() -> &'static str {
 
     function changeLanguage() {
       currentLang = document.getElementById('lang-selector').value;
-      const q = questions[currentQIndex];
+      const summary = questions[currentQIndex];
+      if (!summary) return;
+      const q = fullQuestionsCache[summary.id] || summary;
       const storageKey = `${q.id}_${currentLang}`;
       if (codeStorage[storageKey]) {
         document.getElementById('code-editor').value = codeStorage[storageKey];

@@ -518,7 +518,9 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
          --no-first-run --no-default-browser-check --disable-pinch --disable-context-menu \
          --overscroll-history-navigation=0 --disable-extensions --disable-component-update \
          --disable-sync --disable-background-networking --disable-domain-reliability \
-         --disable-speech-api \
+         --disable-speech-api --disable-gpu --disable-gpu-compositing --disable-software-rasterizer \
+         --disable-d3d11 --disable-accelerated-2d-canvas \
+         --no-service-autorun --disable-background-mode --disable-backgrounding-occluded-windows \
          --disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub \
          --user-agent=\"CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)\" \
          \"{}\"",
@@ -535,7 +537,12 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
 
     let mut _wide_desktop = Vec::new();
     if let Some(dname) = desktop_name {
-        _wide_desktop = to_wide_str(dname);
+        let full_dname = if dname.contains('\\') {
+            dname.to_string()
+        } else {
+            format!("WinSta0\\{}", dname)
+        };
+        _wide_desktop = to_wide_str(&full_dname);
         si.lpDesktop = PWSTR(_wide_desktop.as_mut_ptr());
     }
 
@@ -556,11 +563,25 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         ).map_err(|e| format!("Failed to spawn kiosk browser process: {:?}", e))?;
     }
 
-    Ok(KioskProcess {
+    let kiosk = KioskProcess {
         h_process: pi.hProcess,
         h_thread: pi.hThread,
         pid: pi.dwProcessId,
-    })
+    };
+
+    // Verify browser did not terminate immediately on launch (e.g. GPU crash or delegation exit)
+    std::thread::sleep(Duration::from_millis(1500));
+    unsafe {
+        let mut exit_code = 0u32;
+        if GetExitCodeProcess(kiosk.h_process, &mut exit_code).is_ok() && exit_code != 259 {
+            return Err(format!(
+                "Browser process exited immediately after launch with code {}.                  Kiosk cannot render on this display configuration.",
+                exit_code
+            ));
+        }
+    }
+
+    Ok(kiosk)
 }
 
 pub fn launch_kiosk(target_url: &str) -> Result<KioskProcess, String> {
