@@ -1,5 +1,6 @@
-﻿[workspace]
+[workspace]
 members = [
     "guard-*",
+    "citadel-server",
 ]
 resolver = "2"
