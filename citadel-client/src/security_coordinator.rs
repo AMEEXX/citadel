@@ -32,7 +32,7 @@ use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 use crate::crash_handler::install_crash_safety;
 use crate::explorer_lock::ExplorerLock;
-use crate::hotkey_lock::{install_hotkey_lock_with_desktop, HotkeyLockHandle};
+use crate::hotkey_lock::{install_hotkey_lock, install_hotkey_lock_with_desktop, HotkeyLockHandle};
 use crate::kiosk_window::{
     launch_kiosk_on_desktop, ClipboardGuard, ForegroundLock, KioskProcess, ProcessWatchdog,
     TaskbarLock, TouchpadLock,
@@ -92,8 +92,8 @@ pub struct ClientLockdownGuard {
     // Fields are dropped in declaration order on exit/panic:
     // 1. Hotkey handle unhooks and stops health watchdog
     _hotkey_handle: Option<HotkeyLockHandle>,
-    // 2. Secure desktop switches back to Default desktop and closes HDESK
-    _secure_desktop: SecureDesktop,
+    // 2. Secure desktop switches back to Default desktop and closes HDESK (if used)
+    _secure_desktop: Option<SecureDesktop>,
     // 3. Explorer lock stops watchdog and relaunches explorer.exe
     _explorer_lock: Option<ExplorerLock>,
     // 4. Auxiliary shell and input guards drop
@@ -118,19 +118,24 @@ impl ClientLockdownGuard {
     /// Prepares the client lockdown in the background without affecting the user's display.
     /// Requires Administrator privileges.
     pub fn new(server_ip: Ipv4Addr, server_port: u16) -> Result<Self, String> {
-        if !is_elevated() {
-            return Err("CITADEL Lockdown requires Administrator privileges to engage kernel network filtering and hardware lock.".to_string());
-        }
+        Self::new_with_mode(server_ip, server_port, false)
+    }
 
-        // Install failsafe panic & console close crash recovery handlers
+    pub fn new_with_mode(server_ip: Ipv4Addr, server_port: u16, use_isolated_desktop: bool) -> Result<Self, String> {
         install_crash_safety();
 
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
-        // Create isolated Win32 Desktop in background (physical display is NOT switched yet)
-        let secure_desktop = SecureDesktop::create()
-            .map_err(|e| format!("Failed to create isolated Secure Desktop: {}", e))?;
+        let secure_desktop = if use_isolated_desktop {
+            if is_elevated() {
+                Some(SecureDesktop::create().map_err(|e| format!("Failed to create isolated Secure Desktop: {}", e))?)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
 
         Ok(ClientLockdownGuard {
             _hotkey_handle: None,
@@ -155,50 +160,47 @@ impl ClientLockdownGuard {
         format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
     }
 
-    pub fn secure_desktop_name(&self) -> &str {
-        self._secure_desktop.name()
+    pub fn secure_desktop_name(&self) -> Option<&str> {
+        self._secure_desktop.as_ref().map(|sd| sd.name())
     }
 
-    /// Spawns the locked kiosk browser directly on the isolated secure desktop plane,
-    /// verifies that the browser process is healthy and active, and ONLY THEN engages
-    /// the full OS lockdown and switches the physical display.
-    ///
-    /// This eliminates blank/black screen situations by ensuring a working render surface
-    /// is already present before any desktop transition.
     pub fn launch_browser(&mut self) -> Result<KioskProcess, String> {
         let endpoint = self.server_endpoint();
 
-        // 1. Spawn browser directly onto the background secure desktop plane
-        eprintln!("[CITADEL CLIENT] Launching exam kiosk browser onto secure desktop...");
-        let kiosk_child = launch_kiosk_on_desktop(&endpoint, Some(self.secure_desktop_name()))?;
+        eprintln!("[CITADEL CLIENT] Launching exam kiosk browser window...");
+        let kiosk_child = launch_kiosk_on_desktop(&endpoint, self.secure_desktop_name())?;
 
-        // 2. Browser verified alive — now engage registry policies (neutering Task Manager, Lock, etc.)
-        let registry_lock = RegistryLock::acquire()
-            .map_err(|e| format!("Failed to apply registry security policies: {}", e))?;
-        self._registry_lock = Some(registry_lock);
+        // 2. If elevated, engage registry policies & kernel WFP firewall
+        if is_elevated() {
+            if let Ok(registry_lock) = RegistryLock::acquire() {
+                self._registry_lock = Some(registry_lock);
+            }
+            if let Ok(mut wfp_engine) = WfpEngine::open_dynamic() {
+                if wfp_engine.install_college_lan_policy(self.server_ip, self.server_port).is_ok() {
+                    eprintln!(
+                        "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
+                        self.server_ip, self.server_port
+                    );
+                    self._wfp_engine = Some(wfp_engine);
+                }
+            }
+        }
 
-        // 3. Install WFP Zero-Internet Filter in Windows Kernel
-        let mut wfp_engine = WfpEngine::open_dynamic()
-            .map_err(|e| format!("Failed to open WFP engine: {:?}", e))?;
-        wfp_engine.install_college_lan_policy(self.server_ip, self.server_port)
-            .map_err(|e| format!("Failed to apply WFP zero-internet firewall rule: {:?}", e))?;
-        eprintln!(
-            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
-            self.server_ip, self.server_port
-        );
-        self._wfp_engine = Some(wfp_engine);
-
-        // 4. Suppress Windows Explorer shell
-        self._explorer_lock = Some(ExplorerLock::acquire());
-
-        // 5. Seamlessly switch physical screen output to the Secure Desktop (browser already rendered!)
-        self._secure_desktop.switch_to_secure()
-            .map_err(|e| format!("Failed to switch physical display to Secure Desktop: {}", e))?;
-
-        // 6. Install Keyboard Hook on the active Secure Desktop
-        let hotkey_handle = install_hotkey_lock_with_desktop(Some(self._secure_desktop.handle()))
-            .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
-        self._hotkey_handle = Some(hotkey_handle);
+        // 3. Desktop and shell handling
+        if let Some(ref mut sd) = self._secure_desktop {
+            self._explorer_lock = Some(ExplorerLock::acquire());
+            sd.switch_to_secure()
+                .map_err(|e| format!("Failed to switch physical display to Secure Desktop: {}", e))?;
+            let hotkey_handle = install_hotkey_lock_with_desktop(Some(sd.handle()))
+                .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
+            self._hotkey_handle = Some(hotkey_handle);
+        } else {
+            // Interactive Kiosk Mode (Safe, instant display, no black screen)
+            self._taskbar_lock = Some(TaskbarLock::acquire());
+            if let Ok(hotkey_handle) = install_hotkey_lock() {
+                self._hotkey_handle = Some(hotkey_handle);
+            }
+        }
 
         // 7. Auxiliary input & shell guards
         self._taskbar_lock = Some(TaskbarLock::acquire());

@@ -28,15 +28,13 @@ fn resolve_server_endpoint(preferred_ip: Ipv4Addr, port: u16) -> Ipv4Addr {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
-    // 1. Mandatory Administrator Privilege Check & Auto-Elevation Prompt
+    // 1. Administrator Privilege Check (auto-elevate if possible, otherwise continue in safe user mode)
     if !is_elevated() {
         let forward_args: Vec<String> = args.iter().skip(1).cloned().collect();
-        if let Err(e) = elevate_self(&forward_args) {
-            eprintln!("[FATAL ERROR] {}", e);
-            std::thread::sleep(Duration::from_secs(3));
-            std::process::exit(1);
+        if let Ok(()) = elevate_self(&forward_args) {
+            return Ok(());
         }
-        return Ok(());
+        eprintln!("[CITADEL CLIENT] Running in Safe User Kiosk Mode (WFP kernel network lock requires elevation).");
     }
 
     let default_server_ip: Ipv4Addr = args
@@ -65,8 +63,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err(format!("Exam server at {}:{} is not reachable", server_ip, server_port).into());
     }
 
-    // 2. Initialize security coordinator (prepares secure desktop in background)
-    let mut guard = ClientLockdownGuard::new(server_ip, server_port)
+    let use_isolated_desktop = args.iter().any(|a| a == "--isolated-desktop")
+        || std::env::var("CITADEL_ISOLATED_DESKTOP").map(|v| v == "1").unwrap_or(false);
+
+    // 2. Initialize security coordinator
+    let mut guard = ClientLockdownGuard::new_with_mode(server_ip, server_port, use_isolated_desktop)
         .map_err(|e| format!("Failed to initialize security guard: {}", e))?;
 
     // 3. Launch isolated full-screen kiosk browser directly on the Secure Desktop
