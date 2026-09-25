@@ -1,11 +1,16 @@
 //! CITADEL Client Security Coordinator
 //!
-//! Orchestrates the client-side lockdown lifecycle:
+//! Orchestrates the complete client-side kiosk lockdown lifecycle:
 //! 1. UAC Administrator Elevation enforcement
-//! 2. WFP dynamic network isolation (zero internet, college server only)
-//! 3. Low-level hotkey suppression (blocks Alt-Tab, Win, Alt-F4)
-//! 4. Background anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
-//! 5. Safe RAII cleanup upon exit
+//! 2. WFP dynamic kernel network isolation (zero internet, college server only)
+//! 3. Low-level hotkey suppression (blocks Alt-Tab, Win Key, Ctrl-Esc, Alt-F4, etc.)
+//! 4. Taskbar and Start button lock (continuous hiding and event disabling)
+//! 5. Touchpad gesture suppression (3-finger and 4-finger swipes disabled via registry)
+//! 6. Foreground window dominance (pins kiosk as HWND_TOPMOST)
+//! 7. System clipboard isolation guard (periodic wiping of clipboard)
+//! 8. Process watchdog (terminates blacklisted cheat tools)
+//! 9. Background anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
+//! 10. Safe RAII cleanup upon exit
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -23,6 +28,9 @@ use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 use crate::hotkey_lock::{install_hotkey_lock, HotkeyLockHandle};
+use crate::kiosk_window::{
+    ClipboardGuard, ForegroundLock, ProcessWatchdog, TaskbarLock, TouchpadLock,
+};
 
 /// Checks if the current process is running with elevated Administrator privileges.
 pub fn is_elevated() -> bool {
@@ -76,6 +84,11 @@ pub fn elevate_self(args: &[String]) -> Result<(), String> {
 pub struct ClientLockdownGuard {
     _wfp_engine: WfpEngine,
     _hotkey_handle: HotkeyLockHandle,
+    _taskbar_lock: TaskbarLock,
+    _touchpad_lock: TouchpadLock,
+    _foreground_lock: ForegroundLock,
+    _clipboard_guard: ClipboardGuard,
+    _process_watchdog: ProcessWatchdog,
     stop_signal: Arc<AtomicBool>,
     sensor_thread: Option<JoinHandle<()>>,
     violations: Arc<Mutex<Vec<String>>>,
@@ -106,13 +119,33 @@ impl ClientLockdownGuard {
             server_ip, server_port
         );
 
-        // 2. Install Hotkey Suppression Hook
+        // 2. Install Hotkey Suppression Hook (Win key, Alt-Tab, Ctrl-Esc, PrtSc, Alt-F4, etc.)
         let hotkey_handle = install_hotkey_lock()
             .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
 
-        eprintln!("[CITADEL CLIENT] SYSTEM KEYBOARD HOOK ACTIVE: Alt-Tab, Win Key, Ctrl-Esc intercepted.");
+        eprintln!("[CITADEL CLIENT] SYSTEM KEYBOARD HOOK ACTIVE: Alt-Tab, Win Key, Ctrl-Esc, PrtSc intercepted.");
 
-        // 3. Start background anti-cheat watchdog
+        // 3. Lock Taskbar and Start Menu (hide & disable click events)
+        let taskbar_lock = TaskbarLock::acquire();
+        eprintln!("[CITADEL CLIENT] TASKBAR LOCK ACTIVE: Shell taskbar and start menu suppressed.");
+
+        // 4. Suppress Precision Touchpad 3-finger and 4-finger gestures
+        let touchpad_lock = TouchpadLock::acquire();
+        eprintln!("[CITADEL CLIENT] TOUCHPAD LOCK ACTIVE: Multi-finger gestures suppressed.");
+
+        // 5. Enforce Foreground Window Dominance
+        let foreground_lock = ForegroundLock::start();
+        eprintln!("[CITADEL CLIENT] FOREGROUND LOCK ACTIVE: Kiosk pinned to HWND_TOPMOST.");
+
+        // 6. Enforce Clipboard Isolation
+        let clipboard_guard = ClipboardGuard::start();
+        eprintln!("[CITADEL CLIENT] CLIPBOARD GUARD ACTIVE: System clipboard flusher running.");
+
+        // 7. Start Process Watchdog (killing blacklisted cheat processes)
+        let process_watchdog = ProcessWatchdog::start(violations.clone());
+        eprintln!("[CITADEL CLIENT] PROCESS WATCHDOG ACTIVE: Blacklisted process killer running.");
+
+        // 8. Start background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
         let stop_clone = stop_signal.clone();
         let viol_clone = violations.clone();
         let sensor_thread = thread::spawn(move || {
@@ -157,6 +190,11 @@ impl ClientLockdownGuard {
         Ok(ClientLockdownGuard {
             _wfp_engine: wfp_engine,
             _hotkey_handle: hotkey_handle,
+            _taskbar_lock: taskbar_lock,
+            _touchpad_lock: touchpad_lock,
+            _foreground_lock: foreground_lock,
+            _clipboard_guard: clipboard_guard,
+            _process_watchdog: process_watchdog,
             stop_signal,
             sensor_thread: Some(sensor_thread),
             violations,
@@ -176,7 +214,7 @@ impl ClientLockdownGuard {
 
 impl Drop for ClientLockdownGuard {
     fn drop(&mut self) {
-        eprintln!("[CITADEL CLIENT] Releasing client lockdown and restoring normal network...");
+        eprintln!("[CITADEL CLIENT] Releasing client lockdown and restoring normal desktop & network...");
         self.stop_signal.store(true, Ordering::Relaxed);
         if let Some(thread) = self.sensor_thread.take() {
             let _ = thread.join();

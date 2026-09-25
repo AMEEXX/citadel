@@ -190,3 +190,107 @@ async fn test_secured_portal_html_serves_exam() {
     assert!(html.contains("code-editor"));
     assert!(html.contains("results-console"));
 }
+
+
+#[tokio::test]
+async fn test_proctor_metrics_endpoint() {
+    let app = build_app();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/proctor/metrics")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+
+    assert!(json.get("total_candidates").is_some());
+    assert!(json.get("active_candidates").is_some());
+    assert!(json.get("recent_violations").is_some());
+}
+
+#[tokio::test]
+async fn test_integrity_event_and_heartbeat() {
+    let app = build_app();
+
+    // 1. Send heartbeat
+    let hb_payload = json!({
+        "candidate_id": "CAND-TEST-999",
+        "active_question": 1,
+        "is_window_focused": true
+    });
+    let hb_res = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrity/heartbeat")
+                .header("Content-Type", "application/json")
+                .body(Body::from(hb_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(hb_res.status(), StatusCode::OK);
+
+    // 2. Report focus loss violation
+    let evt_payload = json!({
+        "candidate_id": "CAND-TEST-999",
+        "event_type": "TAB_SWITCHED_OR_MINIMIZED",
+        "details": "Candidate attempted to switch away from kiosk",
+        "severity": "HIGH"
+    });
+    let evt_res = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrity/event")
+                .header("Content-Type", "application/json")
+                .body(Body::from(evt_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(evt_res.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn test_hidden_test_cases_evaluation() {
+    let app = build_app();
+    // Final submission should test both sample and hidden test cases
+    let submission_payload = json!({
+        "question_id": "q1-token-bucket",
+        "language": "python",
+        "source_code": "def solve(): pass
+print('PASS')
+",
+        "is_sample_run": false,
+        "candidate_id": "CAND-TEST-999"
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/submissions")
+                .header("Content-Type", "application/json")
+                .body(Body::from(submission_payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let sub: SubmissionResponse = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(sub.status, "Accepted");
+    assert_eq!(sub.score, 30);
+    // Total cases = 2 sample + 3 hidden = 5
+    assert_eq!(sub.total_cases, 5);
+    assert_eq!(sub.passed_cases, 5);
+}

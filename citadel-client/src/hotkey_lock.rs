@@ -1,14 +1,15 @@
 //! CITADEL Client Module: System Hotkey Suppression
 //!
-//! Intercepts and drops escape hotkeys (Alt+Tab, Win Key, Ctrl+Esc, Alt+F4)
-//! to prevent the candidate from leaving the kiosk assessment window.
+//! Intercepts and drops escape hotkeys (Alt+Tab, Win Key, Win combinations,
+//! Ctrl+Esc, Alt+F4, PrintScreen, browser escape shortcuts, and Task View triggers)
+//! to prevent the candidate from leaving or breaking out of the kiosk assessment window.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-use windows::Win32::System::Threading::{GetCurrentThreadId};
+use windows::Win32::System::Threading::GetCurrentThreadId;
 use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetMessageW, PostThreadMessageW, SetWindowsHookExW,
@@ -23,13 +24,14 @@ pub enum KeyAction {
 }
 
 /// Pure evaluation function for system keystroke filtering.
-/// Distinguishes between normal coding inputs (Tab, Shift, Letters, Digits)
+/// Distinguishes between normal coding inputs (letters, digits, symbols, Tab, Enter, Backspace, Arrows)
 /// and system breakout combinations.
 pub fn evaluate_keystroke(
     vk: u32,
     flags: u32,
     ctrl_pressed: bool,
     shift_pressed: bool,
+    win_pressed: bool,
 ) -> KeyAction {
     let alt_down = (flags & 0x20) != 0;
 
@@ -38,33 +40,77 @@ pub fn evaluate_keystroke(
         return KeyAction::EmergencyOverride;
     }
 
-    // 1. Suppress Windows Keys (LWIN: 0x5B, RWIN: 0x5C)
+    // 1. Suppress ANY key combination when the Windows key is down (Win+Tab, Win+D, Win+R, Win+E, Win+X, Win+V, etc.)
+    if win_pressed {
+        return KeyAction::Suppress;
+    }
+
+    // 2. Suppress Windows Keys themselves (LWIN: 0x5B, RWIN: 0x5C)
     if vk == 0x5B || vk == 0x5C {
         return KeyAction::Suppress;
     }
 
-    // 2. Suppress Alt + Tab (VK_TAB: 0x09 with Alt)
-    if vk == 0x09 && alt_down {
+    // 3. Suppress Application / Context Menu key (VK_APPS: 0x5D)
+    if vk == 0x5D {
         return KeyAction::Suppress;
     }
 
-    // 3. Suppress Alt + Escape (VK_ESCAPE: 0x1B with Alt)
-    if vk == 0x1B && alt_down {
+    // 4. Suppress PrintScreen / Screen Capture (VK_SNAPSHOT: 0x2C)
+    if vk == 0x2C {
         return KeyAction::Suppress;
     }
 
-    // 4. Suppress Ctrl + Escape (VK_ESCAPE: 0x1B with Ctrl)
-    if vk == 0x1B && ctrl_pressed {
-        return KeyAction::Suppress;
+    // 5. Suppress Alt-based system switching combinations
+    if alt_down {
+        // Alt + Tab (0x09)
+        if vk == 0x09 {
+            return KeyAction::Suppress;
+        }
+        // Alt + Escape (0x1B)
+        if vk == 0x1B {
+            return KeyAction::Suppress;
+        }
+        // Alt + F4 (0x73)
+        if vk == 0x73 {
+            return KeyAction::Suppress;
+        }
+        // Alt + Space (0x20 - Window System Menu)
+        if vk == 0x20 {
+            return KeyAction::Suppress;
+        }
+        // Alt + Enter (0x0D - Window property toggle)
+        if vk == 0x0D {
+            return KeyAction::Suppress;
+        }
     }
 
-    // 5. Suppress Alt + F4 (VK_F4: 0x73 with Alt)
-    if vk == 0x73 && alt_down {
-        return KeyAction::Suppress;
+    // 6. Suppress Ctrl-based system and browser escape combinations
+    if ctrl_pressed {
+        // Ctrl + Escape (0x1B - Start Menu) or Ctrl + Shift + Escape (Task Manager)
+        if vk == 0x1B {
+            return KeyAction::Suppress;
+        }
+        // Browser navigation shortcuts:
+        // N (0x4E - New Window), T (0x54 - New Tab), W (0x57 - Close Window/Tab),
+        // J (0x4A - Downloads), H (0x48 - History), O (0x4F - Open File),
+        // L (0x4C - Address Bar), U (0x55 - View Source), P (0x50 - Print), S (0x53 - Save)
+        match vk {
+            0x4E | 0x54 | 0x57 | 0x4A | 0x48 | 0x4F | 0x4C | 0x55 | 0x50 | 0x53 => {
+                return KeyAction::Suppress;
+            }
+            _ => {}
+        }
     }
 
-    // Normal typing, Enter, Backspace, Arrow keys, and code editor Tab are Allowed!
-    KeyAction::Allow
+    // 7. Suppress Function keys used for browser controls
+    match vk {
+        0x70 => KeyAction::Suppress, // F1: Help / Support window
+        0x72 => KeyAction::Suppress, // F3: Find in page
+        0x74 => KeyAction::Suppress, // F5: Reload exam page
+        0x7A => KeyAction::Suppress, // F11: Fullscreen toggle
+        0x7B => KeyAction::Suppress, // F12: DevTools
+        _ => KeyAction::Allow,
+    }
 }
 
 static EMERGENCY_OVERRIDE_TRIGGERED: AtomicBool = AtomicBool::new(false);
@@ -87,8 +133,9 @@ unsafe extern "system" fn hotkey_hook_proc(
         let kbd = *(lparam.0 as *const KBDLLHOOKSTRUCT);
         let ctrl_pressed = (GetAsyncKeyState(0x11) as i16) < 0; // VK_CONTROL
         let shift_pressed = (GetAsyncKeyState(0x10) as i16) < 0; // VK_SHIFT
+        let win_pressed = (GetAsyncKeyState(0x5B) as i16) < 0 || (GetAsyncKeyState(0x5C) as i16) < 0; // VK_LWIN / VK_RWIN
 
-        match evaluate_keystroke(kbd.vkCode, kbd.flags.0, ctrl_pressed, shift_pressed) {
+        match evaluate_keystroke(kbd.vkCode, kbd.flags.0, ctrl_pressed, shift_pressed, win_pressed) {
             KeyAction::Suppress => {
                 // Drop the hotkey: return 1 so Windows does not process it
                 return LRESULT(1);

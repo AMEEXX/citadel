@@ -1,9 +1,8 @@
-﻿use std::net::Ipv4Addr;
+use std::net::Ipv4Addr;
 use std::time::Duration;
 
 use citadel_client::{
     elevate_self, is_elevated, is_emergency_override_triggered, launch_kiosk, ClientLockdownGuard,
-    TaskbarLock,
 };
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -48,20 +47,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!(" [TARGET SERVER]  http://{}:{}", server_ip, server_port);
     println!(" [FIREWALL]       WFP Kernel Filter: ALL PUBLIC INTERNET DROPPED");
     println!(" [TASKBAR]        Windows Taskbar and Start Menu: HIDDEN & LOCKED");
-    println!(" [SYSTEM KEYS]    Alt-Tab, Win Key, Ctrl-Esc, Alt-F4: SUPPRESSED");
+    println!(" [GESTURES]       Touchpad 3-Finger & 4-Finger Swipes: DISABLED");
+    println!(" [SYSTEM KEYS]    Alt-Tab, Win Key, Ctrl-Esc, Alt-F4, PrtSc: SUPPRESSED");
+    println!(" [CLIPBOARD]      System Clipboard: MONITORED & PERIODICALLY WIPED");
     println!(" [PROCTOR RESET]  Ctrl + Shift + Alt + F12 (Emergency Override)");
     println!("========================================================================");
 
-    // 2. Hide Windows Taskbar and Start button
-    let _taskbar_lock = TaskbarLock::acquire();
-
-    // 3. Initialize security coordinator (WFP kernel network cut-off, hotkey lock, anti-cheat sensors)
+    // 2. Initialize comprehensive security coordinator
+    // (WFP kernel network cut-off, hotkey lock, taskbar lock, touchpad lock,
+    //  foreground dominance, clipboard guard, process watchdog, anti-cheat sensors)
     let guard = ClientLockdownGuard::new(server_ip, server_port)
         .map_err(|e| format!("Failed to initialize security guard: {}", e))?;
 
     let target_url = guard.server_endpoint();
 
-    // 4. Launch isolated full-screen kiosk browser
+    // 3. Launch isolated full-screen kiosk browser
     let mut kiosk_child = match launch_kiosk(&target_url) {
         Ok(child) => child,
         Err(e) => {
@@ -73,7 +73,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("[CITADEL CLIENT] Assessment active. Candidate screen locked.");
 
-    // 5. Supervision loop
+    // 4. Supervision loop
     loop {
         // Check if candidate closed browser after finishing exam
         if let Ok(Some(status)) = kiosk_child.try_wait() {
@@ -91,13 +91,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::thread::sleep(Duration::from_millis(500));
     }
 
-    // 6. Dropping `guard` releases WFP filters and unhooks all keyboard hooks
+    // 5. Dropping `guard` releases WFP filters, unhooks hotkeys, restores taskbar,
+    //    restores touchpad registry settings, and terminates sensor threads.
     drop(guard);
-    // Dropping `_taskbar_lock` restores the Windows taskbar and Start button
-    drop(_taskbar_lock);
 
     println!("========================================================================");
-    println!(" [CLEANUP] Lockdown released. Normal networking & keyboard restored.");
+    println!(" [CLEANUP] Lockdown released. Normal desktop & networking restored.");
     println!("========================================================================");
 
     Ok(())

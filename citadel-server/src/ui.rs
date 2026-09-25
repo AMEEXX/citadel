@@ -41,7 +41,6 @@ pub fn render_portal_html() -> &'static str {
       -webkit-font-smoothing: antialiased;
     }
 
-    
     /* SECURITY TOAST NOTIFICATION */
     #security-toast {
       display: none;
@@ -66,7 +65,7 @@ pub fn render_portal_html() -> &'static str {
       to { transform: translate(-50%, 0); opacity: 1; }
     }
 
-    /* SECURITY BLUR ALERT BANNER */
+    /* SECURITY BLUR / VISIBILITY ALERT BANNER */
     #blur-warning {
       display: none;
       position: fixed;
@@ -75,14 +74,14 @@ pub fn render_portal_html() -> &'static str {
       color: white;
       font-weight: 700;
       font-size: 13px;
-      padding: 8px 16px;
+      padding: 10px 16px;
       text-align: center;
       z-index: 10000;
       box-shadow: 0 4px 20px rgba(220, 38, 38, 0.6);
       animation: flash 0.5s infinite alternate;
     }
     @keyframes flash {
-      from { opacity: 0.9; }
+      from { opacity: 0.95; }
       to { opacity: 1; }
     }
 
@@ -98,7 +97,6 @@ pub fn render_portal_html() -> &'static str {
       justify-content: space-between;
       height: 56px;
       flex-shrink: 0;
-      z-index: 50;
     }
 
     .brand {
@@ -107,537 +105,446 @@ pub fn render_portal_html() -> &'static str {
       gap: 12px;
     }
 
-    .brand-logo {
-      background: linear-gradient(135deg, #2563eb, #06b6d4);
-      color: white;
-      font-weight: 900;
-      font-size: 13px;
-      letter-spacing: 1.5px;
-      padding: 5px 10px;
-      border-radius: 8px;
-      box-shadow: 0 0 16px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    .logo-badge {
+      background: linear-gradient(135deg, #1e3a8a, #0284c7);
+      color: #fff;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: 1px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(2, 132, 199, 0.4);
     }
 
-    .brand-title {
+    .exam-title {
       font-size: 14px;
-      font-weight: 700;
-      letter-spacing: 0.5px;
+      font-weight: 600;
+      letter-spacing: -0.2px;
       color: var(--text-main);
     }
 
-    .brand-subtitle {
+    .exam-subtitle {
       font-size: 11px;
-      color: var(--text-dim);
-      padding-left: 10px;
-      border-left: 1px solid var(--border-subtle);
-      font-family: var(--font-mono);
+      color: var(--text-muted);
     }
 
-    .header-center {
+    .header-status {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 20px;
     }
 
-    .status-badge {
-      display: inline-flex;
+    .status-pill {
+      display: flex;
       align-items: center;
-      gap: 8px;
-      background: rgba(16, 185, 129, 0.08);
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(16, 185, 129, 0.1);
       border: 1px solid rgba(16, 185, 129, 0.25);
-      color: #34d399;
-      padding: 5px 12px;
-      border-radius: 9999px;
       font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
+      font-weight: 500;
+      color: #34d399;
     }
 
-    .beacon {
-      position: relative;
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    .timer-pill {
       display: flex;
-      width: 8px;
-      height: 8px;
-    }
-
-    .beacon-ping {
-      position: absolute;
-      display: inline-flex;
-      height: 100%;
-      width: 100%;
-      border-radius: 9999px;
-      background-color: var(--accent-green);
-      opacity: 0.75;
-      animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-    }
-
-    .beacon-dot {
-      position: relative;
-      display: inline-flex;
-      border-radius: 9999px;
-      height: 8px;
-      width: 8px;
-      background-color: var(--accent-green);
-      box-shadow: 0 0 8px var(--accent-green);
-    }
-
-    @keyframes ping {
-      75%, 100% {
-        transform: scale(2.2);
-        opacity: 0;
-      }
-    }
-
-    .timer-badge {
-      display: inline-flex;
       align-items: center;
       gap: 8px;
-      background: rgba(245, 158, 11, 0.08);
-      border: 1px solid rgba(245, 158, 11, 0.25);
-      color: #fbbf24;
-      padding: 5px 14px;
-      border-radius: 8px;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      padding: 4px 12px;
+      border-radius: 6px;
       font-family: var(--font-mono);
       font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 1px;
-    }
-
-    .header-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .candidate-pill {
-      font-size: 11px;
-      color: var(--text-dim);
-      font-family: var(--font-mono);
-      background: rgba(255, 255, 255, 0.03);
-      padding: 4px 8px;
-      border-radius: 6px;
-      border: 1px solid var(--border-subtle);
-    }
-
-    .btn-finish {
-      background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
-      color: white;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      padding: 6px 14px;
-      border-radius: 6px;
       font-weight: 600;
-      font-size: 12px;
-      cursor: pointer;
-      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    .btn-finish:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
+      color: #38bdf8;
     }
 
     /* MAIN CONTAINER */
-    .workspace {
+    .main-wrapper {
       display: flex;
       flex: 1;
       height: calc(100vh - 56px);
       overflow: hidden;
     }
 
-    /* LEFT PANE: QUESTIONS */
-    .pane-left {
-      width: 48%;
+    /* LEFT PANE - QUESTIONS */
+    .left-pane {
+      width: 45%;
       border-right: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
       display: flex;
       flex-direction: column;
-      overflow: hidden;
+      background: var(--bg-surface);
     }
 
-    .q-tabs {
+    .tabs-header {
       display: flex;
+      background: rgba(6, 9, 15, 0.6);
       border-bottom: 1px solid var(--border-subtle);
-      background: rgba(6, 9, 15, 0.9);
-      padding: 6px 12px 0 12px;
-      gap: 6px;
+      padding: 0 8px;
+      gap: 4px;
     }
 
-    .q-tab {
-      padding: 8px 16px;
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-dim);
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 500;
       cursor: pointer;
-      border-radius: 6px 6px 0 0;
-      border: 1px solid transparent;
-      border-bottom: none;
-      transition: all 0.15s;
       display: flex;
       align-items: center;
       gap: 8px;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
     }
 
-    .q-tab:hover {
+    .tab-btn:hover {
       color: var(--text-main);
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.02);
     }
 
-    .q-tab.active {
-      color: #60a5fa;
-      background: var(--bg-surface);
-      border-color: var(--border-subtle);
-      box-shadow: inset 0 2px 0 var(--accent-blue);
+    .tab-btn.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.04);
     }
 
-    .tab-status-dot {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: var(--text-dim);
+    .badge-points {
+      background: #1e293b;
+      color: #94a3b8;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
     }
-    .q-tab.active .tab-status-dot { background: var(--accent-blue); }
-    .tab-status-dot.solved { background: var(--accent-green) !important; box-shadow: 0 0 6px var(--accent-green); }
 
-    .q-content {
-      padding: 24px 28px;
-      overflow-y: auto;
+    .tab-btn.active .badge-points {
+      background: rgba(6, 182, 212, 0.2);
+      color: var(--accent-cyan);
+    }
+
+    .question-content {
       flex: 1;
-      user-select: text;
-    }
-
-    .q-title {
-      font-size: 20px;
-      font-weight: 700;
-      letter-spacing: -0.01em;
-      margin-bottom: 12px;
-      color: var(--text-main);
+      overflow-y: auto;
+      padding: 24px;
     }
 
     .q-meta {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 24px;
+      gap: 10px;
+      margin-bottom: 14px;
     }
 
-    .pill {
+    .badge-diff {
+      padding: 2px 8px;
+      border-radius: 4px;
       font-size: 11px;
-      padding: 3px 10px;
-      border-radius: 9999px;
       font-weight: 600;
-      letter-spacing: 0.3px;
-    }
-
-    .pill-diff { background: rgba(59, 130, 246, 0.12); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.25); }
-    .pill-pts { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.25); }
-    .pill-tag { background: rgba(255, 255, 255, 0.04); color: var(--text-muted); border: 1px solid var(--border-subtle); }
-
-    .q-body {
-      font-size: 14px;
-      line-height: 1.7;
-      color: #cbd5e1;
-      margin-bottom: 24px;
-      white-space: pre-line;
-    }
-
-    .section-title {
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      color: var(--text-muted);
-      margin-bottom: 10px;
-    }
-
-    .constraints-list {
-      margin-left: 20px;
-      margin-bottom: 24px;
-      font-size: 13px;
-      color: #94a3b8;
-    }
-    .constraints-list li { margin-bottom: 6px; font-family: var(--font-mono); }
-
-    .sample-card {
-      background: var(--bg-base);
-      border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 14px;
-      margin-bottom: 16px;
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-    }
-
-    .sample-label {
-      font-size: 11px;
-      font-weight: 700;
-      color: var(--text-dim);
-      margin-bottom: 6px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
 
-    .sample-box {
-      background: #04060a;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 10px 14px;
-      border-radius: 6px;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      color: #38bdf8;
-      margin-bottom: 10px;
-      white-space: pre-wrap;
+    .diff-easy { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .diff-medium { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
+    .diff-hard { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+
+    .tag-item {
+      font-size: 11px;
+      color: var(--text-dim);
+      background: rgba(255, 255, 255, 0.03);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
     }
 
-    /* RIGHT PANE: CODE EDITOR */
-    .pane-right {
-      width: 52%;
+    h2.q-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      letter-spacing: -0.3px;
+    }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-top: 20px;
+      margin-bottom: 8px;
+    }
+
+    .q-desc {
+      font-size: 14px;
+      line-height: 1.6;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+      white-space: pre-line;
+    }
+
+    .code-block {
+      background: #090d16;
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      color: #e2e8f0;
+      white-space: pre;
+      overflow-x: auto;
+      margin-bottom: 12px;
+    }
+
+    .test-case-box {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    /* RIGHT PANE - EDITOR & CONSOLE */
+    .right-pane {
+      width: 55%;
       display: flex;
       flex-direction: column;
       background: var(--bg-editor);
     }
 
     .editor-toolbar {
-      background: rgba(12, 18, 30, 0.95);
+      height: 44px;
+      background: var(--bg-surface);
       border-bottom: 1px solid var(--border-subtle);
-      padding: 8px 16px;
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      height: 48px;
-      flex-shrink: 0;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
     }
 
     .lang-select {
-      background: var(--bg-base);
+      background: var(--bg-surface-elevated);
       color: var(--text-main);
       border: 1px solid var(--border-subtle);
-      padding: 6px 12px;
       border-radius: 6px;
+      padding: 5px 10px;
       font-size: 12px;
-      font-weight: 600;
-      cursor: pointer;
+      font-weight: 500;
       outline: none;
-      transition: border-color 0.15s;
+      cursor: pointer;
     }
-    .lang-select:focus { border-color: var(--border-focus); }
 
-    .file-badge {
-      font-size: 11px;
-      color: var(--text-dim);
-      font-family: var(--font-mono);
-      padding: 2px 6px;
-      background: rgba(255, 255, 255, 0.02);
-      border-radius: 4px;
-    }
+    .lang-select:focus { border-color: var(--border-focus); }
 
     .editor-container {
       flex: 1;
       position: relative;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
     }
 
-    .code-area {
-      flex: 1;
-      background: #070b12;
+    #code-editor {
+      width: 100%;
+      height: 100%;
+      background: transparent;
       color: #e2e8f0;
-      font-family: var(--font-mono);
-      font-size: 13px;
-      line-height: 1.6;
-      padding: 18px 20px;
       border: none;
       outline: none;
       resize: none;
-      white-space: pre;
+      padding: 16px;
+      font-family: var(--font-mono);
+      font-size: 14px;
+      line-height: 1.6;
       tab-size: 4;
       user-select: text;
     }
 
-    /* BOTTOM RESULTS PANEL */
-    .results-panel {
+    /* BOTTOM CONTROLS & TEST RESULTS CONSOLE */
+    .console-pane {
       height: 220px;
+      background: #05070d;
       border-top: 1px solid var(--border-subtle);
-      background: var(--bg-surface);
       display: flex;
       flex-direction: column;
-      flex-shrink: 0;
     }
 
-    .results-header {
-      padding: 8px 16px;
-      background: var(--bg-base);
+    .console-header {
+      height: 36px;
+      background: var(--bg-surface);
       border-bottom: 1px solid var(--border-subtle);
+      padding: 0 16px;
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
-    .results-title {
-      font-size: 11px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
+    .console-title {
+      font-size: 12px;
+      font-weight: 600;
       color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
-    .editor-btn-group {
+    .action-buttons {
       display: flex;
+      align-items: center;
       gap: 10px;
     }
 
     .btn {
-      padding: 7px 16px;
+      padding: 6px 14px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
-      border: 1px solid transparent;
-      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+      border: none;
     }
 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.04);
-      color: var(--text-main);
+      background: #1e293b;
+      color: #cbd5e1;
       border: 1px solid var(--border-subtle);
     }
+
     .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.08);
-      border-color: rgba(255, 255, 255, 0.15);
+      background: #334155;
+      color: #fff;
     }
 
     .btn-primary {
-      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
-      color: white;
-      box-shadow: 0 0 16px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #fff;
+      box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
     }
+
     .btn-primary:hover {
-      box-shadow: 0 0 24px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-      transform: translateY(-1px);
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.5);
     }
 
-    .btn-success {
-      background: linear-gradient(180deg, #10b981 0%, #047857 100%);
-      color: white;
-      box-shadow: 0 0 16px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-    }
-    .btn-success:hover {
-      box-shadow: 0 0 24px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
-      transform: translateY(-1px);
-    }
-
-    .results-body {
+    .console-body {
       flex: 1;
-      padding: 14px 18px;
+      padding: 12px 16px;
       overflow-y: auto;
       font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .res-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
       font-size: 12px;
-      user-select: text;
+      font-weight: 600;
+      margin-bottom: 8px;
     }
-
-    .verdict-tag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 12px;
-      border-radius: 9999px;
-      font-weight: 700;
-      font-size: 11px;
-      letter-spacing: 0.5px;
-      margin-bottom: 10px;
-    }
-    .verdict-passed { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
-    .verdict-running { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
-
-    .stat-pill {
-      font-size: 11px;
-      color: var(--text-dim);
-      font-family: var(--font-mono);
-      margin-left: 12px;
-    }
+    .res-accepted { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+    .res-failed { background: rgba(239, 68, 68, 0.2); color: #f87171; }
   </style>
 </head>
 <body>
-
-  <!-- FOCUS LOSS WARNING MODAL -->
+  <!-- DYNAMIC SECURITY WARNING BANNER -->
   <div id="security-toast">⚠️ <span id="security-toast-msg">Security Violation</span></div>
   <div id="blur-warning">
-    ⚠️ SECURITY WARNING: Window focus lost! Focus-loss events are recorded in the exam integrity log.
+    ⚠️ CRITICAL INTEGRITY VIOLATION: Assessment window was minimized or switched away! Incident recorded in proctor audit log.
   </div>
 
-  <!-- TOP HEADER -->
   <header>
     <div class="brand">
-      <span class="brand-logo">CITADEL</span>
-      <span class="brand-title">CAMPUS PLACEMENT ASSESSMENT 2026</span>
-      <span class="brand-subtitle" id="server-ip-banner">Local Wi-Fi Host</span>
-    </div>
-
-    <div class="header-center">
-      <div class="status-badge">
-        <span class="beacon">
-          <span class="beacon-ping"></span>
-          <span class="beacon-dot"></span>
-        </span>
-        <span>Secure College Wi-Fi • Air-Gapped</span>
+      <div class="logo-badge">CITADEL</div>
+      <div>
+        <div class="exam-title">CAMPUS PLACEMENT ASSESSMENT 2026</div>
+        <div class="exam-subtitle">Hardware Isolated • Zero Internet • WFP Filter Active</div>
       </div>
-      <div class="timer-badge" id="exam-timer">01:29:54</div>
     </div>
-
-    <div class="header-actions">
-      <span class="candidate-pill" id="candidate-id">BYOD-STATION</span>
-      <button class="btn-finish" onclick="finishExam()">Finish Exam</button>
+    <div class="header-status">
+      <div class="status-pill">
+        <span class="status-dot"></span>
+        <span id="conn-status">LAN Air-Gapped (172.60.5.98)</span>
+      </div>
+      <div class="timer-pill">
+        <span>⏱️</span>
+        <span id="exam-timer">01:30:00</span>
+      </div>
     </div>
   </header>
 
-  <!-- WORKSPACE -->
-  <div class="workspace">
+  <div class="main-wrapper">
     <!-- LEFT PANE: QUESTIONS -->
-    <div class="pane-left">
-      <div class="q-tabs" id="question-tabs">
-        <!-- Rendered dynamically -->
+    <div class="left-pane">
+      <div class="tabs-header" id="question-tabs">
+        <!-- Injected via JS -->
       </div>
-      <div class="q-content" id="question-view">
-        <!-- Rendered dynamically -->
+      <div class="question-content" id="question-body">
+        <!-- Injected via JS -->
       </div>
     </div>
 
-    <!-- RIGHT PANE: CODE EDITOR -->
-    <div class="pane-right">
+    <!-- RIGHT PANE: CODE EDITOR & SUBMISSIONS -->
+    <div class="right-pane">
       <div class="editor-toolbar">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <select class="lang-select" id="lang-selector" onchange="onLanguageChange()">
-            <option value="python">Python 3 (3.11)</option>
-            <option value="cpp">C++ (GCC 17)</option>
-            <option value="java">Java (OpenJDK 17)</option>
+        <div class="toolbar-left">
+          <select class="lang-select" id="lang-selector" onchange="changeLanguage()">
+            <option value="python">Python 3.11</option>
+            <option value="cpp">C++ (GCC 13 / C++20)</option>
+            <option value="java">Java 17 (OpenJDK)</option>
           </select>
-          <span class="file-badge" id="file-label">solution.py</span>
+          <span style="font-size: 12px; color: var(--text-dim);">UTF-8 • Tab: 4 spaces</span>
         </div>
-
-        <div class="editor-btn-group">
-          <button class="btn btn-secondary" onclick="resetStarterCode()">Reset Code</button>
-          <button class="btn btn-primary" onclick="runSampleTests()">Run Sample Tests</button>
-          <button class="btn btn-success" onclick="submitFinalSolution()">Submit Solution</button>
+        <div class="action-buttons">
+          <button class="btn btn-secondary" onclick="runCode(true)">
+            ▶ Run Sample Tests
+          </button>
+          <button class="btn btn-primary" onclick="runCode(false)">
+            🚀 Submit Final Code
+          </button>
         </div>
       </div>
 
       <div class="editor-container">
-        <textarea class="code-area" id="code-editor" spellcheck="false" placeholder="Write your solution here..."></textarea>
+        <textarea id="code-editor" spellcheck="false" placeholder="Write your solution here..."></textarea>
       </div>
 
-      <!-- RESULTS PANEL -->
-      <div class="results-panel">
-        <div class="results-header">
-          <span class="results-title">Sandbox Execution Output & Test Verification</span>
-          <span id="exec-stats" class="stat-pill">Isolated Local Sandbox • Ready</span>
+      <div class="console-pane">
+        <div class="console-header">
+          <div class="console-title">Execution Console & Validation Output</div>
+          <span id="runtime-meta" style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);"></span>
         </div>
-        <div class="results-body" id="results-console">
-          <div style="color: var(--text-dim); line-height: 1.6;">Click 'Run Sample Tests' to compile and execute your code against test cases in the offline evaluation sandbox.</div>
+        <div class="console-body" id="results-console">
+          <span style="color: var(--text-dim);">Click "Run Sample Tests" to execute against public cases, or "Submit Final Code" for hidden evaluation.</span>
         </div>
       </div>
     </div>
   </div>
 
   <script>
+    const CANDIDATE_ID = "CAND-" + Math.floor(100000 + Math.random() * 900000);
     let questions = [];
     let currentQIndex = 0;
     let currentLang = 'python';
@@ -650,8 +557,13 @@ pub fn render_portal_html() -> &'static str {
     // 1. Disable Right-Click Context Menu / Inspect Element
     document.addEventListener('contextmenu', e => {
       e.preventDefault();
+      showSecurityToast('Right-click context menu is disabled.');
       return false;
     });
+
+    // 2. Disable Drag-and-Drop
+    document.addEventListener('dragstart', e => e.preventDefault());
+    document.addEventListener('drop', e => e.preventDefault());
 
     function showSecurityToast(msg) {
       const toast = document.getElementById('security-toast');
@@ -662,49 +574,95 @@ pub fn render_portal_html() -> &'static str {
         clearTimeout(window._toastTimer);
         window._toastTimer = setTimeout(() => {
           toast.style.display = 'none';
-        }, 4000);
+        }, 3500);
       }
     }
 
-    // 2. Disable Copying Exam Content to External Clipboard
+    // 3. Disable Copying Exam Content to External Clipboard
     document.addEventListener('copy', e => {
       if (document.activeElement && document.activeElement.id === 'code-editor') {
         // Allowed inside editor for candidate's own code
       } else {
         e.preventDefault();
         showSecurityToast('Copying exam questions or instructions is strictly prohibited.');
+        reportSecurityViolation('CLIPBOARD_COPY_ATTEMPT', 'Attempted to copy exam question content');
       }
     });
 
-    // 3. Disable Pasting External Code
+    // 4. Disable Pasting External Code
     document.addEventListener('paste', e => {
       e.preventDefault();
-      showSecurityToast('Pasting external content is blocked. Please write your code manually.');
+      showSecurityToast('Pasting external content is blocked. Please type code directly.');
+      reportSecurityViolation('CLIPBOARD_PASTE_ATTEMPT', 'Attempted to paste external clipboard content');
     });
 
-    // 4. Disable DevTools Shortcuts (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U)
+    // 5. Disable DevTools Shortcuts (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U)
     document.addEventListener('keydown', e => {
       if (
         e.key === 'F12' ||
-        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) ||
-        (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
+        (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S'))
       ) {
         e.preventDefault();
         return false;
       }
     });
 
-    // 5. Monitor Window Blur (Focus-Loss / Window Switching)
+    // 6. Monitor Window Blur & Visibility Change (Focus-Loss / Window Switching)
     window.addEventListener('blur', () => {
       const banner = document.getElementById('blur-warning');
       if (banner) banner.style.display = 'block';
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText('').catch(() => {});
+      }
+      reportSecurityViolation('WINDOW_BLUR', 'Candidate assessment window lost focus');
     });
+
     window.addEventListener('focus', () => {
       setTimeout(() => {
         const banner = document.getElementById('blur-warning');
         if (banner) banner.style.display = 'none';
       }, 3000);
     });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        const banner = document.getElementById('blur-warning');
+        if (banner) banner.style.display = 'block';
+        reportSecurityViolation('TAB_SWITCHED_OR_MINIMIZED', 'Assessment tab minimized or backgrounded');
+      }
+    });
+
+    // Report security violation to server audit log
+    async function reportSecurityViolation(eventType, details) {
+      try {
+        await fetch('/api/v1/integrity/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            event_type: eventType,
+            details: details,
+            severity: 'HIGH',
+          }),
+        });
+      } catch (err) {}
+    }
+
+    // Proctor Heartbeat loop (every 15s)
+    setInterval(async () => {
+      try {
+        await fetch('/api/v1/integrity/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            active_question: currentQIndex + 1,
+            is_window_focused: document.hasFocus() && !document.hidden,
+          }),
+        });
+      } catch (err) {}
+    }, 15000);
 
     // =========================================================================
     // EXAM LOGIC & COMMUNICATION
@@ -718,126 +676,108 @@ pub fn render_portal_html() -> &'static str {
         loadQuestion(0);
         startTimer();
       } catch (err) {
-        console.error('Failed to load questions:', err);
+        document.getElementById('results-console').innerHTML = `<span style="color: #ef4444;">Error connecting to CITADEL Exam Server: ${err.message}</span>`;
       }
     }
 
     function renderTabs() {
-      const container = document.getElementById('question-tabs');
-      container.innerHTML = questions.map((q, idx) => `
-        <div class="q-tab ${idx === 0 ? 'active' : ''}" onclick="loadQuestion(${idx})" id="tab-${idx}">
-          <span class="tab-status-dot" id="dot-${q.id}"></span>
-          <span>Q${q.number}. ${q.title.split(' ')[0]}</span>
-          <span style="font-size: 10px; opacity: 0.6; font-family: var(--font-mono);">(${q.points}p)</span>
-        </div>
+      const tabsHeader = document.getElementById('question-tabs');
+      tabsHeader.innerHTML = questions.map((q, idx) => `
+        <button class="tab-btn ${idx === 0 ? 'active' : ''}" onclick="loadQuestion(${idx})">
+          <span>Q${q.number}</span>
+          <span class="badge-points">${q.points} pts</span>
+        </button>
       `).join('');
     }
 
-    async function loadQuestion(idx) {
+    function loadQuestion(idx) {
+      // Save current code
+      if (questions[currentQIndex]) {
+        codeStorage[`${questions[currentQIndex].id}_${currentLang}`] = document.getElementById('code-editor').value;
+      }
+
       currentQIndex = idx;
-      document.querySelectorAll('.q-tab').forEach((el, i) => {
-        el.classList.toggle('active', i === idx);
+      const q = questions[idx];
+
+      // Update active tab style
+      const tabBtns = document.querySelectorAll('.tab-btn');
+      tabBtns.forEach((btn, i) => {
+        btn.classList.toggle('active', i === idx);
       });
 
-      const qSummary = questions[idx];
-      const res = await fetch(`/api/v1/questions/${qSummary.id}`);
-      const q = await res.json();
+      // Render question content
+      const diffClass = q.difficulty === 'Easy' ? 'diff-easy' : (q.difficulty === 'Medium' ? 'diff-medium' : 'diff-hard');
+      const tagsHtml = q.tags.map(t => `<span class="tag-item">${t}</span>`).join('');
 
-      const view = document.getElementById('question-view');
-      view.innerHTML = `
-        <h1 class="q-title">Q${q.number}. ${q.title}</h1>
+      let samplesHtml = '';
+      if (q.sample_cases && q.sample_cases.length > 0) {
+        samplesHtml = '<div class="section-title">Sample Cases</div>' + q.sample_cases.map((sc, i) => `
+          <div class="test-case-box">
+            <div style="font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">Sample Case ${i + 1}</div>
+            <div style="font-size: 12px; color: #94a3b8;">Input:</div>
+            <div class="code-block">${sc.input}</div>
+            <div style="font-size: 12px; color: #94a3b8;">Expected Output:</div>
+            <div class="code-block">${sc.expected_output}</div>
+            ${sc.explanation ? `<div style="font-size: 12px; color: #64748b; font-style: italic;">${sc.explanation}</div>` : ''}
+          </div>
+        `).join('');
+      }
+
+      document.getElementById('question-body').innerHTML = `
         <div class="q-meta">
-          <span class="pill pill-diff">${q.difficulty}</span>
-          <span class="pill pill-pts">${q.points} Points</span>
-          ${q.tags.map(t => `<span class="pill pill-tag">${t}</span>`).join('')}
+          <span class="badge-diff ${diffClass}">${q.difficulty}</span>
+          <span class="badge-points">${q.points} Points</span>
+          ${tagsHtml}
         </div>
-
-        <div class="section-title">Problem Statement</div>
-        <div class="q-body">${q.description}</div>
+        <h2 class="q-title">${q.number}. ${q.title}</h2>
+        <div class="q-desc">${q.description}</div>
 
         <div class="section-title">Input Format</div>
-        <div class="q-body" style="margin-bottom: 16px;">${q.input_format}</div>
+        <div class="q-desc">${q.input_format}</div>
 
         <div class="section-title">Output Format</div>
-        <div class="q-body" style="margin-bottom: 16px;">${q.output_format}</div>
+        <div class="q-desc">${q.output_format}</div>
 
         <div class="section-title">Constraints</div>
-        <ul class="constraints-list">
-          ${q.constraints.map(c => `<li>${c}</li>`).join('')}
+        <ul style="padding-left: 20px; font-size: 13px; color: #cbd5e1; margin-bottom: 16px;">
+          ${q.constraints.map(c => `<li style="margin-bottom: 4px;"><code>${c}</code></li>`).join('')}
         </ul>
 
-        <div class="section-title">Sample Test Cases</div>
-        ${q.sample_cases.map((sc, i) => `
-          <div class="sample-card">
-            <div class="sample-label">Sample Input ${i + 1}</div>
-            <div class="sample-box">${sc.input}</div>
-            <div class="sample-label">Sample Output ${i + 1}</div>
-            <div class="sample-box" style="color: #34d399;">${sc.expected_output}</div>
-            ${sc.explanation ? `<div style="font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5;"><strong>Explanation:</strong> ${sc.explanation}</div>` : ''}
-          </div>
-        `).join('')}
+        ${samplesHtml}
       `;
 
-      updateEditorForCurrentQuestion(q);
-    }
-
-    function updateEditorForCurrentQuestion(q) {
-      const key = `${q.id}_${currentLang}`;
-      const editor = document.getElementById('code-editor');
-      if (codeStorage[key]) {
-        editor.value = codeStorage[key];
+      // Restore code
+      const storageKey = `${q.id}_${currentLang}`;
+      if (codeStorage[storageKey]) {
+        document.getElementById('code-editor').value = codeStorage[storageKey];
       } else if (q.starter_templates && q.starter_templates[currentLang]) {
-        editor.value = q.starter_templates[currentLang];
+        document.getElementById('code-editor').value = q.starter_templates[currentLang];
       } else {
-        editor.value = '';
+        document.getElementById('code-editor').value = '';
       }
-      updateFileLabel();
     }
 
-    function onLanguageChange() {
-      saveCurrentCode();
+    function changeLanguage() {
       currentLang = document.getElementById('lang-selector').value;
       const q = questions[currentQIndex];
-      if (q) {
-        fetch(`/api/v1/questions/${q.id}`)
-          .then(res => res.json())
-          .then(fullQ => updateEditorForCurrentQuestion(fullQ));
+      const storageKey = `${q.id}_${currentLang}`;
+      if (codeStorage[storageKey]) {
+        document.getElementById('code-editor').value = codeStorage[storageKey];
+      } else if (q.starter_templates && q.starter_templates[currentLang]) {
+        document.getElementById('code-editor').value = q.starter_templates[currentLang];
+      } else {
+        document.getElementById('code-editor').value = '';
       }
     }
 
-    function saveCurrentCode() {
-      const q = questions[currentQIndex];
-      if (q) {
-        const key = `${q.id}_${currentLang}`;
-        codeStorage[key] = document.getElementById('code-editor').value;
-      }
-    }
-
-    function updateFileLabel() {
-      const extMap = { python: 'solution.py', cpp: 'solution.cpp', java: 'Solution.java' };
-      document.getElementById('file-label').innerText = extMap[currentLang] || 'solution.txt';
-    }
-
-    async function resetStarterCode() {
-      const q = questions[currentQIndex];
-      if (confirm(`Reset code for ${q.title} to default template?`)) {
-        const res = await fetch(`/api/v1/questions/${q.id}`);
-        const fullQ = await res.json();
-        const key = `${q.id}_${currentLang}`;
-        delete codeStorage[key];
-        updateEditorForCurrentQuestion(fullQ);
-      }
-    }
-
-    async function runSampleTests() {
-      saveCurrentCode();
+    async function runCode(isSample) {
       const q = questions[currentQIndex];
       const code = document.getElementById('code-editor').value;
       const consoleEl = document.getElementById('results-console');
-      const statsEl = document.getElementById('exec-stats');
+      const metaEl = document.getElementById('runtime-meta');
 
-      consoleEl.innerHTML = `<div class="verdict-tag verdict-running">RUNNING SAMPLE TESTS...</div><div style="color: var(--text-dim);">Dispatching code to local offline sandbox...</div>`;
-      statsEl.innerText = "Evaluating...";
+      consoleEl.innerHTML = `<span style="color: #38bdf8;">⏳ Compiling & executing solution on server...</span>`;
+      metaEl.innerText = "";
 
       try {
         const res = await fetch('/api/v1/submissions', {
@@ -847,77 +787,40 @@ pub fn render_portal_html() -> &'static str {
             question_id: q.id,
             language: currentLang,
             source_code: code,
-            is_sample_run: true,
-          })
+            is_sample_run: isSample,
+            candidate_id: CANDIDATE_ID,
+          }),
         });
 
         const data = await res.json();
-        const passed = data.status === 'Accepted';
-        statsEl.innerText = `Runtime: ${data.runtime_ms}ms • Memory: ${data.memory_mb}MB`;
+        const isOk = data.status === 'Accepted';
+        const badgeClass = isOk ? 'res-accepted' : 'res-failed';
 
-        if (passed) {
-          const dot = document.getElementById(`dot-${q.id}`);
-          if (dot) dot.classList.add('solved');
-        }
-
+        metaEl.innerText = `Runtime: ${data.runtime_ms} ms • Memory: ${data.memory_mb} MB`;
         consoleEl.innerHTML = `
-          <div class="verdict-tag ${passed ? 'verdict-passed' : 'verdict-running'}" style="${passed ? '' : 'background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3);'}">
-            ${data.status.toUpperCase()} (${data.passed_cases}/${data.total_cases} Sample Tests Passed)
+          <div>
+            <span class="res-badge ${badgeClass}">${data.status}</span>
+            <span style="font-weight: 600; color: #fff; margin-left: 8px;">
+              Score: ${data.score}/${q.points} pts (Passed ${data.passed_cases}/${data.total_cases} Cases)
+            </span>
           </div>
-          <div style="color: #94a3b8; margin-top: 6px; white-space: pre-wrap; line-height: 1.5;">${data.details}</div>
+          <div style="margin-top: 8px; color: ${isOk ? '#34d399' : '#f87171'};">
+            ${data.details}
+          </div>
         `;
       } catch (err) {
-        consoleEl.innerHTML = `<div style="color: #f87171;">Failed to connect to local server: ${err.message}</div>`;
-      }
-    }
-
-    async function submitFinalSolution() {
-      saveCurrentCode();
-      const q = questions[currentQIndex];
-      const code = document.getElementById('code-editor').value;
-      const consoleEl = document.getElementById('results-console');
-
-      if (!confirm(`Confirm final submission for Q${q.number}: ${q.title}?`)) return;
-
-      consoleEl.innerHTML = `<div class="verdict-tag verdict-running">SUBMITTING FOR EVALUATION...</div>`;
-
-      try {
-        const res = await fetch('/api/v1/submissions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            question_id: q.id,
-            language: currentLang,
-            source_code: code,
-            is_sample_run: false,
-          })
-        });
-
-        const data = await res.json();
-        consoleEl.innerHTML = `
-          <div class="verdict-tag verdict-passed">
-            SUBMISSION RECORDED — SCORE: ${data.score}/${q.points} PTS
-          </div>
-          <div style="color: #94a3b8; margin-top: 6px;">Your submission has been securely written to the appliance audit WAL.</div>
-        `;
-      } catch (err) {
-        consoleEl.innerHTML = `<div style="color: #f87171;">Submission failed: ${err.message}</div>`;
-      }
-    }
-
-    function finishExam() {
-      if (confirm("Are you sure you want to end and submit your entire assessment?")) {
-        alert("Assessment successfully submitted! You may now exit the lockdown app.");
+        consoleEl.innerHTML = `<span style="color: #ef4444;">Execution failed: ${err.message}</span>`;
       }
     }
 
     function startTimer() {
-      let seconds = 90 * 60 - 6;
+      let secondsLeft = 90 * 60;
       setInterval(() => {
-        if (seconds > 0) seconds--;
-        const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
-        const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-        const s = String(seconds % 60).padStart(2, '0');
+        if (secondsLeft <= 0) return;
+        secondsLeft--;
+        const h = String(Math.floor(secondsLeft / 3600)).padStart(2, '0');
+        const m = String(Math.floor((secondsLeft % 3600) / 60)).padStart(2, '0');
+        const s = String(secondsLeft % 60).padStart(2, '0');
         document.getElementById('exam-timer').innerText = `${h}:${m}:${s}`;
       }, 1000);
     }
@@ -939,6 +842,396 @@ pub fn render_portal_html() -> &'static str {
 "#
 }
 
+pub fn render_proctor_html() -> &'static str {
+    r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CITADEL — Proctor & Recruiter Live Command Center</title>
+  <style>
+    :root {
+      --bg-base: #030712;
+      --bg-surface: #0f172a;
+      --bg-surface-elevated: #1e293b;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-green: #10b981;
+      --accent-red: #ef4444;
+      --accent-amber: #f59e0b;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 14px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand-title {
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge-live {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      background: #10b981;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+
+    .container {
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px;
+      flex: 1;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 20px;
+      margin-bottom: 28px;
+    }
+
+    .stat-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 28px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+
+    .card-tabs {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .tab-bar {
+      display: flex;
+      background: rgba(0, 0, 0, 0.2);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 16px;
+    }
+
+    .t-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 14px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .t-btn.active {
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+    }
+
+    .tab-view {
+      padding: 20px;
+      display: none;
+    }
+    .tab-view.active { display: block; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 12px 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--border-subtle);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: #cbd5e1;
+    }
+
+    tr:hover {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .badge-active { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+    .badge-flagged { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .badge-disqualified { background: rgba(100, 116, 139, 0.2); color: #94a3b8; }
+
+    .btn-disqualify {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-disqualify:hover {
+      background: #ef4444;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand-title">
+      🛡️ CITADEL FLEET PROCTOR & RECRUITER COMMAND
+      <span class="badge-live"><span class="pulse-dot"></span> LIVE FLEET ONLINE</span>
+    </div>
+    <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
+      Server: 172.60.5.98:8443 • Zero-Internet Campus Subnet
+    </div>
+  </header>
+
+  <div class="container">
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Total Connected Candidates</div>
+        <div class="stat-value" id="stat-total-cands" style="color: #38bdf8;">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Flagged Security Incidents</div>
+        <div class="stat-value" id="stat-flagged" style="color: #f87171;">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Code Submissions</div>
+        <div class="stat-value" id="stat-subs" style="color: #34d399;">--</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Security Fleet Status</div>
+        <div class="stat-value" style="color: #a855f7; font-size: 20px; line-height: 28px;">AIR-GAPPED 100%</div>
+      </div>
+    </div>
+
+    <div class="card-tabs">
+      <div class="tab-bar">
+        <button class="t-btn active" onclick="switchTab('tab-cands', this)">Candidate Fleet Monitor</button>
+        <button class="t-btn" onclick="switchTab('tab-threats', this)">Live Security Threat Stream</button>
+        <button class="t-btn" onclick="switchTab('tab-subs', this)">Submission Score Records</button>
+      </div>
+
+      <div class="tab-view active" id="tab-cands">
+        <table>
+          <thead>
+            <tr>
+              <th>Candidate ID</th>
+              <th>IP Address</th>
+              <th>Active Question</th>
+              <th>Score</th>
+              <th>Violations</th>
+              <th>Status</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="cands-tbody">
+            <tr><td colspan="7" style="text-align: center; color: var(--text-dim);">Loading fleet candidates...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tab-view" id="tab-threats">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Candidate ID</th>
+              <th>Threat Type</th>
+              <th>Incident Details</th>
+              <th>Severity</th>
+            </tr>
+          </thead>
+          <tbody id="threats-tbody">
+            <tr><td colspan="5" style="text-align: center; color: var(--text-dim);">No security violations logged.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="tab-view" id="tab-subs">
+        <table>
+          <thead>
+            <tr>
+              <th>Submission ID</th>
+              <th>Candidate ID</th>
+              <th>Question</th>
+              <th>Language</th>
+              <th>Test Cases Passed</th>
+              <th>Score</th>
+              <th>Status</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="subs-tbody">
+            <tr><td colspan="8" style="text-align: center; color: var(--text-dim);">No submissions recorded yet.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.t-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    async function fetchMetrics() {
+      try {
+        const res = await fetch('/api/v1/proctor/metrics');
+        const data = await res.json();
+
+        document.getElementById('stat-total-cands').innerText = data.total_candidates;
+        document.getElementById('stat-flagged').innerText = data.flagged_candidates;
+        document.getElementById('stat-subs').innerText = data.total_submissions;
+
+        // Render Candidates
+        const candsBody = document.getElementById('cands-tbody');
+        if (data.candidates.length > 0) {
+          candsBody.innerHTML = data.candidates.map(c => `
+            <tr>
+              <td style="font-family: var(--font-mono); font-weight: 600;">${c.candidate_id}</td>
+              <td><code>${c.ip_address}</code></td>
+              <td>Question ${c.active_question}</td>
+              <td style="font-weight: 700; color: #38bdf8;">${c.total_score} pts</td>
+              <td style="color: ${c.violations_count > 0 ? '#f87171' : '#34d399'}; font-weight: 600;">${c.violations_count}</td>
+              <td>
+                <span class="status-badge ${c.status === 'Active' ? 'badge-active' : (c.status === 'Flagged' ? 'badge-flagged' : 'badge-disqualified')}">
+                  ${c.status}
+                </span>
+              </td>
+              <td>
+                ${c.status !== 'Disqualified' ? `<button class="btn-disqualify" onclick="disqualify('${c.candidate_id}')">Disqualify</button>` : '<span style="color: #64748b;">Locked</span>'}
+              </td>
+            </tr>
+          `).join('');
+        }
+
+        // Render Threat Incidents
+        const threatsBody = document.getElementById('threats-tbody');
+        if (data.recent_violations.length > 0) {
+          threatsBody.innerHTML = data.recent_violations.map(v => `
+            <tr>
+              <td style="font-family: var(--font-mono); font-size: 11px;">${v.timestamp.split('T')[1].split('.')[0]}</td>
+              <td style="font-weight: 600;">${v.candidate_id}</td>
+              <td style="color: #f87171; font-weight: 600;">${v.event_type}</td>
+              <td>${v.details}</td>
+              <td><span class="status-badge badge-flagged">${v.severity}</span></td>
+            </tr>
+          `).join('');
+        }
+
+        // Render Submissions
+        const subsBody = document.getElementById('subs-tbody');
+        if (data.recent_submissions.length > 0) {
+          subsBody.innerHTML = data.recent_submissions.map(s => `
+            <tr>
+              <td style="font-family: var(--font-mono); font-size: 11px;">${s.submission_id}</td>
+              <td style="font-weight: 600;">${s.candidate_id}</td>
+              <td>${s.question_id}</td>
+              <td><code>${s.language}</code></td>
+              <td>${s.passed_cases} / ${s.total_cases}</td>
+              <td style="color: #38bdf8; font-weight: 600;">${s.score}</td>
+              <td><span class="status-badge badge-active">${s.status}</span></td>
+              <td style="font-size: 11px; color: var(--text-dim);">${s.timestamp.split('T')[1].split('.')[0]}</td>
+            </tr>
+          `).join('');
+        }
+
+      } catch (err) {}
+    }
+
+    async function disqualify(candId) {
+      if (confirm(`Are you sure you want to disqualify candidate ${candId}?`)) {
+        await fetch(`/api/v1/proctor/candidates/${candId}/disqualify`, { method: 'POST' });
+        fetchMetrics();
+      }
+    }
+
+    fetchMetrics();
+    setInterval(fetchMetrics, 2000);
+  </script>
+</body>
+</html>
+"#
+}
 
 pub fn render_gatekeeper_html() -> &'static str {
     r#"<!DOCTYPE html>
@@ -1186,7 +1479,7 @@ pub fn render_gatekeeper_html() -> &'static str {
         Download CITADEL Client (citadel-client.exe)
       </a>
       <div class="file-meta">
-        Windows 64-bit • Native Hardware Lockdown • Size: ~350 KB
+        Windows 64-bit • Embedded UAC Manifest • Size: ~350 KB
       </div>
     </div>
 

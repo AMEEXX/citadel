@@ -115,7 +115,12 @@ Base: `https://10.10.0.1:8443/v1`. All mutating requests carry `Idempotency-Key`
 | GET | `/api/v1/exam/info` | Exam metadata | Returns duration, total points, instructions, and candidate exam rules |
 | GET | `/api/v1/questions` | Question summaries | Returns list of challenge IDs, titles, difficulty levels, and point weights |
 | GET | `/api/v1/questions/{id}` | Problem statement | Returns problem description, starter code templates (C++, Python, Java), constraints, sample cases |
-| POST | `/api/v1/submissions` | Code execution & evaluate | Evaluates candidate code in the offline runner sandbox against sample test cases |
+| POST | `/api/v1/submissions` | Code execution & evaluate | Evaluates candidate code in the offline runner sandbox against sample test cases (for sample runs) and both sample + hidden test cases (for final submissions) |
+| GET | `/proctor` | Proctor & Recruiter Live Dashboard | Modern dark command center displaying live candidate status, real-time threat feed, and submission logs |
+| GET | `/api/v1/proctor/metrics` | Proctor Dashboard Data API | Returns real-time metrics, active candidate sessions, and threat telemetry events |
+| POST | `/api/v1/integrity/heartbeat` | Candidate Heartbeat | Ingests candidate focus status and active question index every 15s |
+| POST | `/api/v1/integrity/event` | Integrity Threat Ingestion | Ingests focus-loss, window minimization, clipboard attempts, and process violations |
+| POST | `/api/v1/proctor/candidates/:id/disqualify` | Candidate Disqualification | Remote disqualification command from the proctor console |
 | POST | `/sessions` | Open session | Body: credential, device cert CN, attestation blob. Returns token, seat, exam metadata, **server-signed deadline** |
 | POST | `/sessions/{id}/heartbeat` | Liveness + state sync | Every 10 s. Returns exam state, pending commands (e.g. `SUSPEND`) |
 | GET | `/sessions/{id}/deadline` | Re-fetch signed deadline | After reconnect |
