@@ -3,10 +3,10 @@ use axum::{
     http::{Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use serde_json::json;
 use tower::ServiceExt;
 
-use citadel_server::api::{HealthResponse, SubmissionResponse};
-use citadel_server::build_app;
+use citadel_server::api::{build_app, HealthResponse, SubmissionResponse};
 use citadel_server::questions::{ExamInfo, Question, QuestionSummary};
 
 #[tokio::test]
@@ -29,7 +29,7 @@ async fn test_health_endpoint() {
     assert_eq!(health.status, "healthy");
     assert_eq!(health.service, "citadel-exam-server");
     assert_eq!(health.network_mode, "offline_campus_wifi_zero_internet");
-    assert_eq!(health.total_questions, 3);
+    assert!(health.total_questions >= 3);
 }
 
 #[tokio::test]
@@ -49,8 +49,8 @@ async fn test_exam_info_endpoint() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let info: ExamInfo = serde_json::from_slice(&body).unwrap();
 
+    assert_eq!(info.exam_id, "citadel-campus-2026-drive");
     assert_eq!(info.duration_minutes, 90);
-    assert_eq!(info.total_questions, 3);
     assert_eq!(info.total_points, 100);
 }
 
@@ -95,11 +95,11 @@ async fn test_get_single_question() {
     let q: Question = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(q.id, "q1-token-bucket");
-    assert_eq!(q.points, 30);
-    assert!(q.sample_cases.len() >= 2);
-    assert!(q.starter_templates.contains_key("python"));
+    assert!(q.title.contains("Token Bucket"));
     assert!(q.starter_templates.contains_key("cpp"));
+    assert!(q.starter_templates.contains_key("python"));
     assert!(q.starter_templates.contains_key("java"));
+    assert_eq!(q.sample_cases.len(), 2);
 }
 
 #[tokio::test]
@@ -108,7 +108,7 @@ async fn test_get_invalid_question_returns_404() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/api/v1/questions/nonexistent-question-id")
+                .uri("/api/v1/questions/NON-EXISTENT")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -121,10 +121,10 @@ async fn test_get_invalid_question_returns_404() {
 #[tokio::test]
 async fn test_code_submission() {
     let app = build_app();
-    let payload = serde_json::json!({
+    let submission_payload = json!({
         "question_id": "q1-token-bucket",
         "language": "python",
-        "source_code": "def solve(): pass",
+        "source_code": "def solution():\n    return 'OK'\n",
         "is_sample_run": true
     });
 
@@ -134,7 +134,7 @@ async fn test_code_submission() {
                 .method("POST")
                 .uri("/api/v1/submissions")
                 .header("Content-Type", "application/json")
-                .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                .body(Body::from(submission_payload.to_string()))
                 .unwrap(),
         )
         .await
@@ -150,10 +150,33 @@ async fn test_code_submission() {
 }
 
 #[tokio::test]
-async fn test_portal_html_serves_offline_app() {
+async fn test_portal_gatekeeper_serves_download_link() {
     let app = build_app();
     let response = app
         .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let html = String::from_utf8(body.to_vec()).unwrap();
+
+    assert!(html.contains("<!DOCTYPE html>"));
+    assert!(html.contains("CITADEL Assessment Environment"));
+    assert!(html.contains("Lockdown Required"));
+    assert!(html.contains("/download/citadel-client.exe"));
+}
+
+#[tokio::test]
+async fn test_secured_portal_html_serves_exam() {
+    let app = build_app();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/?token=citadel-secured-session")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 

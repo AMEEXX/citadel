@@ -17,8 +17,5 @@
         }
       }
     }
-  },
-  "plugin": [
-    ".opencode/plugins/graphify.js"
-  ]
+  }
 }

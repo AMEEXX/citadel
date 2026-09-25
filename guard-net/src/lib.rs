@@ -115,8 +115,11 @@ impl WfpEngine {
         // Rule 3: Allow Local Loopback (Weight = 80)
         self.add_loopback_permit_filter(80)?;
 
-        // Rule 4: Default Deny / Block All Remaining Outbound (Weight = 10)
+        // Rule 4: Default Deny / Block All Remaining Outbound IPv4 (Weight = 10)
         self.add_default_deny_filter(10)?;
+
+        // Rule 5: Default Deny / Block All Remaining Outbound IPv6 (Weight = 10)
+        self.add_default_deny_v6_filter(10)?;
 
         Ok(())
     }
@@ -279,6 +282,32 @@ impl WfpEngine {
 
         if status != 0 {
             return Err(WfpError::FilterAddFailed("DefaultBlockOutbound", status));
+        }
+
+        self.filter_ids.push(filter_id);
+        Ok(())
+    }
+
+    fn add_default_deny_v6_filter(&mut self, weight: u64) -> Result<(), WfpError> {
+        let mut weight_val = weight;
+        let mut name_wide: Vec<u16> = "CITADEL Default Deny IPv6 Outbound\0".encode_utf16().collect();
+        let mut filter = FWPM_FILTER0::default();
+        filter.layerKey = FWPM_LAYER_ALE_AUTH_CONNECT_V6;
+        filter.action.r#type = FWP_ACTION_BLOCK;
+        filter.subLayerKey = self.sublayer_key;
+        filter.weight.r#type = FWP_UINT64;
+        filter.weight.Anonymous.uint64 = &mut weight_val;
+        filter.displayData.name = PWSTR(name_wide.as_mut_ptr());
+        filter.filterCondition = ptr::null_mut();
+        filter.numFilterConditions = 0; // Matches all remaining IPv6 connections
+
+        let mut filter_id = 0u64;
+        let status = unsafe {
+            FwpmFilterAdd0(self.handle, &filter, None, Some(&mut filter_id))
+        };
+
+        if status != 0 {
+            return Err(WfpError::FilterAddFailed("DefaultBlockOutboundV6", status));
         }
 
         self.filter_ids.push(filter_id);

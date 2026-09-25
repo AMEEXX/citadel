@@ -1,10 +1,11 @@
 //! CITADEL Client Security Coordinator
 //!
 //! Orchestrates the client-side lockdown lifecycle:
-//! 1. WFP dynamic network isolation (zero internet, college server only)
-//! 2. Low-level hotkey suppression (blocks Alt-Tab, Win, Alt-F4)
-//! 3. Background anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
-//! 4. Safe RAII cleanup upon exit
+//! 1. UAC Administrator Elevation enforcement
+//! 2. WFP dynamic network isolation (zero internet, college server only)
+//! 3. Low-level hotkey suppression (blocks Alt-Tab, Win, Alt-F4)
+//! 4. Background anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
+//! 5. Safe RAII cleanup upon exit
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,12 +15,67 @@ use std::time::Duration;
 
 use guard_net::WfpEngine;
 use guard_svc::llm_detect;
+use windows::core::{w, PCWSTR};
+use windows::Win32::Foundation::HWND;
+use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+use windows::Win32::UI::Shell::ShellExecuteW;
+use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
 use crate::hotkey_lock::{install_hotkey_lock, HotkeyLockHandle};
 
+/// Checks if the current process is running with elevated Administrator privileges.
+pub fn is_elevated() -> bool {
+    let mut handle = Default::default();
+    unsafe {
+        if OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut handle).is_ok() {
+            let mut elevation = TOKEN_ELEVATION::default();
+            let mut size = 0;
+            if GetTokenInformation(
+                handle,
+                TokenElevation,
+                Some(&mut elevation as *mut _ as *mut _),
+                std::mem::size_of::<TOKEN_ELEVATION>() as u32,
+                &mut size,
+            ).is_ok() {
+                return elevation.TokenIsElevated != 0;
+            }
+        }
+    }
+    false
+}
+
+/// Triggers a Windows UAC prompt to relaunch this application as Administrator.
+pub fn elevate_self(args: &[String]) -> Result<(), String> {
+    let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
+    let exe_path_str = current_exe.to_string_lossy();
+    let wide_exe: Vec<u16> = exe_path_str.encode_utf16().chain(std::iter::once(0)).collect();
+
+    // Reconstruct arguments to pass to the elevated instance
+    let args_str = args.join(" ");
+    let wide_args: Vec<u16> = args_str.encode_utf16().chain(std::iter::once(0)).collect();
+
+    unsafe {
+        let result = ShellExecuteW(
+            HWND(std::ptr::null_mut()),
+            w!("runas"),
+            PCWSTR(wide_exe.as_ptr()),
+            PCWSTR(wide_args.as_ptr()),
+            PCWSTR(std::ptr::null()),
+            SW_SHOWNORMAL,
+        );
+
+        if result.0 as usize > 32 {
+            Ok(())
+        } else {
+            Err(format!("UAC elevation request declined by user (code {})", result.0 as usize))
+        }
+    }
+}
+
 pub struct ClientLockdownGuard {
-    _wfp_engine: Option<WfpEngine>,
-    _hotkey_handle: Option<HotkeyLockHandle>,
+    _wfp_engine: WfpEngine,
+    _hotkey_handle: HotkeyLockHandle,
     stop_signal: Arc<AtomicBool>,
     sensor_thread: Option<JoinHandle<()>>,
     violations: Arc<Mutex<Vec<String>>>,
@@ -29,51 +85,32 @@ pub struct ClientLockdownGuard {
 
 impl ClientLockdownGuard {
     /// Initializes client-side lockdown for the target exam server.
-    /// If administrative privilege is missing, WFP may fail cleanly with a descriptive error.
+    /// Strictly requires Administrator privilege — fails if elevation is not present.
     pub fn new(server_ip: Ipv4Addr, server_port: u16) -> Result<Self, String> {
+        if !is_elevated() {
+            return Err("CITADEL Lockdown requires Administrator privileges to engage kernel network filtering and hardware lock.".to_string());
+        }
+
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
-        // 1. Install WFP Zero-Internet Filter
-        let wfp_engine = match WfpEngine::open_dynamic() {
-            Ok(mut engine) => {
-                match engine.install_college_lan_policy(server_ip, server_port) {
-                    Ok(()) => {
-                        eprintln!(
-                            "[CITADEL CLIENT] Network lockdown ACTIVE: only {}:{} permitted.",
-                            server_ip, server_port
-                        );
-                        Some(engine)
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "[CITADEL CLIENT] WARNING: WFP policy failed ({:?}). Running in non-WFP mode.",
-                            e
-                        );
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                eprintln!(
-                    "[CITADEL CLIENT] WARNING: WFP engine open failed ({:?}). (Requires Administrator)",
-                    e
-                );
-                None
-            }
-        };
+        // 1. Install WFP Zero-Internet Filter in Windows Kernel
+        let mut wfp_engine = WfpEngine::open_dynamic()
+            .map_err(|e| format!("Failed to open WFP engine: {:?}", e))?;
+
+        wfp_engine.install_college_lan_policy(server_ip, server_port)
+            .map_err(|e| format!("Failed to apply WFP zero-internet firewall rule: {:?}", e))?;
+
+        eprintln!(
+            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
+            server_ip, server_port
+        );
 
         // 2. Install Hotkey Suppression Hook
-        let hotkey_handle = match install_hotkey_lock() {
-            Ok(handle) => {
-                eprintln!("[CITADEL CLIENT] Hotkey suppression ACTIVE: Alt-Tab and Win keys locked.");
-                Some(handle)
-            }
-            Err(e) => {
-                eprintln!("[CITADEL CLIENT] WARNING: Hotkey lock failed: {}", e);
-                None
-            }
-        };
+        let hotkey_handle = install_hotkey_lock()
+            .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
+
+        eprintln!("[CITADEL CLIENT] SYSTEM KEYBOARD HOOK ACTIVE: Alt-Tab, Win Key, Ctrl-Esc intercepted.");
 
         // 3. Start background anti-cheat watchdog
         let stop_clone = stop_signal.clone();
@@ -129,7 +166,7 @@ impl ClientLockdownGuard {
     }
 
     pub fn server_endpoint(&self) -> String {
-        format!("http://{}:{}", self.server_ip, self.server_port)
+        format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
     }
 
     pub fn get_violations(&self) -> Vec<String> {
@@ -144,6 +181,5 @@ impl Drop for ClientLockdownGuard {
         if let Some(thread) = self.sensor_thread.take() {
             let _ = thread.join();
         }
-        // Dropping _hotkey_handle and _wfp_engine automatically triggers their Drop impls
     }
 }

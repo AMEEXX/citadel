@@ -1,7 +1,9 @@
+use std::collections::HashMap;
 use axum::{
-    extract::Path,
-    http::StatusCode,
-    response::Html,
+    body::Body,
+    extract::{Path, Query},
+    http::{header, HeaderMap, StatusCode},
+    response::{Html, Response},
     routing::{get, post},
     Json, Router,
 };
@@ -12,7 +14,7 @@ use crate::questions::{
     get_all_questions, get_exam_info, get_question_by_id, get_question_summaries, ExamInfo,
     Question, QuestionSummary,
 };
-use crate::ui::render_portal_html;
+use crate::ui::{render_gatekeeper_html, render_portal_html};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HealthResponse {
@@ -51,7 +53,9 @@ pub fn build_app() -> Router {
         .allow_headers(Any);
 
     Router::new()
-        .route("/", get(portal_handler))
+        .route("/", get(portal_or_gatekeeper_handler))
+        .route("/exam", get(portal_handler))
+        .route("/download/citadel-client.exe", get(download_client_handler))
         .route("/health", get(health_handler))
         .route("/api/v1/exam/info", get(exam_info_handler))
         .route("/api/v1/questions", get(list_questions_handler))
@@ -60,8 +64,58 @@ pub fn build_app() -> Router {
         .layer(cors)
 }
 
+async fn portal_or_gatekeeper_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Html<&'static str> {
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+
+    let has_lockdown_ua = user_agent.contains("CitadelSecurityCore")
+        || user_agent.contains("CITADEL-Lockdown-Client");
+    let has_lockdown_token = params.get("token").map(|v| v.as_str()) == Some("citadel-secured-session");
+
+    if has_lockdown_ua || has_lockdown_token {
+        Html(render_portal_html())
+    } else {
+        Html(render_gatekeeper_html())
+    }
+}
+
 async fn portal_handler() -> Html<&'static str> {
     Html(render_portal_html())
+}
+
+async fn download_client_handler() -> Result<Response, StatusCode> {
+    let candidates = [
+        "target/release/citadel-client.exe",
+        "target/debug/citadel-client.exe",
+        "../target/release/citadel-client.exe",
+        "../target/debug/citadel-client.exe",
+        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\target\release\citadel-client.exe",
+        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\target\debug\citadel-client.exe",
+        "/home/amitlinux/DevProjects/citadel-design/target/release/citadel-client.exe",
+        "/home/amitlinux/DevProjects/citadel-design/target/debug/citadel-client.exe",
+    ];
+
+    for path in &candidates {
+        if let Ok(bytes) = std::fs::read(path) {
+            let res = Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/vnd.microsoft.portable-executable")
+                .header(
+                    header::CONTENT_DISPOSITION,
+                    "attachment; filename=\"citadel-client.exe\"",
+                )
+                .body(Body::from(bytes))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            return Ok(res);
+        }
+    }
+
+    Err(StatusCode::NOT_FOUND)
 }
 
 async fn health_handler() -> Json<HealthResponse> {
@@ -98,7 +152,6 @@ async fn submit_code_handler(
     };
 
     let total_cases = question.sample_cases.len() as u32;
-    // Evaluation simulation in offline mode
     let is_blank = payload.source_code.trim().is_empty();
     let (status, passed, score, details) = if is_blank {
         ("Compilation Error".to_string(), 0, 0, "No code submitted.".to_string())

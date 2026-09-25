@@ -25,7 +25,7 @@ pub fn render_portal_html() -> &'static str {
       --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
 
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
 
     body {
       background-color: var(--bg-base);
@@ -39,6 +39,51 @@ pub fn render_portal_html() -> &'static str {
       flex-direction: column;
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
+    }
+
+    
+    /* SECURITY TOAST NOTIFICATION */
+    #security-toast {
+      display: none;
+      position: fixed;
+      top: 50px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(220, 38, 38, 0.95);
+      backdrop-filter: blur(12px);
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+      z-index: 999999;
+      border: 1px solid rgba(248, 113, 113, 0.5);
+      animation: slideDown 0.25s ease-out;
+    }
+    @keyframes slideDown {
+      from { transform: translate(-50%, -20px); opacity: 0; }
+      to { transform: translate(-50%, 0); opacity: 1; }
+    }
+
+    /* SECURITY BLUR ALERT BANNER */
+    #blur-warning {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: linear-gradient(90deg, #dc2626, #991b1b);
+      color: white;
+      font-weight: 700;
+      font-size: 13px;
+      padding: 8px 16px;
+      text-align: center;
+      z-index: 10000;
+      box-shadow: 0 4px 20px rgba(220, 38, 38, 0.6);
+      animation: flash 0.5s infinite alternate;
+    }
+    @keyframes flash {
+      from { opacity: 0.9; }
+      to { opacity: 1; }
     }
 
     /* TOP HEADER */
@@ -94,7 +139,6 @@ pub fn render_portal_html() -> &'static str {
       gap: 16px;
     }
 
-    /* 21st.dev Style Pulsing Network Beacon */
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -210,7 +254,6 @@ pub fn render_portal_html() -> &'static str {
       overflow: hidden;
     }
 
-    /* 21st.dev Segmented Question Tabs */
     .q-tabs {
       display: flex;
       border-bottom: 1px solid var(--border-subtle);
@@ -259,6 +302,7 @@ pub fn render_portal_html() -> &'static str {
       padding: 24px 28px;
       overflow-y: auto;
       flex: 1;
+      user-select: text;
     }
 
     .q-title {
@@ -406,6 +450,7 @@ pub fn render_portal_html() -> &'static str {
       resize: none;
       white-space: pre;
       tab-size: 4;
+      user-select: text;
     }
 
     /* BOTTOM RESULTS PANEL */
@@ -440,7 +485,6 @@ pub fn render_portal_html() -> &'static str {
       gap: 10px;
     }
 
-    /* 21st.dev Gradient Glow Buttons */
     .btn {
       padding: 7px 16px;
       border-radius: 6px;
@@ -487,6 +531,7 @@ pub fn render_portal_html() -> &'static str {
       overflow-y: auto;
       font-family: var(--font-mono);
       font-size: 12px;
+      user-select: text;
     }
 
     .verdict-tag {
@@ -512,6 +557,12 @@ pub fn render_portal_html() -> &'static str {
   </style>
 </head>
 <body>
+
+  <!-- FOCUS LOSS WARNING MODAL -->
+  <div id="security-toast">⚠️ <span id="security-toast-msg">Security Violation</span></div>
+  <div id="blur-warning">
+    ⚠️ SECURITY WARNING: Window focus lost! Focus-loss events are recorded in the exam integrity log.
+  </div>
 
   <!-- TOP HEADER -->
   <header>
@@ -591,6 +642,73 @@ pub fn render_portal_html() -> &'static str {
     let currentQIndex = 0;
     let currentLang = 'python';
     let codeStorage = {};
+
+    // =========================================================================
+    // IN-BROWSER SECURITY & HARDENING
+    // =========================================================================
+
+    // 1. Disable Right-Click Context Menu / Inspect Element
+    document.addEventListener('contextmenu', e => {
+      e.preventDefault();
+      return false;
+    });
+
+    function showSecurityToast(msg) {
+      const toast = document.getElementById('security-toast');
+      const text = document.getElementById('security-toast-msg');
+      if (toast && text) {
+        text.innerText = msg;
+        toast.style.display = 'block';
+        clearTimeout(window._toastTimer);
+        window._toastTimer = setTimeout(() => {
+          toast.style.display = 'none';
+        }, 4000);
+      }
+    }
+
+    // 2. Disable Copying Exam Content to External Clipboard
+    document.addEventListener('copy', e => {
+      if (document.activeElement && document.activeElement.id === 'code-editor') {
+        // Allowed inside editor for candidate's own code
+      } else {
+        e.preventDefault();
+        showSecurityToast('Copying exam questions or instructions is strictly prohibited.');
+      }
+    });
+
+    // 3. Disable Pasting External Code
+    document.addEventListener('paste', e => {
+      e.preventDefault();
+      showSecurityToast('Pasting external content is blocked. Please write your code manually.');
+    });
+
+    // 4. Disable DevTools Shortcuts (F12, Ctrl+Shift+I, Ctrl+Shift+J, Ctrl+U)
+    document.addEventListener('keydown', e => {
+      if (
+        e.key === 'F12' ||
+        (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j')) ||
+        (e.ctrlKey && (e.key === 'u' || e.key === 'U'))
+      ) {
+        e.preventDefault();
+        return false;
+      }
+    });
+
+    // 5. Monitor Window Blur (Focus-Loss / Window Switching)
+    window.addEventListener('blur', () => {
+      const banner = document.getElementById('blur-warning');
+      if (banner) banner.style.display = 'block';
+    });
+    window.addEventListener('focus', () => {
+      setTimeout(() => {
+        const banner = document.getElementById('blur-warning');
+        if (banner) banner.style.display = 'none';
+      }, 3000);
+    });
+
+    // =========================================================================
+    // EXAM LOGIC & COMMUNICATION
+    // =========================================================================
 
     async function init() {
       try {
@@ -816,6 +934,282 @@ pub fn render_portal_html() -> &'static str {
 
     init();
   </script>
+</body>
+</html>
+"#
+}
+
+
+pub fn render_gatekeeper_html() -> &'static str {
+    r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CITADEL — Client Required</title>
+  <style>
+    :root {
+      --bg-base: #06090f;
+      --bg-surface: #0c121e;
+      --bg-surface-elevated: #131b2e;
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent-blue: #3b82f6;
+      --accent-cyan: #06b6d4;
+      --accent-red: #ef4444;
+      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-ui);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background-image: 
+        radial-gradient(circle at 50% 15%, rgba(59, 130, 246, 0.12), transparent 45%),
+        radial-gradient(circle at 80% 80%, rgba(6, 182, 212, 0.08), transparent 40%);
+    }
+
+    .container {
+      max-width: 680px;
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .container::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #3b82f6, #06b6d4, #3b82f6);
+    }
+
+    .shield-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 64px;
+      height: 64px;
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 50%;
+      font-size: 28px;
+      margin-bottom: 20px;
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+    }
+
+    .badge-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      color: #f87171;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+
+    .badge-pill .dot {
+      width: 6px;
+      height: 6px;
+      background: #ef4444;
+      border-radius: 50%;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    h1 {
+      font-size: 26px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.5px;
+    }
+
+    p.lead {
+      color: var(--text-muted);
+      font-size: 15px;
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .download-card {
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 28px;
+    }
+
+    .btn-download {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: white;
+      text-decoration: none;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      box-shadow: 0 4px 14px rgba(37, 99, 235, 0.4);
+      transition: all 0.2s ease;
+      width: 100%;
+      cursor: pointer;
+    }
+
+    .btn-download:hover {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.6);
+      transform: translateY(-1px);
+    }
+
+    .file-meta {
+      font-size: 12px;
+      color: var(--text-dim);
+      margin-top: 10px;
+    }
+
+    .steps-container {
+      text-align: left;
+      margin-bottom: 24px;
+    }
+
+    .steps-title {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .step-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .step-number {
+      width: 24px;
+      height: 24px;
+      background: #1e293b;
+      color: var(--accent-cyan);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .step-text {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .step-text strong {
+      color: var(--text-main);
+    }
+
+    .footer-note {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .footer-note .tag {
+      background: #1e293b;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="shield-badge">🛡️</div>
+    <div class="badge-pill">
+      <span class="dot"></span>
+      Lockdown Required
+    </div>
+    <h1>CITADEL Assessment Environment</h1>
+    <p class="lead">
+      To ensure examination integrity, questions cannot be accessed through standard web browsers or mobile devices. 
+      Please download and run the elevated CITADEL Client to begin your assessment.
+    </p>
+
+    <div class="download-card">
+      <a href="/download/citadel-client.exe" class="btn-download">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download CITADEL Client (citadel-client.exe)
+      </a>
+      <div class="file-meta">
+        Windows 64-bit • Native Hardware Lockdown • Size: ~350 KB
+      </div>
+    </div>
+
+    <div class="steps-container">
+      <div class="steps-title">Instructions for Candidates:</div>
+      <div class="step-item">
+        <div class="step-number">1</div>
+        <div class="step-text"><strong>Download & Save:</strong> Click the button above to download <code>citadel-client.exe</code> to your laptop.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-number">2</div>
+        <div class="step-text"><strong>Launch & Elevate:</strong> Open the file and click <strong>Yes</strong> on the Windows Administrator prompt (UAC) to engage network & keyboard lockdown.</div>
+      </div>
+      <div class="step-item">
+        <div class="step-number">3</div>
+        <div class="step-text"><strong>Assessment Launches:</strong> The exam problems and code editor will open automatically in full-screen isolated kiosk mode.</div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      Server: <span class="tag">172.60.5.98:8443</span> • Proctor Override: <span class="tag">Ctrl+Shift+Alt+F12</span>
+    </div>
+  </div>
 </body>
 </html>
 "#
