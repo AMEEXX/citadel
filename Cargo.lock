@@ -138,6 +138,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "citadel-client"
+version = "0.1.0"
+dependencies = [
+ "guard-net",
+ "guard-svc",
+ "windows",
+]
+
+[[package]]
 name = "citadel-server"
 version = "0.1.0"
 dependencies = [

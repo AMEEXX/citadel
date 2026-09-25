@@ -7,16 +7,16 @@ pub fn render_portal_html() -> &'static str {
   <title>CITADEL — Secure Offline Assessment Portal</title>
   <style>
     :root {
-      --bg-base: #0a0d14;
-      --bg-surface: #111622;
-      --bg-surface-elevated: #182030;
-      --bg-editor: #0c1017;
+      --bg-base: #06090f;
+      --bg-surface: #0c121e;
+      --bg-surface-elevated: #131b2e;
+      --bg-editor: #080d16;
       --border-subtle: rgba(255, 255, 255, 0.08);
       --border-focus: #3b82f6;
-      --text-main: #f1f5f9;
+      --text-main: #f8fafc;
       --text-muted: #94a3b8;
       --text-dim: #64748b;
-      --accent-blue: #2563eb;
+      --accent-blue: #3b82f6;
       --accent-cyan: #06b6d4;
       --accent-green: #10b981;
       --accent-amber: #f59e0b;
@@ -29,6 +29,9 @@ pub fn render_portal_html() -> &'static str {
 
     body {
       background-color: var(--bg-base);
+      background-image: 
+        radial-gradient(circle at 10% 10%, rgba(37, 99, 235, 0.08) 0%, transparent 45%),
+        radial-gradient(circle at 90% 90%, rgba(6, 182, 212, 0.06) 0%, transparent 45%);
       color: var(--text-main);
       font-family: var(--font-ui);
       height: 100vh;
@@ -40,14 +43,17 @@ pub fn render_portal_html() -> &'static str {
 
     /* TOP HEADER */
     header {
-      background: var(--bg-surface);
+      background: rgba(12, 18, 30, 0.85);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
       border-bottom: 1px solid var(--border-subtle);
-      padding: 10px 20px;
+      padding: 0 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       height: 56px;
       flex-shrink: 0;
+      z-index: 50;
     }
 
     .brand {
@@ -57,18 +63,18 @@ pub fn render_portal_html() -> &'static str {
     }
 
     .brand-logo {
-      background: linear-gradient(135deg, #1d4ed8, #06b6d4);
+      background: linear-gradient(135deg, #2563eb, #06b6d4);
       color: white;
       font-weight: 900;
-      font-size: 14px;
-      letter-spacing: 1px;
-      padding: 4px 8px;
-      border-radius: 6px;
-      box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+      font-size: 13px;
+      letter-spacing: 1.5px;
+      padding: 5px 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 16px rgba(37, 99, 235, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
 
     .brand-title {
-      font-size: 15px;
+      font-size: 14px;
       font-weight: 700;
       letter-spacing: 0.5px;
       color: var(--text-main);
@@ -76,10 +82,10 @@ pub fn render_portal_html() -> &'static str {
 
     .brand-subtitle {
       font-size: 11px;
-      color: var(--text-muted);
-      margin-left: 6px;
-      padding-left: 8px;
+      color: var(--text-dim);
+      padding-left: 10px;
       border-left: 1px solid var(--border-subtle);
+      font-family: var(--font-mono);
     }
 
     .header-center {
@@ -88,39 +94,69 @@ pub fn render_portal_html() -> &'static str {
       gap: 16px;
     }
 
+    /* 21st.dev Style Pulsing Network Beacon */
     .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      background: rgba(16, 185, 129, 0.1);
-      border: 1px solid rgba(16, 185, 129, 0.3);
-      color: var(--accent-green);
-      padding: 4px 10px;
+      gap: 8px;
+      background: rgba(16, 185, 129, 0.08);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #34d399;
+      padding: 5px 12px;
       border-radius: 9999px;
       font-size: 12px;
       font-weight: 600;
+      letter-spacing: 0.3px;
     }
 
-    .status-dot {
-      width: 7px;
-      height: 7px;
+    .beacon {
+      position: relative;
+      display: flex;
+      width: 8px;
+      height: 8px;
+    }
+
+    .beacon-ping {
+      position: absolute;
+      display: inline-flex;
+      height: 100%;
+      width: 100%;
+      border-radius: 9999px;
       background-color: var(--accent-green);
-      border-radius: 50%;
+      opacity: 0.75;
+      animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+
+    .beacon-dot {
+      position: relative;
+      display: inline-flex;
+      border-radius: 9999px;
+      height: 8px;
+      width: 8px;
+      background-color: var(--accent-green);
       box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    @keyframes ping {
+      75%, 100% {
+        transform: scale(2.2);
+        opacity: 0;
+      }
     }
 
     .timer-badge {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      background: rgba(245, 158, 11, 0.1);
-      border: 1px solid rgba(245, 158, 11, 0.3);
-      color: var(--accent-amber);
-      padding: 4px 12px;
-      border-radius: 6px;
+      gap: 8px;
+      background: rgba(245, 158, 11, 0.08);
+      border: 1px solid rgba(245, 158, 11, 0.25);
+      color: #fbbf24;
+      padding: 5px 14px;
+      border-radius: 8px;
       font-family: var(--font-mono);
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 700;
+      letter-spacing: 1px;
     }
 
     .header-actions {
@@ -129,18 +165,32 @@ pub fn render_portal_html() -> &'static str {
       gap: 12px;
     }
 
+    .candidate-pill {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      background: rgba(255, 255, 255, 0.03);
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid var(--border-subtle);
+    }
+
     .btn-finish {
-      background: #b91c1c;
+      background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
       color: white;
-      border: none;
+      border: 1px solid rgba(255, 255, 255, 0.15);
       padding: 6px 14px;
       border-radius: 6px;
       font-weight: 600;
       font-size: 12px;
       cursor: pointer;
-      transition: background 0.15s;
+      box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
-    .btn-finish:hover { background: #dc2626; }
+    .btn-finish:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.5);
+    }
 
     /* MAIN CONTAINER */
     .workspace {
@@ -160,38 +210,53 @@ pub fn render_portal_html() -> &'static str {
       overflow: hidden;
     }
 
+    /* 21st.dev Segmented Question Tabs */
     .q-tabs {
       display: flex;
       border-bottom: 1px solid var(--border-subtle);
-      background: var(--bg-base);
+      background: rgba(6, 9, 15, 0.9);
+      padding: 6px 12px 0 12px;
+      gap: 6px;
     }
 
     .q-tab {
-      padding: 10px 18px;
-      font-size: 13px;
+      padding: 8px 16px;
+      font-size: 12px;
       font-weight: 600;
-      color: var(--text-muted);
+      color: var(--text-dim);
       cursor: pointer;
-      border-bottom: 2px solid transparent;
+      border-radius: 6px 6px 0 0;
+      border: 1px solid transparent;
+      border-bottom: none;
       transition: all 0.15s;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 8px;
     }
 
     .q-tab:hover {
       color: var(--text-main);
-      background: rgba(255, 255, 255, 0.02);
+      background: rgba(255, 255, 255, 0.03);
     }
 
     .q-tab.active {
       color: #60a5fa;
-      border-bottom: 2px solid var(--accent-blue);
       background: var(--bg-surface);
+      border-color: var(--border-subtle);
+      box-shadow: inset 0 2px 0 var(--accent-blue);
     }
 
+    .tab-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+    .q-tab.active .tab-status-dot { background: var(--accent-blue); }
+    .tab-status-dot.solved { background: var(--accent-green) !important; box-shadow: 0 0 6px var(--accent-green); }
+
     .q-content {
-      padding: 24px;
+      padding: 24px 28px;
       overflow-y: auto;
       flex: 1;
     }
@@ -199,7 +264,8 @@ pub fn render_portal_html() -> &'static str {
     .q-title {
       font-size: 20px;
       font-weight: 700;
-      margin-bottom: 10px;
+      letter-spacing: -0.01em;
+      margin-bottom: 12px;
       color: var(--text-main);
     }
 
@@ -207,35 +273,36 @@ pub fn render_portal_html() -> &'static str {
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 20px;
+      margin-bottom: 24px;
     }
 
     .pill {
       font-size: 11px;
-      padding: 3px 8px;
-      border-radius: 4px;
+      padding: 3px 10px;
+      border-radius: 9999px;
       font-weight: 600;
+      letter-spacing: 0.3px;
     }
 
-    .pill-diff { background: rgba(59, 130, 246, 0.15); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.3); }
-    .pill-pts { background: rgba(16, 185, 129, 0.15); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.3); }
-    .pill-tag { background: rgba(255, 255, 255, 0.05); color: var(--text-muted); border: 1px solid var(--border-subtle); }
+    .pill-diff { background: rgba(59, 130, 246, 0.12); color: #93c5fd; border: 1px solid rgba(59, 130, 246, 0.25); }
+    .pill-pts { background: rgba(16, 185, 129, 0.12); color: #6ee7b7; border: 1px solid rgba(16, 185, 129, 0.25); }
+    .pill-tag { background: rgba(255, 255, 255, 0.04); color: var(--text-muted); border: 1px solid var(--border-subtle); }
 
     .q-body {
       font-size: 14px;
-      line-height: 1.6;
+      line-height: 1.7;
       color: #cbd5e1;
       margin-bottom: 24px;
       white-space: pre-line;
     }
 
     .section-title {
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
       color: var(--text-muted);
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     .constraints-list {
@@ -244,33 +311,35 @@ pub fn render_portal_html() -> &'static str {
       font-size: 13px;
       color: #94a3b8;
     }
-    .constraints-list li { margin-bottom: 4px; font-family: var(--font-mono); }
+    .constraints-list li { margin-bottom: 6px; font-family: var(--font-mono); }
 
     .sample-card {
       background: var(--bg-base);
       border: 1px solid var(--border-subtle);
-      border-radius: 6px;
-      padding: 12px;
+      border-radius: 8px;
+      padding: 14px;
       margin-bottom: 16px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
     }
 
     .sample-label {
       font-size: 11px;
       font-weight: 700;
       color: var(--text-dim);
-      margin-bottom: 4px;
+      margin-bottom: 6px;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .sample-box {
-      background: #06090e;
+      background: #04060a;
       border: 1px solid rgba(255, 255, 255, 0.05);
-      padding: 8px 12px;
-      border-radius: 4px;
+      padding: 10px 14px;
+      border-radius: 6px;
       font-family: var(--font-mono);
       font-size: 12px;
       color: #38bdf8;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
       white-space: pre-wrap;
     }
 
@@ -283,7 +352,7 @@ pub fn render_portal_html() -> &'static str {
     }
 
     .editor-toolbar {
-      background: var(--bg-surface);
+      background: rgba(12, 18, 30, 0.95);
       border-bottom: 1px solid var(--border-subtle);
       padding: 8px 16px;
       display: flex;
@@ -299,10 +368,21 @@ pub fn render_portal_html() -> &'static str {
       border: 1px solid var(--border-subtle);
       padding: 6px 12px;
       border-radius: 6px;
-      font-size: 13px;
-      font-weight: 500;
+      font-size: 12px;
+      font-weight: 600;
       cursor: pointer;
       outline: none;
+      transition: border-color 0.15s;
+    }
+    .lang-select:focus { border-color: var(--border-focus); }
+
+    .file-badge {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      padding: 2px 6px;
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 4px;
     }
 
     .editor-container {
@@ -315,12 +395,12 @@ pub fn render_portal_html() -> &'static str {
 
     .code-area {
       flex: 1;
-      background: #090d14;
+      background: #070b12;
       color: #e2e8f0;
       font-family: var(--font-mono);
       font-size: 13px;
-      line-height: 1.5;
-      padding: 16px;
+      line-height: 1.6;
+      padding: 18px 20px;
       border: none;
       outline: none;
       resize: none;
@@ -330,7 +410,7 @@ pub fn render_portal_html() -> &'static str {
 
     /* BOTTOM RESULTS PANEL */
     .results-panel {
-      height: 200px;
+      height: 220px;
       border-top: 1px solid var(--border-subtle);
       background: var(--bg-surface);
       display: flex;
@@ -348,10 +428,10 @@ pub fn render_portal_html() -> &'static str {
     }
 
     .results-title {
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.8px;
       color: var(--text-muted);
     }
 
@@ -360,6 +440,7 @@ pub fn render_portal_html() -> &'static str {
       gap: 10px;
     }
 
+    /* 21st.dev Gradient Glow Buttons */
     .btn {
       padding: 7px 16px;
       border-radius: 6px;
@@ -367,45 +448,67 @@ pub fn render_portal_html() -> &'static str {
       font-weight: 600;
       cursor: pointer;
       border: 1px solid transparent;
-      transition: all 0.15s;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .btn-secondary {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(255, 255, 255, 0.04);
       color: var(--text-main);
-      border-color: var(--border-subtle);
+      border: 1px solid var(--border-subtle);
     }
-    .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
 
     .btn-primary {
-      background: var(--accent-blue);
+      background: linear-gradient(180deg, #3b82f6 0%, #1d4ed8 100%);
       color: white;
+      box-shadow: 0 0 16px rgba(59, 130, 246, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
-    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:hover {
+      box-shadow: 0 0 24px rgba(59, 130, 246, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
 
     .btn-success {
-      background: #059669;
+      background: linear-gradient(180deg, #10b981 0%, #047857 100%);
       color: white;
+      box-shadow: 0 0 16px rgba(16, 185, 129, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.2);
     }
-    .btn-success:hover { background: #10b981; }
+    .btn-success:hover {
+      box-shadow: 0 0 24px rgba(16, 185, 129, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      transform: translateY(-1px);
+    }
 
     .results-body {
       flex: 1;
-      padding: 14px 16px;
+      padding: 14px 18px;
       overflow-y: auto;
       font-family: var(--font-mono);
       font-size: 12px;
     }
 
     .verdict-tag {
-      display: inline-block;
-      padding: 4px 10px;
-      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 12px;
+      border-radius: 9999px;
       font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.5px;
       margin-bottom: 10px;
     }
-    .verdict-passed { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.4); }
-    .verdict-running { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); }
+    .verdict-passed { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .verdict-running { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+    .stat-pill {
+      font-size: 11px;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      margin-left: 12px;
+    }
   </style>
 </head>
 <body>
@@ -420,15 +523,18 @@ pub fn render_portal_html() -> &'static str {
 
     <div class="header-center">
       <div class="status-badge">
-        <span class="status-dot"></span>
-        <span>Secure College Wi-Fi • Zero Internet</span>
+        <span class="beacon">
+          <span class="beacon-ping"></span>
+          <span class="beacon-dot"></span>
+        </span>
+        <span>Secure College Wi-Fi • Air-Gapped</span>
       </div>
       <div class="timer-badge" id="exam-timer">01:29:54</div>
     </div>
 
     <div class="header-actions">
-      <span style="font-size: 12px; color: var(--text-dim);" id="candidate-id">BYOD-STATION</span>
-      <button class="btn-finish" onclick="finishExam()">Submit Assessment</button>
+      <span class="candidate-pill" id="candidate-id">BYOD-STATION</span>
+      <button class="btn-finish" onclick="finishExam()">Finish Exam</button>
     </div>
   </header>
 
@@ -453,7 +559,7 @@ pub fn render_portal_html() -> &'static str {
             <option value="cpp">C++ (GCC 17)</option>
             <option value="java">Java (OpenJDK 17)</option>
           </select>
-          <span style="font-size: 11px; color: var(--text-dim);" id="file-label">solution.py</span>
+          <span class="file-badge" id="file-label">solution.py</span>
         </div>
 
         <div class="editor-btn-group">
@@ -470,11 +576,11 @@ pub fn render_portal_html() -> &'static str {
       <!-- RESULTS PANEL -->
       <div class="results-panel">
         <div class="results-header">
-          <span class="results-title">Execution Verdict & Test Results</span>
-          <span style="font-size: 11px; color: var(--text-dim);" id="exec-stats">Local Sandbox • Ready</span>
+          <span class="results-title">Sandbox Execution Output & Test Verification</span>
+          <span id="exec-stats" class="stat-pill">Isolated Local Sandbox • Ready</span>
         </div>
         <div class="results-body" id="results-console">
-          <div style="color: var(--text-dim);">Click 'Run Sample Tests' to execute your code against test cases in the offline evaluation sandbox.</div>
+          <div style="color: var(--text-dim); line-height: 1.6;">Click 'Run Sample Tests' to compile and execute your code against test cases in the offline evaluation sandbox.</div>
         </div>
       </div>
     </div>
@@ -484,7 +590,7 @@ pub fn render_portal_html() -> &'static str {
     let questions = [];
     let currentQIndex = 0;
     let currentLang = 'python';
-    let codeStorage = {}; // { 'qId_lang': 'code' }
+    let codeStorage = {};
 
     async function init() {
       try {
@@ -502,8 +608,9 @@ pub fn render_portal_html() -> &'static str {
       const container = document.getElementById('question-tabs');
       container.innerHTML = questions.map((q, idx) => `
         <div class="q-tab ${idx === 0 ? 'active' : ''}" onclick="loadQuestion(${idx})" id="tab-${idx}">
-          <span>Q${q.number}</span>
-          <span style="font-size: 10px; opacity: 0.7;">(${q.points}pts)</span>
+          <span class="tab-status-dot" id="dot-${q.id}"></span>
+          <span>Q${q.number}. ${q.title.split(' ')[0]}</span>
+          <span style="font-size: 10px; opacity: 0.6; font-family: var(--font-mono);">(${q.points}p)</span>
         </div>
       `).join('');
     }
@@ -548,7 +655,7 @@ pub fn render_portal_html() -> &'static str {
             <div class="sample-box">${sc.input}</div>
             <div class="sample-label">Sample Output ${i + 1}</div>
             <div class="sample-box" style="color: #34d399;">${sc.expected_output}</div>
-            ${sc.explanation ? `<div style="font-size: 11px; color: var(--text-dim); margin-top: 4px;"><strong>Explanation:</strong> ${sc.explanation}</div>` : ''}
+            ${sc.explanation ? `<div style="font-size: 11px; color: var(--text-dim); margin-top: 6px; line-height: 1.5;"><strong>Explanation:</strong> ${sc.explanation}</div>` : ''}
           </div>
         `).join('')}
       `;
@@ -570,7 +677,6 @@ pub fn render_portal_html() -> &'static str {
     }
 
     function onLanguageChange() {
-      // Save current code
       saveCurrentCode();
       currentLang = document.getElementById('lang-selector').value;
       const q = questions[currentQIndex];
@@ -631,11 +737,16 @@ pub fn render_portal_html() -> &'static str {
         const passed = data.status === 'Accepted';
         statsEl.innerText = `Runtime: ${data.runtime_ms}ms • Memory: ${data.memory_mb}MB`;
 
+        if (passed) {
+          const dot = document.getElementById(`dot-${q.id}`);
+          if (dot) dot.classList.add('solved');
+        }
+
         consoleEl.innerHTML = `
-          <div class="verdict-tag ${passed ? 'verdict-passed' : 'verdict-running'}" style="${passed ? '' : 'background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.4);'}">
+          <div class="verdict-tag ${passed ? 'verdict-passed' : 'verdict-running'}" style="${passed ? '' : 'background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3);'}">
             ${data.status.toUpperCase()} (${data.passed_cases}/${data.total_cases} Sample Tests Passed)
           </div>
-          <div style="color: #94a3b8; margin-top: 6px; white-space: pre-wrap;">${data.details}</div>
+          <div style="color: #94a3b8; margin-top: 6px; white-space: pre-wrap; line-height: 1.5;">${data.details}</div>
         `;
       } catch (err) {
         consoleEl.innerHTML = `<div style="color: #f87171;">Failed to connect to local server: ${err.message}</div>`;
@@ -678,7 +789,7 @@ pub fn render_portal_html() -> &'static str {
 
     function finishExam() {
       if (confirm("Are you sure you want to end and submit your entire assessment?")) {
-        alert("Assessment successfully submitted! You may now close your lockdown browser.");
+        alert("Assessment successfully submitted! You may now exit the lockdown app.");
       }
     }
 
@@ -693,7 +804,6 @@ pub fn render_portal_html() -> &'static str {
       }, 1000);
     }
 
-    // Handle Tab key in textarea
     document.getElementById('code-editor').addEventListener('keydown', function(e) {
       if (e.key === 'Tab') {
         e.preventDefault();
