@@ -30,6 +30,7 @@ version = "0.1.0"
 dependencies = [
  "guard-net",
  "guard-svc",
+ "windows",
 ]
 
 [[package]]

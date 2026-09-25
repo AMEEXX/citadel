@@ -97,27 +97,62 @@ fn run_service() -> windows_service::Result<()> {
         }
     };
 
-    // 2. Start Module M2 background scanner for rogue loopback listeners (Ollama / offline LLMs)
+    // 2. Install Module M5 synthetic keystroke injection hook
+    let keyboard_hook = match llm_detect::install_keyboard_hook() {
+        Ok(hook) => {
+            let _ = write_custom_log(&format!("SENSOR M5 INSTALLED keyboard_hook {}", get_iso8601_timestamp()));
+            Some(hook)
+        }
+        Err(e) => {
+            let _ = write_custom_log(&format!("SENSOR M5 ERROR Failed to install keyboard hook {} {}", e, get_iso8601_timestamp()));
+            None
+        }
+    };
+
+    // 3. Start Anti-Cheat background scanner:
+    //    - Module M2: Rogue loopback listeners (Ollama, LM Studio, llama.cpp)
+    //    - Module M4: Capture-exclusion windows (WDA_EXCLUDEFROMCAPTURE)
+    //    - Module M5: Drain and record synthetic keystroke violations
     let stop_scanner = Arc::new(AtomicBool::new(false));
     let stop_scanner_clone = stop_scanner.clone();
     let scanner_handle = std::thread::spawn(move || {
         let allowed_ports = [server_port];
         while !stop_scanner_clone.load(Ordering::Relaxed) {
+            // M2: Loopback Listener scan
             if let Ok(listeners) = llm_detect::scan_loopback_listeners() {
                 let violations = llm_detect::check_listener_violations(&listeners, &allowed_ports);
                 for v in violations {
                     let _ = write_custom_log(&v.to_log_line());
                 }
             }
+
+            // M4: Capture-Exclusion Window scan
+            let excluded_windows = llm_detect::scan_capture_exclusion_windows();
+            for w in excluded_windows {
+                let _ = write_custom_log(&w.to_log_line());
+            }
+
+            // M5: Drain Injected Keystrokes
+            let injected_violations = llm_detect::take_injected_keystroke_violations();
+            for k in injected_violations {
+                let _ = write_custom_log(&k.to_log_line());
+            }
+
             std::thread::sleep(Duration::from_secs(2));
         }
     });
 
     let _ = shutdown_rx.recv();
 
-    // Stop M2 scanner
+    // Stop background scanner
     stop_scanner.store(true, Ordering::Relaxed);
     let _ = scanner_handle.join();
+
+    // Tear down M5 keyboard hook
+    if let Some(hook) = keyboard_hook {
+        hook.stop();
+        let _ = write_custom_log(&format!("SENSOR M5 REMOVED {}", get_iso8601_timestamp()));
+    }
 
     // Tear down WFP engine
     drop(wfp_engine);
