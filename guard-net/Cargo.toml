@@ -1,7 +1,12 @@
-﻿[package]
+[package]
 name = "guard-net"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-windivert = "0.1"
+windows = { version = "0.58", features = [
+    "Win32_NetworkManagement_WindowsFilteringPlatform",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_System_Rpc",
+] }

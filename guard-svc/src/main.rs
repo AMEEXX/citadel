@@ -1,5 +1,6 @@
-﻿use std::fs::OpenOptions;
+use std::fs::OpenOptions;
 use std::io::Write;
+use std::net::Ipv4Addr;
 use std::time::Duration;
 use windows_service::{
     define_windows_service,
@@ -71,6 +72,20 @@ fn my_service_main(_arguments: Vec<std::ffi::OsString>) {
     }
 }
 
+fn get_target_server() -> (Ipv4Addr, u16) {
+    let server_ip = std::env::var("CITADEL_SERVER_IP")
+        .ok()
+        .and_then(|s| s.parse::<Ipv4Addr>().ok())
+        .unwrap_or(Ipv4Addr::new(127, 0, 0, 1));
+
+    let server_port = std::env::var("CITADEL_SERVER_PORT")
+        .ok()
+        .and_then(|s| s.parse::<u16>().ok())
+        .unwrap_or(8443);
+
+    (server_ip, server_port)
+}
+
 fn run_service() -> windows_service::Result<()> {
     let (shutdown_tx, shutdown_rx) = std::sync::mpsc::channel();
 
@@ -99,20 +114,40 @@ fn run_service() -> windows_service::Result<()> {
 
     let _ = write_guard_log("STARTED");
 
-    let _net_handle = match guard_net::install_default_deny() {
-        Ok(handle) => {
-            let _ = write_custom_log(&format!("NET FILTER INSTALLED default-deny {}", get_iso8601_timestamp()));
-            Some(handle)
+    let (server_ip, server_port) = get_target_server();
+
+    let wfp_engine = match guard_net::WfpEngine::open_dynamic() {
+        Ok(mut engine) => {
+            match engine.install_college_lan_policy(server_ip, server_port) {
+                Ok(()) => {
+                    let _ = write_custom_log(&format!(
+                        "NET FILTER INSTALLED WFP-college-lan-zero-internet {}:{} {}",
+                        server_ip, server_port, get_iso8601_timestamp()
+                    ));
+                    Some(engine)
+                }
+                Err(e) => {
+                    let _ = write_custom_log(&format!(
+                        "NET FILTER ERROR Failed to install policy {:?} {}",
+                        e, get_iso8601_timestamp()
+                    ));
+                    None
+                }
+            }
         }
         Err(e) => {
-            let _ = write_custom_log(&format!("NET FILTER ERROR {:?} {}", e, get_iso8601_timestamp()));
+            let _ = write_custom_log(&format!(
+                "NET FILTER ERROR Failed to open WFP engine {:?} {}",
+                e, get_iso8601_timestamp()
+            ));
             None
         }
     };
 
     let _ = shutdown_rx.recv();
 
-    drop(_net_handle);
+    drop(wfp_engine);
+    let _ = write_custom_log(&format!("NET FILTER REMOVED {}", get_iso8601_timestamp()));
 
     let _ = write_guard_log("STOPPED");
 
