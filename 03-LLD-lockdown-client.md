@@ -190,15 +190,19 @@ A tool that reads the screen and types the answer must inject keystrokes. Guard 
 
 Default-deny at the kernel, not in the application.
 
-**Windows:** a WFP sublayer with a filter at `FWPM_LAYER_ALE_AUTH_CONNECT_V4`. Permitted:
+**Windows:** a WFP sublayer binding both `FWPM_LAYER_ALE_AUTH_CONNECT_V4` and `FWPM_LAYER_ALE_AUTH_CONNECT_V6`. Permitted:
 
 ```
-ALLOW  tcp dst=<appliance_or_edge_vip>:8443        (mTLS API + SSE)
-ALLOW  udp dst=<appliance_vip>:123                 (NTP)
-ALLOW  udp dst=255.255.255.255:67,68               (DHCP)
-ALLOW  loopback  ONLY between citadel-* processes  (by PID, re-evaluated)
-DENY   everything else, all protocols, all directions
+ALLOW  tcp dst=<appliance_or_edge_vip>:8443        (Exam Server API + Kiosk)
+ALLOW  udp dst=255.255.255.255:67,68               (DHCP lease maintenance)
+ALLOW  loopback (127.0.0.1/8)                      (Local IPC: Guard <-> Shell)
+DENY   everything else on IPv4 (Default Deny ALE V4)
+DENY   everything else on IPv6 (Default Deny ALE V6 - eliminates IPv6 hotspot/router bypass)
 ```
+
+**Dual-stack IPv4 + IPv6 enforcement:** Modern enterprise Wi-Fi routers issue IPv6 addresses by default. A rule filtering only IPv4 permits candidates to connect to external sites over IPv6. CITADEL enforces synchronous default-deny filters on both ALE V4 and ALE V6 layers in the Windows kernel.
+
+**Crash-safety via Dynamic Sessions:** The WFP session is created with `FWPM_SESSION_FLAG_DYNAMIC`. The Windows Filtering Platform kernel automatically unloads and purges all filter rules upon process exit, guaranteeing that a crash, power outage, or emergency abort never leaves candidate laptops with a bricked network stack.
 
 Notably **DNS is not permitted at all**. The appliance address is delivered in the signed policy as a literal IP. There is no name resolution for a candidate process to abuse, no DNS tunnelling surface, and no DNS-over-HTTPS bypass to worry about.
 
@@ -246,8 +250,14 @@ Notably **DNS is not permitted at all**. The appliance address is delivered in t
 |---|---|
 | Fullscreen, always-on-top, no decorations | Borderless window at display bounds, topmost, re-asserted every 500 ms |
 | Cannot be minimised or moved | `WM_SYSCOMMAND` filtering; window position enforced |
-| Focus loss is an event, not a failure | Losing focus logs a `FOCUS_LOST` telemetry event with duration and, where available, the foreground window's owning process. Repeated or long focus losses escalate |
-| Hotkeys neutralised | Alt+Tab, Win, Alt+F4, Ctrl+Shift+Esc, Print Screen, Ctrl+Alt+Del (where policy permits) via low-level hook in Guard, not Shell |
+| Focus loss is an event, not a failure | Losing focus logs a `FOCUS_LOST` telemetry event with duration and, where available, the foreground window's owning process. Repeated or long focus losses trigger on-screen warnings and integrity logs |
+| Hotkeys neutralised | Alt+Tab, Win, Alt+F4, Ctrl+Esc, Alt+Esc via low-level hook (`WH_KEYBOARD_LL`) in Guard, not Shell |
+| Touchpad gestures neutralised | Precision touchpad multi-finger swipe gestures (3-finger up/down, 4-finger swipes) are translated by Windows to synthetic shortcut keystrokes (`Win+Tab`, `Alt+Tab`, `Win+D`) and are dropped by the low-level keyboard hook |
+| Taskbar and Start menu locked | `Shell_TrayWnd` and `Shell_SecondaryTrayWnd` are hidden via Win32 `ShowWindow(hwnd, SW_HIDE)` under a RAII `TaskbarLock` guard |
+| Chromium process isolation | Spawns with isolated `--user-data-dir` and `--new-window` before `--app`, preventing `ProcessSingleton` conflict and premature process exit |
+| Mandatory UAC elevation | Client verifies `TokenElevation` via `OpenProcessToken` and invokes `ShellExecuteW(..., "runas", ...)` if unprivileged, refusing to run without system rights |
+| In-browser security & toasts | Context menu disabled, DevTools (`F12`, `Ctrl+Shift+I`) blocked, question copying disabled, external code paste blocked with floating UI violation toasts |
+| Proctor emergency override | `Ctrl + Shift + Alt + F12` (VK `0x7B`) immediately drops hooks, unhides taskbar, and tears down dynamic WFP rules |
 | No browser chrome | No URL bar, no devtools, no context menu, no view-source, no `window.open` |
 | WebView hardening | CSP `default-src 'self'`; no remote origins reachable (network filter enforces this anyway); `eval` disabled; Tauri command allowlist of 24 explicitly enumerated IPC commands |
 

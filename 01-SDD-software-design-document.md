@@ -75,6 +75,7 @@ CITADEL does **not** attempt to be unbreakable on a machine where the candidate 
 
 | ID | Requirement | Priority |
 |---|---|---|
+| FR-D0 | Candidate onboards over campus Wi-Fi via Gatekeeper portal, downloading the client binary on demand (`/download/citadel-client.exe`) without requiring manual imaging or USB drives | Must |
 | FR-D1 | Candidate authenticates with a one-time credential bound to a seat and a machine fingerprint | Must |
 | FR-D2 | Problems are unreadable on disk until the exam start key is released | Must |
 | FR-D3 | Candidate writes code in the built-in editor with syntax highlighting, autocomplete, and multi-file support | Must |
@@ -113,14 +114,16 @@ CITADEL does **not** attempt to be unbreakable on a machine where the candidate 
 
 | ID | Requirement | Priority |
 |---|---|---|
-| FR-S1 | Candidate machine cannot reach any network destination other than the appliance during an exam | Must |
-| FR-S2 | Only allowlisted, signature-verified processes may execute during an exam | Must |
+| FR-S1 | Candidate machine cannot reach any network destination other than the appliance during an exam (enforced via dual-stack WFP IPv4 + IPv6 default-deny with dynamic session safety) | Must |
+| FR-S2 | Only allowlisted, signature-verified processes may execute during an exam (M2 loopback scanner, M4 capture-exclusion, M5 synthetic keystroke) | Must |
 | FR-S3 | The client detects and refuses to start under a virtual machine, a remote-control session, or with more than one active display | Must |
 | FR-S4 | Local inference tooling is blocked by default-deny execution and detected behaviourally if it evades it | Must |
-| FR-S5 | Clipboard paste from outside the exam context is blocked; internal copy/paste is allowed | Must |
+| FR-S5 | Clipboard paste from outside the exam context is blocked with floating security violation toasts; internal editor copy/paste is allowed | Must |
 | FR-S6 | All integrity events are logged with monotonic timestamps and shipped to the appliance | Must |
 | FR-S7 | Post-exam cross-candidate similarity analysis on all submitted source | Must |
 | FR-S8 | All exam data at rest on the appliance is encrypted; keys are released by an operator-held credential | Must |
+| FR-S9 | Full hardware kiosk lock: Windows taskbar (`Shell_TrayWnd`) is hidden, escape hotkeys (Win, Alt-Tab, Alt-Esc, Alt-F4) are dropped, and touchpad 3-finger/4-finger gestures are suppressed | Must |
+| FR-S10 | Mandatory UAC elevation: client verifies high mandatory integrity on startup and triggers UAC auto-elevation, refusing unprivileged execution | Must |
 
 ### 3.2 Non-functional requirements
 

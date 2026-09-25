@@ -181,6 +181,12 @@ table inet exam {
 
 **Structural isolation.** During `EXAM_ACTIVE`, the appliance's control plane administratively downs any interface not in the exam or admin VLAN. There is no route to drop because there is no interface to route through. This is meaningfully stronger than a firewall rule: a firewall rule can be wrong, a missing interface cannot be tunnelled through.
 
+**Client-Side Host Isolation (WFP Dual-Stack Enforcement).** At the candidate device layer, `guard-net` mirrors the appliance's isolation policy:
+- Binds both `FWPM_LAYER_ALE_AUTH_CONNECT_V4` and `FWPM_LAYER_ALE_AUTH_CONNECT_V6`.
+- Permits only the appliance IP:8443, DHCP (UDP 67/68), and loopback (127.0.0.1/8).
+- Drops all other outbound IPv4 and IPv6 traffic at the Windows kernel level.
+- Eliminates IPv6 leak vectors common on dual-stack campus Wi-Fi access points.
+
 ### 3.4 NTP
 
 The appliance is the stratum-1 authority for the VLAN, disciplined by its own RTC (and by GPS if the customer buys the option). Clock consistency matters because submission timestamps decide deadline disputes.

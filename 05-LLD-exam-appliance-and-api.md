@@ -109,6 +109,13 @@ Base: `https://10.10.0.1:8443/v1`. All mutating requests carry `Idempotency-Key`
 
 | Method | Path | Purpose | Notes |
 |---|---|---|---|
+| GET | `/` | Portal / Gatekeeper | Returns "Lockdown Required" screen with download link when visited by standard browser; returns Monaco coding portal when authenticated via `CitadelSecurityCore` UA or token |
+| GET | `/download/citadel-client.exe` | Over-the-air client fetch | Serves the signed client executable over campus Wi-Fi for zero-USB candidate onboarding |
+| GET | `/health` | Server health check | Returns service name, version, question count, and `offline_campus_wifi_zero_internet` mode |
+| GET | `/api/v1/exam/info` | Exam metadata | Returns duration, total points, instructions, and candidate exam rules |
+| GET | `/api/v1/questions` | Question summaries | Returns list of challenge IDs, titles, difficulty levels, and point weights |
+| GET | `/api/v1/questions/{id}` | Problem statement | Returns problem description, starter code templates (C++, Python, Java), constraints, sample cases |
+| POST | `/api/v1/submissions` | Code execution & evaluate | Evaluates candidate code in the offline runner sandbox against sample test cases |
 | POST | `/sessions` | Open session | Body: credential, device cert CN, attestation blob. Returns token, seat, exam metadata, **server-signed deadline** |
 | POST | `/sessions/{id}/heartbeat` | Liveness + state sync | Every 10 s. Returns exam state, pending commands (e.g. `SUSPEND`) |
 | GET | `/sessions/{id}/deadline` | Re-fetch signed deadline | After reconnect |
