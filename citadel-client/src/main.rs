@@ -1,9 +1,27 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::time::Duration;
 
 use citadel_client::{
     elevate_self, is_elevated, is_emergency_override_triggered, launch_kiosk, ClientLockdownGuard,
 };
+
+fn resolve_server_endpoint(preferred_ip: Ipv4Addr, port: u16) -> Ipv4Addr {
+    // 1. Probe preferred IP
+    let target = SocketAddr::from((preferred_ip, port));
+    if TcpStream::connect_timeout(&target, Duration::from_millis(400)).is_ok() {
+        return preferred_ip;
+    }
+
+    // 2. Probe loopback (for local offline testing / single-machine demo)
+    let loopback = Ipv4Addr::new(127, 0, 0, 1);
+    let target_lb = SocketAddr::from((loopback, port));
+    if TcpStream::connect_timeout(&target_lb, Duration::from_millis(400)).is_ok() {
+        eprintln!("[CITADEL CLIENT] Campus IP {} unreachable. Auto-routed to local exam appliance at 127.0.0.1", preferred_ip);
+        return loopback;
+    }
+
+    preferred_ip
+}
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
@@ -29,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let server_ip: Ipv4Addr = args
+    let default_server_ip: Ipv4Addr = args
         .get(1)
         .and_then(|s| s.parse().ok())
         .or_else(|| std::env::var("CITADEL_SERVER_IP").ok().and_then(|s| s.parse().ok()))
@@ -40,6 +58,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|s| s.parse().ok())
         .or_else(|| std::env::var("CITADEL_SERVER_PORT").ok().and_then(|s| s.parse().ok()))
         .unwrap_or(8443);
+
+    let server_ip = resolve_server_endpoint(default_server_ip, server_port);
 
     println!("========================================================================");
     println!("     CITADEL SECURE LOCKDOWN CLIENT (KIOSK APP) - ELEVATED ADMIN");
