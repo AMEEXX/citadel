@@ -248,22 +248,22 @@ Notably **DNS is not permitted at all**. The appliance address is delivered in t
 
 | Property | Implementation |
 |---|---|
-| Fullscreen, always-on-top, no decorations | Borderless window at display bounds, topmost, re-asserted every 500 ms |
-| Cannot be minimised or moved | `WM_SYSCOMMAND` filtering; window position enforced |
-| Focus loss is an event, not a failure | Losing focus logs a `FOCUS_LOST` telemetry event with duration and, where available, the foreground window's owning process. Repeated or long focus losses trigger on-screen warnings and integrity logs |
-| Hotkeys neutralised | Alt+Tab, Win, Alt+F4, Ctrl+Esc, Alt+Esc via low-level hook (`WH_KEYBOARD_LL`) in Guard, not Shell |
-| Touchpad gestures neutralised | Dual defense: (1) Windows Precision Touchpad multi-finger gestures (3-finger slide up/down/left/right/tap, 4-finger slide/tap) are dynamically suppressed via registry (`HKCU\Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad` set to `0` and restored on drop); (2) Low-level keyboard hook suppresses all keys while the Windows key is down (`win_pressed`), dropping synthetic `Win+Tab` (Task View), `Win+D` (Show Desktop), and `Win+V` (Clipboard History). |
-| Foreground Dominance Enforcer | Background thread monitors the kiosk window HWND, enforces `HWND_TOPMOST` and fullscreen screen metrics every 150ms, and calls `SetForegroundWindow` + `BringWindowToTop` to immediately recover from any focus theft or window switching. |
+| Win32 Secure Desktop Isolation | Dedicated isolated Windows Desktop plane created via `CreateDesktopW` and displayed via `SwitchDesktop`. Kiosk browser process is spawned directly on the secure desktop via `STARTUPINFOW.lpDesktop`. Explorer, existing applications, and other virtual desktops do not exist on this plane. |
+| Registry Policy Hardening | Modifies HKCU policies before desktop switch: `DisableTaskMgr=1` (greys out Task Manager from Ctrl+Alt+Del), `DisableLockWorkstation=1` (removes Lock option), `DisableChangePassword=1` (removes password change), `NoWinKeys=1` (suppresses Windows key at shell level), `NoClose=1` (disables shutdown), `NoLogoff=1` (disables sign out), and `EnableSnapAssistFlyout=0`. Restored on drop. |
+| Explorer Shell Termination & Watchdog | `explorer.exe` process is terminated on startup; background watchdog checks every 500ms and kills any respawns. On exit/recovery, `explorer.exe` is cleanly relaunched to restore the user's desktop. |
+| Keyboard Hook with Health Monitor | Dedicated STA hook thread running `WH_KEYBOARD_LL` associated with the secure desktop. Background watchdog sends synthetic `VK_F24` pulse every 5s; automatically reinstalls hook if Windows silently unhooks it. |
+| Hotkeys neutralised | Alt+Tab, Win Key, Alt+F4, Ctrl+Esc, Alt+Esc, PrtSc, Win+D, Win+R, Win+E, Win+Tab, F12, DevTools shortcuts. |
+| Touchpad gestures neutralised | Rendered moot by desktop isolation (no other desktops/windows exist to switch to); Precision Touchpad multi-finger gesture registry entries additionally suppressed. |
+| Failsafe Crash Safety | Installs global Rust panic hook (`std::panic::set_hook`) and Windows Console Ctrl Handler (`SetConsoleCtrlHandler`) ensuring registry keys are restored, Default desktop is restored, and explorer.exe is relaunched even on unexpected termination. Companion `citadel-recovery.bat` provided. |
+| Process Subsystem | Set to `#![windows_subsystem = "windows"]` to run as native Windows GUI application without popup console window. |
+| Foreground Dominance Enforcer | Background thread monitors the kiosk window HWND, enforces `HWND_TOPMOST` and fullscreen screen metrics every 150ms, and calls `SetForegroundWindow` + `BringWindowToTop` to immediately recover from any focus theft. |
 | System Clipboard Wiper | Dedicated `ClipboardGuard` flushes the Windows clipboard via `OpenClipboard(null)` + `EmptyClipboard()` every 400ms, preventing question exfiltration or external paste insertion. |
 | Active Process Watchdog | Scans system processes every 1s via `CreateToolhelp32Snapshot`; detects and immediately terminates blacklisted tools (`taskmgr.exe`, `cmd.exe`, `powershell.exe`, `pwsh.exe`, `ollama.exe`, `lmstudio.exe`, `discord.exe`, etc.) and logs security violation events to the proctor audit stream. |
-| Embedded UAC Manifest | Client binary embeds `requireAdministrator` via MSVC linker `/MANIFESTUAC:level='requireAdministrator' uiAccess='false'`, guaranteeing Windows displays the native UAC elevation dialog before any code runs. |
-| Taskbar and Start menu locked | `Shell_TrayWnd` and `Shell_SecondaryTrayWnd` are hidden via Win32 `ShowWindow(hwnd, SW_HIDE)` under a RAII `TaskbarLock` guard |
-| Chromium process isolation | Spawns with isolated `--user-data-dir` and `--new-window` before `--app`, preventing `ProcessSingleton` conflict and premature process exit |
+| Chromium process isolation | Spawns with isolated `--user-data-dir`, `--new-window`, `--kiosk`, `--edge-kiosk-type=fullscreen`, and Chromium security flags on the Secure Desktop plane. |
 | Mandatory UAC elevation | Client verifies `TokenElevation` via `OpenProcessToken` and invokes `ShellExecuteW(..., "runas", ...)` if unprivileged, refusing to run without system rights |
-| In-browser security & toasts | Context menu disabled, DevTools (`F12`, `Ctrl+Shift+I`) blocked, question copying disabled, external code paste blocked with floating UI violation toasts |
-| Proctor emergency override | `Ctrl + Shift + Alt + F12` (VK `0x7B`) immediately drops hooks, unhides taskbar, and tears down dynamic WFP rules |
+| In-browser security & toasts | Context menu disabled, DevTools (`F12`, `Ctrl+Shift+I`) blocked, question copying disabled, text selection disabled outside editor, external code paste blocked with floating UI violation toasts |
+| Proctor emergency override | `Ctrl + Shift + Alt + F12` (VK `0x7B`) immediately drops hooks, unhides taskbar, switches back to default desktop, and tears down dynamic WFP rules |
 | No browser chrome | No URL bar, no devtools, no context menu, no view-source, no `window.open` |
-| WebView hardening | CSP `default-src 'self'`; no remote origins reachable (network filter enforces this anyway); `eval` disabled; Tauri command allowlist of 24 explicitly enumerated IPC commands |
 
 ### 4.2 Layout
 

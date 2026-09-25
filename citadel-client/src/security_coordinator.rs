@@ -1,16 +1,14 @@
-//! CITADEL Client Security Coordinator
+//! CITADEL Client Module: High-Assurance Security Coordinator
 //!
-//! Orchestrates the complete client-side kiosk lockdown lifecycle:
-//! 1. UAC Administrator Elevation enforcement
-//! 2. WFP dynamic kernel network isolation (zero internet, college server only)
-//! 3. Low-level hotkey suppression (blocks Alt-Tab, Win Key, Ctrl-Esc, Alt-F4, etc.)
-//! 4. Taskbar and Start button lock (continuous hiding and event disabling)
-//! 5. Touchpad gesture suppression (3-finger and 4-finger swipes disabled via registry)
-//! 6. Foreground window dominance (pins kiosk as HWND_TOPMOST)
-//! 7. System clipboard isolation guard (periodic wiping of clipboard)
-//! 8. Process watchdog (terminates blacklisted cheat tools)
-//! 9. Background anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
-//! 10. Safe RAII cleanup upon exit
+//! Orchestrates the multi-layered kiosk lockdown architecture:
+//! 1. Failsafe crash and panic handlers
+//! 2. Registry policy hardening (DisableTaskMgr, NoWinKeys, etc.)
+//! 3. Kernel WFP zero-internet network isolation
+//! 4. Explorer shell termination & watchdog
+//! 5. Secure Win32 desktop creation & display switch
+//! 6. System keyboard hook with 5-second health watchdog
+//! 7. Active anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
+//! 8. Clipboard flusher and background process watchdog
 
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,15 +20,22 @@ use guard_net::WfpEngine;
 use guard_svc::llm_detect;
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::HWND;
-use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+use windows::Win32::Security::{
+    GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+};
 use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 use windows::Win32::UI::Shell::ShellExecuteW;
 use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
 
-use crate::hotkey_lock::{install_hotkey_lock, HotkeyLockHandle};
+use crate::crash_handler::install_crash_safety;
+use crate::explorer_lock::ExplorerLock;
+use crate::hotkey_lock::{install_hotkey_lock_with_desktop, HotkeyLockHandle};
 use crate::kiosk_window::{
-    ClipboardGuard, ForegroundLock, ProcessWatchdog, TaskbarLock, TouchpadLock,
+    launch_kiosk_on_desktop, ClipboardGuard, ForegroundLock, KioskProcess, ProcessWatchdog,
+    TaskbarLock, TouchpadLock,
 };
+use crate::registry_lock::RegistryLock;
+use crate::secure_desktop::SecureDesktop;
 
 /// Checks if the current process is running with elevated Administrator privileges.
 pub fn is_elevated() -> bool {
@@ -59,7 +64,6 @@ pub fn elevate_self(args: &[String]) -> Result<(), String> {
     let exe_path_str = current_exe.to_string_lossy();
     let wide_exe: Vec<u16> = exe_path_str.encode_utf16().chain(std::iter::once(0)).collect();
 
-    // Reconstruct arguments to pass to the elevated instance
     let args_str = args.join(" ");
     let wide_args: Vec<u16> = args_str.encode_utf16().chain(std::iter::once(0)).collect();
 
@@ -82,13 +86,24 @@ pub fn elevate_self(args: &[String]) -> Result<(), String> {
 }
 
 pub struct ClientLockdownGuard {
-    _wfp_engine: WfpEngine,
+    // Fields are dropped in declaration order:
+    // 1. Hotkey handle unhooks and stops health watchdog
     _hotkey_handle: HotkeyLockHandle,
+    // 2. Secure desktop switches back to Default and closes HDESK
+    _secure_desktop: SecureDesktop,
+    // 3. Explorer lock stops watchdog and relaunches explorer.exe
+    _explorer_lock: ExplorerLock,
+    // 4. Auxiliary shell and input guards drop
     _taskbar_lock: TaskbarLock,
     _touchpad_lock: TouchpadLock,
     _foreground_lock: ForegroundLock,
     _clipboard_guard: ClipboardGuard,
     _process_watchdog: ProcessWatchdog,
+    // 5. WFP engine removes kernel firewall rules
+    _wfp_engine: WfpEngine,
+    // 6. Registry lock restores Task Manager, WinKeys, Lock, etc.
+    _registry_lock: RegistryLock,
+
     stop_signal: Arc<AtomicBool>,
     sensor_thread: Option<JoinHandle<()>>,
     violations: Arc<Mutex<Vec<String>>>,
@@ -97,17 +112,24 @@ pub struct ClientLockdownGuard {
 }
 
 impl ClientLockdownGuard {
-    /// Initializes client-side lockdown for the target exam server.
-    /// Strictly requires Administrator privilege — fails if elevation is not present.
+    /// Initializes full-system kiosk lockdown.
+    /// Requires Administrator privilege — fails if elevation is not present.
     pub fn new(server_ip: Ipv4Addr, server_port: u16) -> Result<Self, String> {
         if !is_elevated() {
             return Err("CITADEL Lockdown requires Administrator privileges to engage kernel network filtering and hardware lock.".to_string());
         }
 
+        // 0. Install failsafe panic & console close crash recovery handlers
+        install_crash_safety();
+
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
-        // 1. Install WFP Zero-Internet Filter in Windows Kernel
+        // 1. FIRST: Registry Hardening (neutering Task Manager, Lock, Sign-Out before anything else)
+        let registry_lock = RegistryLock::acquire()
+            .map_err(|e| format!("Failed to apply registry security policies: {}", e))?;
+
+        // 2. SECOND: Install WFP Zero-Internet Filter in Windows Kernel
         let mut wfp_engine = WfpEngine::open_dynamic()
             .map_err(|e| format!("Failed to open WFP engine: {:?}", e))?;
 
@@ -119,33 +141,25 @@ impl ClientLockdownGuard {
             server_ip, server_port
         );
 
-        // 2. Install Hotkey Suppression Hook (Win key, Alt-Tab, Ctrl-Esc, PrtSc, Alt-F4, etc.)
-        let hotkey_handle = install_hotkey_lock()
+        // 3. THIRD: Kill Explorer shell & start explorer watchdog
+        let explorer_lock = ExplorerLock::acquire();
+
+        // 4. FOURTH: Create and switch to isolated Win32 Secure Desktop
+        let secure_desktop = SecureDesktop::create_and_switch()
+            .map_err(|e| format!("Failed to create isolated Secure Desktop: {}", e))?;
+
+        // 5. FIFTH: Install Keyboard Hook with Health Watchdog on the Secure Desktop
+        let hotkey_handle = install_hotkey_lock_with_desktop(Some(secure_desktop.handle()))
             .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
 
-        eprintln!("[CITADEL CLIENT] SYSTEM KEYBOARD HOOK ACTIVE: Alt-Tab, Win Key, Ctrl-Esc, PrtSc intercepted.");
-
-        // 3. Lock Taskbar and Start Menu (hide & disable click events)
+        // 6. Auxiliary input & shell guards
         let taskbar_lock = TaskbarLock::acquire();
-        eprintln!("[CITADEL CLIENT] TASKBAR LOCK ACTIVE: Shell taskbar and start menu suppressed.");
-
-        // 4. Suppress Precision Touchpad 3-finger and 4-finger gestures
         let touchpad_lock = TouchpadLock::acquire();
-        eprintln!("[CITADEL CLIENT] TOUCHPAD LOCK ACTIVE: Multi-finger gestures suppressed.");
-
-        // 5. Enforce Foreground Window Dominance
         let foreground_lock = ForegroundLock::start();
-        eprintln!("[CITADEL CLIENT] FOREGROUND LOCK ACTIVE: Kiosk pinned to HWND_TOPMOST.");
-
-        // 6. Enforce Clipboard Isolation
         let clipboard_guard = ClipboardGuard::start();
-        eprintln!("[CITADEL CLIENT] CLIPBOARD GUARD ACTIVE: System clipboard flusher running.");
-
-        // 7. Start Process Watchdog (killing blacklisted cheat processes)
         let process_watchdog = ProcessWatchdog::start(violations.clone());
-        eprintln!("[CITADEL CLIENT] PROCESS WATCHDOG ACTIVE: Blacklisted process killer running.");
 
-        // 8. Start background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
+        // 7. Background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
         let stop_clone = stop_signal.clone();
         let viol_clone = violations.clone();
         let sensor_thread = thread::spawn(move || {
@@ -188,13 +202,16 @@ impl ClientLockdownGuard {
         });
 
         Ok(ClientLockdownGuard {
-            _wfp_engine: wfp_engine,
             _hotkey_handle: hotkey_handle,
+            _secure_desktop: secure_desktop,
+            _explorer_lock: explorer_lock,
             _taskbar_lock: taskbar_lock,
             _touchpad_lock: touchpad_lock,
             _foreground_lock: foreground_lock,
             _clipboard_guard: clipboard_guard,
             _process_watchdog: process_watchdog,
+            _wfp_engine: wfp_engine,
+            _registry_lock: registry_lock,
             stop_signal,
             sensor_thread: Some(sensor_thread),
             violations,
@@ -205,6 +222,16 @@ impl ClientLockdownGuard {
 
     pub fn server_endpoint(&self) -> String {
         format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
+    }
+
+    pub fn secure_desktop_name(&self) -> &str {
+        self._secure_desktop.name()
+    }
+
+    /// Spawns the locked kiosk browser directly on the isolated secure desktop plane.
+    pub fn launch_browser(&self) -> Result<KioskProcess, String> {
+        let endpoint = self.server_endpoint();
+        launch_kiosk_on_desktop(&endpoint, Some(self.secure_desktop_name()))
     }
 
     pub fn get_violations(&self) -> Vec<String> {

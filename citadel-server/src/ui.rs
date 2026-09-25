@@ -561,9 +561,14 @@ pub fn render_portal_html() -> &'static str {
       return false;
     });
 
-    // 2. Disable Drag-and-Drop
+    // 2. Disable Drag-and-Drop & Text Selection on Questions
     document.addEventListener('dragstart', e => e.preventDefault());
     document.addEventListener('drop', e => e.preventDefault());
+    document.addEventListener('selectstart', e => {
+      if (e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'INPUT') {
+        e.preventDefault();
+      }
+    });
 
     function showSecurityToast(msg) {
       const toast = document.getElementById('security-toast');
@@ -601,7 +606,7 @@ pub fn render_portal_html() -> &'static str {
       if (
         e.key === 'F12' ||
         (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c')) ||
-        (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S'))
+        (e.ctrlKey && (e.key === 'u' || e.key === 'U' || e.key === 'p' || e.key === 'P' || e.key === 's' || e.key === 'S' || e.key === 'n' || e.key === 'N' || e.key === 't' || e.key === 'T' || e.key === 'w' || e.key === 'W'))
       ) {
         e.preventDefault();
         return false;

@@ -1,31 +1,47 @@
-//! CITADEL Client Module: System Hotkey Suppression
+//! CITADEL Client Module: Hardened System Hotkey Suppression with Health Monitor
 //!
 //! Intercepts and drops escape hotkeys (Alt+Tab, Win Key, Win combinations,
-//! Ctrl+Esc, Alt+F4, PrintScreen, browser escape shortcuts, and Task View triggers)
-//! to prevent the candidate from leaving or breaking out of the kiosk assessment window.
+//! Ctrl+Esc, Alt+F4, PrintScreen, DevTools, and browser escape shortcuts)
+//! on the active desktop.
+//!
+//! Features:
+//! 1. Fast zero-allocation hook callback path (no mutexes, no stdout/stderr I/O).
+//! 2. Associates with the isolated Secure Desktop via SetThreadDesktop.
+//! 3. Active 5-second synthetic pulse health watchdog: detects silent hook removal
+//!    by the Windows OS and automatically reinstalls the hook without user disruption.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread::{self, JoinHandle};
+use std::time::Duration;
 
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::System::StationsAndDesktops::{SetThreadDesktop, HDESK};
 use windows::Win32::System::Threading::GetCurrentThreadId;
-use windows::Win32::UI::Input::KeyboardAndMouse::GetAsyncKeyState;
+use windows::Win32::UI::Input::KeyboardAndMouse::{
+    GetAsyncKeyState, SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+    KEYEVENTF_KEYUP, VIRTUAL_KEY,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     CallNextHookEx, DispatchMessageW, GetMessageW, PostThreadMessageW, SetWindowsHookExW,
     TranslateMessage, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT, MSG, WH_KEYBOARD_LL, WM_QUIT,
 };
+
+const HEALTH_CHECK_VK: u32 = 0x87; // VK_F24 (harmless synthetic ping key)
+
+static EMERGENCY_OVERRIDE_TRIGGERED: AtomicBool = AtomicBool::new(false);
+static HEALTH_PONG_RECEIVED: AtomicBool = AtomicBool::new(false);
+static HOOK_REINSTALL_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyAction {
     Allow,
     Suppress,
     EmergencyOverride,
+    HealthPong,
 }
 
-/// Pure evaluation function for system keystroke filtering.
-/// Distinguishes between normal coding inputs (letters, digits, symbols, Tab, Enter, Backspace, Arrows)
-/// and system breakout combinations.
+#[inline(always)]
 pub fn evaluate_keystroke(
     vk: u32,
     flags: u32,
@@ -33,6 +49,11 @@ pub fn evaluate_keystroke(
     shift_pressed: bool,
     win_pressed: bool,
 ) -> KeyAction {
+    // Health monitor ping
+    if vk == HEALTH_CHECK_VK {
+        return KeyAction::HealthPong;
+    }
+
     let alt_down = (flags & 0x20) != 0;
 
     // Proctor Emergency Override: Ctrl + Shift + Alt + F12 (VK 0x7B)
@@ -40,7 +61,7 @@ pub fn evaluate_keystroke(
         return KeyAction::EmergencyOverride;
     }
 
-    // 1. Suppress ANY key combination when the Windows key is down (Win+Tab, Win+D, Win+R, Win+E, Win+X, Win+V, etc.)
+    // 1. Suppress ANY key combination when the Windows key is down
     if win_pressed {
         return KeyAction::Suppress;
     }
@@ -62,60 +83,45 @@ pub fn evaluate_keystroke(
 
     // 5. Suppress Alt-based system switching combinations
     if alt_down {
-        // Alt + Tab (0x09)
-        if vk == 0x09 {
-            return KeyAction::Suppress;
-        }
-        // Alt + Escape (0x1B)
-        if vk == 0x1B {
-            return KeyAction::Suppress;
-        }
-        // Alt + F4 (0x73)
-        if vk == 0x73 {
-            return KeyAction::Suppress;
-        }
-        // Alt + Space (0x20 - Window System Menu)
-        if vk == 0x20 {
-            return KeyAction::Suppress;
-        }
-        // Alt + Enter (0x0D - Window property toggle)
-        if vk == 0x0D {
-            return KeyAction::Suppress;
+        match vk {
+            0x09 // Alt + Tab
+            | 0x1B // Alt + Escape
+            | 0x73 // Alt + F4
+            | 0x20 // Alt + Space
+            | 0x0D => return KeyAction::Suppress, // Alt + Enter
+            _ => {}
         }
     }
 
     // 6. Suppress Ctrl-based system and browser escape combinations
     if ctrl_pressed {
-        // Ctrl + Escape (0x1B - Start Menu) or Ctrl + Shift + Escape (Task Manager)
-        if vk == 0x1B {
-            return KeyAction::Suppress;
-        }
-        // Browser navigation shortcuts:
-        // N (0x4E - New Window), T (0x54 - New Tab), W (0x57 - Close Window/Tab),
-        // J (0x4A - Downloads), H (0x48 - History), O (0x4F - Open File),
-        // L (0x4C - Address Bar), U (0x55 - View Source), P (0x50 - Print), S (0x53 - Save)
         match vk {
-            0x4E | 0x54 | 0x57 | 0x4A | 0x48 | 0x4F | 0x4C | 0x55 | 0x50 | 0x53 => {
-                return KeyAction::Suppress;
-            }
+            0x1B // Ctrl + Escape or Ctrl + Shift + Escape
+            | 0x4E // N (New Window)
+            | 0x54 // T (New Tab)
+            | 0x57 // W (Close Tab)
+            | 0x4A // J (Downloads)
+            | 0x48 // H (History)
+            | 0x4F // O (Open File)
+            | 0x4C // L (Address Bar)
+            | 0x55 // U (View Source)
+            | 0x50 // P (Print)
+            | 0x53 => return KeyAction::Suppress, // S (Save)
             _ => {}
         }
     }
 
     // 7. Suppress Function keys used for browser controls
     match vk {
-        0x70 => KeyAction::Suppress, // F1: Help / Support window
-        0x72 => KeyAction::Suppress, // F3: Find in page
-        0x74 => KeyAction::Suppress, // F5: Reload exam page
-        0x7A => KeyAction::Suppress, // F11: Fullscreen toggle
-        0x7B => KeyAction::Suppress, // F12: DevTools
+        0x70 // F1: Help
+        | 0x72 // F3: Find in page
+        | 0x74 // F5: Reload
+        | 0x7A // F11: Fullscreen toggle
+        | 0x7B => KeyAction::Suppress, // F12: DevTools
         _ => KeyAction::Allow,
     }
 }
 
-static EMERGENCY_OVERRIDE_TRIGGERED: AtomicBool = AtomicBool::new(false);
-
-/// Checks if the proctor emergency override combination was triggered.
 pub fn is_emergency_override_triggered() -> bool {
     EMERGENCY_OVERRIDE_TRIGGERED.load(Ordering::SeqCst)
 }
@@ -131,33 +137,59 @@ unsafe extern "system" fn hotkey_hook_proc(
 ) -> LRESULT {
     if code >= 0 {
         let kbd = *(lparam.0 as *const KBDLLHOOKSTRUCT);
-        let ctrl_pressed = (GetAsyncKeyState(0x11) as i16) < 0; // VK_CONTROL
-        let shift_pressed = (GetAsyncKeyState(0x10) as i16) < 0; // VK_SHIFT
-        let win_pressed = (GetAsyncKeyState(0x5B) as i16) < 0 || (GetAsyncKeyState(0x5C) as i16) < 0; // VK_LWIN / VK_RWIN
+
+        // Fast state extraction
+        let ctrl_pressed = (GetAsyncKeyState(0x11) as i16) < 0;
+        let shift_pressed = (GetAsyncKeyState(0x10) as i16) < 0;
+        let win_pressed = (GetAsyncKeyState(0x5B) as i16) < 0 || (GetAsyncKeyState(0x5C) as i16) < 0;
 
         match evaluate_keystroke(kbd.vkCode, kbd.flags.0, ctrl_pressed, shift_pressed, win_pressed) {
-            KeyAction::Suppress => {
-                // Drop the hotkey: return 1 so Windows does not process it
+            KeyAction::Suppress => return LRESULT(1),
+            KeyAction::HealthPong => {
+                HEALTH_PONG_RECEIVED.store(true, Ordering::SeqCst);
                 return LRESULT(1);
             }
             KeyAction::EmergencyOverride => {
                 EMERGENCY_OVERRIDE_TRIGGERED.store(true, Ordering::SeqCst);
-                eprintln!("[CITADEL CLIENT] PROCTOR EMERGENCY OVERRIDE KEY COMBINATION DETECTED.");
                 return LRESULT(1);
             }
-            KeyAction::Allow => {
-                // Pass through normal keystrokes
-            }
+            KeyAction::Allow => {}
         }
     }
 
     CallNextHookEx(HHOOK(std::ptr::null_mut()), code, wparam, lparam)
 }
 
-/// RAII handle to the active low-level hotkey suppression hook.
+fn send_synthetic_health_probe() {
+    unsafe {
+        let mut input = INPUT {
+            r#type: INPUT_KEYBOARD,
+            Anonymous: INPUT_0 {
+                ki: KEYBDINPUT {
+                    wVk: VIRTUAL_KEY(HEALTH_CHECK_VK as u16),
+                    wScan: 0,
+                    dwFlags: KEYBD_EVENT_FLAGS(0),
+                    time: 0,
+                    dwExtraInfo: 0,
+                },
+            },
+        };
+
+        let _ = SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+
+        input.Anonymous.ki.dwFlags = KEYEVENTF_KEYUP;
+        let _ = SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+    }
+}
+
+struct SendHdesk(HDESK);
+unsafe impl Send for SendHdesk {}
+
 pub struct HotkeyLockHandle {
     thread_id: u32,
     join_handle: Option<JoinHandle<()>>,
+    watchdog_handle: Option<JoinHandle<()>>,
+    stop_signal: std::sync::Arc<AtomicBool>,
 }
 
 impl HotkeyLockHandle {
@@ -166,11 +198,15 @@ impl HotkeyLockHandle {
     }
 
     fn cleanup(&mut self) {
+        self.stop_signal.store(true, Ordering::Relaxed);
         if self.thread_id != 0 {
             unsafe {
                 let _ = PostThreadMessageW(self.thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
             }
             self.thread_id = 0;
+        }
+        if let Some(h) = self.watchdog_handle.take() {
+            let _ = h.join();
         }
         if let Some(handle) = self.join_handle.take() {
             let _ = handle.join();
@@ -184,14 +220,26 @@ impl Drop for HotkeyLockHandle {
     }
 }
 
-/// Installs the system-wide hotkey suppression hook on a dedicated background thread.
-pub fn install_hotkey_lock() -> Result<HotkeyLockHandle, String> {
+/// Installs the system-wide hotkey suppression hook with continuous health monitoring.
+/// If `desktop_handle` is provided, binds the hook thread to that desktop first.
+pub fn install_hotkey_lock_with_desktop(desktop: Option<HDESK>) -> Result<HotkeyLockHandle, String> {
     reset_emergency_override();
     let (tx, rx) = mpsc::channel::<Result<u32, String>>();
+    let stop_signal = std::sync::Arc::new(AtomicBool::new(false));
+    let stop_clone = stop_signal.clone();
+    let send_desktop = desktop.map(SendHdesk);
 
+    // Spawn dedicated STA message pump thread
     let join_handle = thread::spawn(move || {
+        if let Some(d) = send_desktop {
+            unsafe {
+                let _ = SetThreadDesktop(d.0);
+            }
+        }
+
         let thread_id = unsafe { GetCurrentThreadId() };
-        let hhook = unsafe {
+
+        let mut hhook = unsafe {
             SetWindowsHookExW(
                 WH_KEYBOARD_LL,
                 Some(hotkey_hook_proc),
@@ -200,7 +248,7 @@ pub fn install_hotkey_lock() -> Result<HotkeyLockHandle, String> {
             )
         };
 
-        let hhook = match hhook {
+        let current_hhook = match hhook {
             Ok(h) => {
                 let _ = tx.send(Ok(thread_id));
                 h
@@ -211,16 +259,38 @@ pub fn install_hotkey_lock() -> Result<HotkeyLockHandle, String> {
             }
         };
 
+        hhook = Ok(current_hhook);
+
         let mut msg = MSG::default();
         while unsafe { GetMessageW(&mut msg, HWND(std::ptr::null_mut()), 0, 0).as_bool() } {
+            // Check if watchdog requested hook re-installation
+            if HOOK_REINSTALL_REQUESTED.swap(false, Ordering::SeqCst) {
+                if let Ok(old_h) = hhook {
+                    unsafe {
+                        let _ = UnhookWindowsHookEx(old_h);
+                    }
+                }
+                hhook = unsafe {
+                    SetWindowsHookExW(
+                        WH_KEYBOARD_LL,
+                        Some(hotkey_hook_proc),
+                        None,
+                        0,
+                    )
+                };
+                eprintln!("[CITADEL CLIENT] KEYBOARD HOOK REINSTALLED BY HEALTH MONITOR.");
+            }
+
             unsafe {
                 let _ = TranslateMessage(&msg);
                 DispatchMessageW(&msg);
             }
         }
 
-        unsafe {
-            let _ = UnhookWindowsHookEx(hhook);
+        if let Ok(h) = hhook {
+            unsafe {
+                let _ = UnhookWindowsHookEx(h);
+            }
         }
     });
 
@@ -228,8 +298,39 @@ pub fn install_hotkey_lock() -> Result<HotkeyLockHandle, String> {
         .recv()
         .map_err(|e| format!("Failed to initialize hotkey hook thread: {}", e))??;
 
+    // Spawn health monitor watchdog thread (pings every 5 seconds)
+    let watchdog_handle = thread::spawn(move || {
+        while !stop_clone.load(Ordering::Relaxed) {
+            thread::sleep(Duration::from_secs(5));
+            if stop_clone.load(Ordering::Relaxed) {
+                break;
+            }
+
+            HEALTH_PONG_RECEIVED.store(false, Ordering::SeqCst);
+            send_synthetic_health_probe();
+
+            // Wait 500ms for hook to process synthetic probe
+            thread::sleep(Duration::from_millis(500));
+
+            if !HEALTH_PONG_RECEIVED.load(Ordering::SeqCst) && !stop_clone.load(Ordering::Relaxed) {
+                eprintln!("[HOTKEY WATCHDOG] Warning: Keyboard hook heartbeat lost! Requesting reinstallation...");
+                HOOK_REINSTALL_REQUESTED.store(true, Ordering::SeqCst);
+                // Wake up thread's message loop
+                unsafe {
+                    let _ = PostThreadMessageW(thread_id, 0x0000, WPARAM(0), LPARAM(0)); // WM_NULL
+                }
+            }
+        }
+    });
+
     Ok(HotkeyLockHandle {
         thread_id,
         join_handle: Some(join_handle),
+        watchdog_handle: Some(watchdog_handle),
+        stop_signal,
     })
+}
+
+pub fn install_hotkey_lock() -> Result<HotkeyLockHandle, String> {
+    install_hotkey_lock_with_desktop(None)
 }

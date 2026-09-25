@@ -2,6 +2,7 @@
 //!
 //! Enforces:
 //! 1. Full-screen isolated kiosk browser window launch with Chromium security flags
+//!    directly targeted to the Win32 Secure Desktop plane (lpDesktop).
 //! 2. Persistent Taskbar suppression (SW_HIDE + EnableWindow(false) + HWND_BOTTOM)
 //! 3. Precision Touchpad gesture suppression (disables 3-finger and 4-finger swipes via Registry)
 //! 4. Continuous Foreground window dominance (locks kiosk window to HWND_TOPMOST)
@@ -9,15 +10,16 @@
 //! 6. Active process watchdog (detects and terminates blacklisted cheat processes)
 
 use std::collections::HashMap;
+use std::ffi::OsStr;
+use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use windows::core::{w, PCWSTR};
-use windows::Win32::Foundation::{BOOL, HWND};
+use windows::core::{w, PCWSTR, PWSTR};
+use windows::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND};
 use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -26,12 +28,16 @@ use windows::Win32::System::Registry::{
     RegCloseKey, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
     KEY_READ, KEY_WRITE, REG_DWORD, REG_VALUE_TYPE,
 };
-use windows::Win32::System::Threading::{OpenProcess, TerminateProcess, PROCESS_TERMINATE};
+use windows::Win32::System::Threading::{
+    CreateProcessW, GetExitCodeProcess, OpenProcess, TerminateProcess, CREATE_NEW_PROCESS_GROUP,
+    PROCESS_INFORMATION, PROCESS_TERMINATE, STARTF_USESHOWWINDOW, STARTUPINFOW,
+};
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics,
     SetForegroundWindow, SetWindowPos, ShowWindow, HWND_BOTTOM, HWND_TOPMOST, SM_CXSCREEN,
-    SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, SW_SHOW,
+    SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, SW_MAXIMIZE,
+    SW_SHOW,
 };
 
 // ============================================================================
@@ -118,118 +124,95 @@ impl Drop for TaskbarLock {
 const TOUCHPAD_REG_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
 
 const TOUCHPAD_GESTURE_KEYS: &[&str] = &[
-    "ThreeFingerSlideUp",
-    "ThreeFingerSlideDown",
-    "ThreeFingerSlideLeft",
-    "ThreeFingerSlideRight",
-    "ThreeFingerTap",
-    "FourFingerSlideUp",
-    "FourFingerSlideDown",
-    "FourFingerSlideLeft",
-    "FourFingerSlideRight",
-    "FourFingerTap",
+    "ThreeFingerSlideEnabled",
+    "ThreeFingerTapEnabled",
+    "FourFingerSlideEnabled",
+    "FourFingerTapEnabled",
+    "ThreeFingerDownEnabled",
+    "FourFingerDownEnabled",
 ];
 
-/// RAII Guard that disables multi-finger gestures in Windows Precision Touchpad settings
-/// and restores the candidate's original registry configuration upon exit.
 pub struct TouchpadLock {
-    backup_values: HashMap<String, u32>,
+    saved_values: HashMap<String, u32>,
+}
+
+fn to_wide_str(s: &str) -> Vec<u16> {
+    OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
 }
 
 impl TouchpadLock {
     pub fn acquire() -> Self {
-        let mut backup_values = HashMap::new();
+        let mut saved = HashMap::new();
+        let subkey_w = to_wide_str(TOUCHPAD_REG_SUBKEY);
 
-        let subkey_wide: Vec<u16> = TOUCHPAD_REG_SUBKEY.encode_utf16().chain(std::iter::once(0)).collect();
-        let mut hkey = HKEY::default();
-
-        let status = unsafe {
-            RegOpenKeyExW(
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
                 HKEY_CURRENT_USER,
-                PCWSTR(subkey_wide.as_ptr()),
+                PCWSTR(subkey_w.as_ptr()),
                 0,
                 KEY_READ | KEY_WRITE,
                 &mut hkey,
-            )
-        };
+            ).is_ok() {
+                for &val_name in TOUCHPAD_GESTURE_KEYS {
+                    let val_name_w = to_wide_str(val_name);
+                    let mut val_type = REG_VALUE_TYPE::default();
+                    let mut data_buf = [0u8; 4];
+                    let mut data_len = 4u32;
 
-        if status.is_ok() && !hkey.is_invalid() {
-            for key_name in TOUCHPAD_GESTURE_KEYS {
-                let name_wide: Vec<u16> = key_name.encode_utf16().chain(std::iter::once(0)).collect();
-                let mut val_type = REG_VALUE_TYPE::default();
-                let mut data: u32 = 0;
-                let mut size: u32 = std::mem::size_of::<u32>() as u32;
-
-                let query = unsafe {
-                    RegQueryValueExW(
+                    if RegQueryValueExW(
                         hkey,
-                        PCWSTR(name_wide.as_ptr()),
+                        PCWSTR(val_name_w.as_ptr()),
                         None,
                         Some(&mut val_type),
-                        Some(&mut data as *mut _ as *mut u8),
-                        Some(&mut size),
-                    )
-                };
+                        Some(data_buf.as_mut_ptr()),
+                        Some(&mut data_len),
+                    ).is_ok() && val_type == REG_DWORD && data_len == 4 {
+                        let original_val = u32::from_le_bytes(data_buf);
+                        saved.insert(val_name.to_string(), original_val);
+                    }
 
-                if query.is_ok() {
-                    backup_values.insert((*key_name).to_string(), data);
-                }
-
-                // Write 0 to disable gesture
-                let zero: u32 = 0;
-                let _ = unsafe {
-                    RegSetValueExW(
+                    // Zero out the multi-finger gesture capability
+                    let zero_bytes = 0u32.to_le_bytes();
+                    let _ = RegSetValueExW(
                         hkey,
-                        PCWSTR(name_wide.as_ptr()),
+                        PCWSTR(val_name_w.as_ptr()),
                         0,
                         REG_DWORD,
-                        Some(std::slice::from_raw_parts(&zero as *const _ as *const u8, std::mem::size_of::<u32>())),
-                    )
-                };
-            }
-
-            unsafe {
+                        Some(&zero_bytes),
+                    );
+                }
                 let _ = RegCloseKey(hkey);
             }
         }
 
-        TouchpadLock { backup_values }
+        TouchpadLock { saved_values: saved }
     }
 }
 
 impl Drop for TouchpadLock {
     fn drop(&mut self) {
-        if self.backup_values.is_empty() {
-            return;
-        }
-
-        let subkey_wide: Vec<u16> = TOUCHPAD_REG_SUBKEY.encode_utf16().chain(std::iter::once(0)).collect();
-        let mut hkey = HKEY::default();
-
-        let status = unsafe {
-            RegOpenKeyExW(
+        let subkey_w = to_wide_str(TOUCHPAD_REG_SUBKEY);
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
                 HKEY_CURRENT_USER,
-                PCWSTR(subkey_wide.as_ptr()),
+                PCWSTR(subkey_w.as_ptr()),
                 0,
                 KEY_WRITE,
                 &mut hkey,
-            )
-        };
-
-        if status.is_ok() && !hkey.is_invalid() {
-            for (key_name, original_val) in &self.backup_values {
-                let name_wide: Vec<u16> = key_name.encode_utf16().chain(std::iter::once(0)).collect();
-                let _ = unsafe {
-                    RegSetValueExW(
+            ).is_ok() {
+                for (name, val) in &self.saved_values {
+                    let name_w = to_wide_str(name);
+                    let bytes = val.to_le_bytes();
+                    let _ = RegSetValueExW(
                         hkey,
-                        PCWSTR(name_wide.as_ptr()),
+                        PCWSTR(name_w.as_ptr()),
                         0,
                         REG_DWORD,
-                        Some(std::slice::from_raw_parts(original_val as *const _ as *const u8, std::mem::size_of::<u32>())),
-                    )
-                };
-            }
-            unsafe {
+                        Some(&bytes),
+                    );
+                }
                 let _ = RegCloseKey(hkey);
             }
         }
@@ -237,11 +220,9 @@ impl Drop for TouchpadLock {
 }
 
 // ============================================================================
-// 3. Foreground Dominance Enforcer
+// 3. Persistent Foreground Window Dominance
 // ============================================================================
 
-/// RAII Guard that pins the assessment kiosk window as HWND_TOPMOST and forces it to
-/// remain in the foreground, recovering from any focus-loss or attempt to switch windows.
 pub struct ForegroundLock {
     stop_signal: Arc<AtomicBool>,
     thread_handle: Option<JoinHandle<()>>,
@@ -253,26 +234,24 @@ impl ForegroundLock {
         let stop_clone = stop_signal.clone();
 
         let thread_handle = thread::spawn(move || {
-            let screen_w = unsafe { GetSystemMetrics(SM_CXSCREEN) };
-            let screen_h = unsafe { GetSystemMetrics(SM_CYSCREEN) };
-
             while !stop_clone.load(Ordering::Relaxed) {
-                // Find Chromium / Edge kiosk window
-                if let Some(kiosk_hwnd) = Self::find_kiosk_hwnd() {
-                    unsafe {
-                        // Enforce HWND_TOPMOST and fullscreen bounds
-                        let _ = SetWindowPos(
-                            kiosk_hwnd,
-                            HWND_TOPMOST,
-                            0, 0, screen_w, screen_h,
-                            SWP_SHOWWINDOW,
-                        );
-
-                        // If not current foreground window, yank focus back immediately
-                        let fg = GetForegroundWindow();
-                        if fg != kiosk_hwnd {
-                            let _ = SetForegroundWindow(kiosk_hwnd);
-                            let _ = BringWindowToTop(kiosk_hwnd);
+                unsafe {
+                    let hwnd = FindWindowW(w!("Chrome_WidgetWin_1"), None);
+                    if let Ok(wnd) = hwnd {
+                        if !wnd.is_invalid() {
+                            let fg = GetForegroundWindow();
+                            if fg != wnd {
+                                let _ = SetForegroundWindow(wnd);
+                                let _ = BringWindowToTop(wnd);
+                            }
+                            let cx = GetSystemMetrics(SM_CXSCREEN);
+                            let cy = GetSystemMetrics(SM_CYSCREEN);
+                            let _ = SetWindowPos(
+                                wnd,
+                                HWND_TOPMOST,
+                                0, 0, cx, cy,
+                                SWP_SHOWWINDOW,
+                            );
                         }
                     }
                 }
@@ -284,18 +263,6 @@ impl ForegroundLock {
             stop_signal,
             thread_handle: Some(thread_handle),
         }
-    }
-
-    fn find_kiosk_hwnd() -> Option<HWND> {
-        unsafe {
-            // Check Chrome_WidgetWin_1 (Chromium / Edge main window class)
-            if let Ok(hwnd) = FindWindowW(w!("Chrome_WidgetWin_1"), None) {
-                if !hwnd.is_invalid() {
-                    return Some(hwnd);
-                }
-            }
-        }
-        None
     }
 }
 
@@ -312,8 +279,6 @@ impl Drop for ForegroundLock {
 // 4. System Clipboard Guard (Wiper)
 // ============================================================================
 
-/// RAII Guard that periodically flushes the system clipboard to prevent
-/// candidates from copying question text to other applications or pasting external answers.
 pub struct ClipboardGuard {
     stop_signal: Arc<AtomicBool>,
     thread_handle: Option<JoinHandle<()>>,
@@ -428,9 +393,9 @@ impl ProcessWatchdog {
                                 v_lock.push(format!("VIOLATION blacklisted_process name=\"{}\" pid={}", exe_name, pid));
                             }
 
-                            // Terminate the unauthorized process
                             if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, pid) {
                                 let _ = TerminateProcess(hproc, 1);
+                                let _ = CloseHandle(hproc);
                             }
                             break;
                         }
@@ -441,6 +406,7 @@ impl ProcessWatchdog {
                     }
                 }
             }
+            let _ = CloseHandle(snapshot);
         }
     }
 }
@@ -455,8 +421,66 @@ impl Drop for ProcessWatchdog {
 }
 
 // ============================================================================
-// 6. Kiosk Browser Launcher
+// 6. Kiosk Browser Launcher & Process Manager
 // ============================================================================
+
+pub struct KioskProcess {
+    pub h_process: HANDLE,
+    pub h_thread: HANDLE,
+    pub pid: u32,
+}
+
+impl KioskProcess {
+    pub fn is_alive(&self) -> bool {
+        unsafe {
+            let mut exit_code = 0u32;
+            if GetExitCodeProcess(self.h_process, &mut exit_code).is_ok() {
+                exit_code == 259 // STILL_ACTIVE
+            } else {
+                false
+            }
+        }
+    }
+
+    pub fn try_wait(&mut self) -> Result<Option<u32>, std::io::Error> {
+        unsafe {
+            let mut exit_code = 0u32;
+            if GetExitCodeProcess(self.h_process, &mut exit_code).is_ok() {
+                if exit_code == 259 {
+                    Ok(None)
+                } else {
+                    Ok(Some(exit_code))
+                }
+            } else {
+                Err(std::io::Error::last_os_error())
+            }
+        }
+    }
+
+    pub fn terminate(&self) {
+        unsafe {
+            let _ = TerminateProcess(self.h_process, 1);
+        }
+    }
+
+    pub fn kill(&mut self) -> Result<(), std::io::Error> {
+        self.terminate();
+        Ok(())
+    }
+}
+
+impl Drop for KioskProcess {
+    fn drop(&mut self) {
+        unsafe {
+            if !self.h_thread.is_invalid() {
+                let _ = CloseHandle(self.h_thread);
+            }
+            if !self.h_process.is_invalid() {
+                let _ = CloseHandle(self.h_process);
+            }
+        }
+    }
+}
 
 pub fn find_browser_executable() -> Option<PathBuf> {
     let candidate_paths = [
@@ -477,42 +501,68 @@ pub fn find_browser_executable() -> Option<PathBuf> {
     None
 }
 
-pub fn launch_kiosk(target_url: &str) -> std::io::Result<Child> {
+/// Spawns an isolated full-screen kiosk browser directly on the designated desktop (e.g. Secure Desktop).
+pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> Result<KioskProcess, String> {
     let browser_path = find_browser_executable()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No supported browser (Edge/Chrome) found on system"))?;
+        .ok_or_else(|| "No supported browser (Edge/Chrome) found on system".to_string())?;
 
     let temp_profile = std::env::temp_dir().join(format!("citadel_kiosk_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&temp_profile);
 
-    println!("[CITADEL CLIENT] Spawning exclusive kiosk window via: {:?}", browser_path);
-    println!("[CITADEL CLIENT] Connecting to exam endpoint: {}", target_url);
+    eprintln!("[CITADEL CLIENT] Spawning exclusive kiosk browser via: {:?}", browser_path);
+    eprintln!("[CITADEL CLIENT] Target desktop plane: {:?}", desktop_name.unwrap_or("Default"));
+    eprintln!("[CITADEL CLIENT] Connecting to exam endpoint: {}", target_url);
 
-    // CRITICAL CHROMIUM SECURITY FLAGS:
-    // 1. --user-data-dir and --new-window ensure a standalone, isolated process.
-    // 2. --kiosk and --edge-kiosk-type=fullscreen lock full screen without window controls.
-    // 3. --overscroll-history-navigation=0 blocks 2-finger swipe navigation.
-    // 4. --disable-extensions and --disable-pinch prevent unauthorized tooling.
-    // 5. target_url is passed directly as an argument, NOT --app=.
-    let child = Command::new(browser_path)
-        .arg(format!("--user-data-dir={}", temp_profile.display()))
-        .arg("--new-window")
-        .arg("--kiosk")
-        .arg("--edge-kiosk-type=fullscreen")
-        .arg("--no-first-run")
-        .arg("--no-default-browser-check")
-        .arg("--disable-pinch")
-        .arg("--disable-context-menu")
-        .arg("--overscroll-history-navigation=0")
-        .arg("--disable-extensions")
-        .arg("--disable-component-update")
-        .arg("--disable-sync")
-        .arg("--disable-background-networking")
-        .arg("--disable-domain-reliability")
-        .arg("--disable-speech-api")
-        .arg("--disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub")
-        .arg("--user-agent=CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)")
-        .arg(target_url)
-        .spawn()?;
+    let args = format!(
+        "\"{}\" --user-data-dir=\"{}\" --new-window --kiosk --edge-kiosk-type=fullscreen \
+         --no-first-run --no-default-browser-check --disable-pinch --disable-context-menu \
+         --overscroll-history-navigation=0 --disable-extensions --disable-component-update \
+         --disable-sync --disable-background-networking --disable-domain-reliability \
+         --disable-speech-api \
+         --disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub \
+         --user-agent=\"CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)\" \
+         \"{}\"",
+        browser_path.display(),
+        temp_profile.display(),
+        target_url
+    );
 
-    Ok(child)
+    let mut wide_cmd = to_wide_str(&args);
+    let mut si = STARTUPINFOW::default();
+    si.cb = std::mem::size_of::<STARTUPINFOW>() as u32;
+    si.dwFlags = STARTF_USESHOWWINDOW;
+    si.wShowWindow = SW_MAXIMIZE.0 as u16;
+
+    let mut _wide_desktop = Vec::new();
+    if let Some(dname) = desktop_name {
+        _wide_desktop = to_wide_str(dname);
+        si.lpDesktop = PWSTR(_wide_desktop.as_mut_ptr());
+    }
+
+    let mut pi = PROCESS_INFORMATION::default();
+
+    unsafe {
+        CreateProcessW(
+            PCWSTR::null(),
+            PWSTR(wide_cmd.as_mut_ptr()),
+            None,
+            None,
+            false,
+            CREATE_NEW_PROCESS_GROUP,
+            None,
+            PCWSTR::null(),
+            &si,
+            &mut pi,
+        ).map_err(|e| format!("Failed to spawn kiosk browser process: {:?}", e))?;
+    }
+
+    Ok(KioskProcess {
+        h_process: pi.hProcess,
+        h_thread: pi.hThread,
+        pid: pi.dwProcessId,
+    })
+}
+
+pub fn launch_kiosk(target_url: &str) -> Result<KioskProcess, String> {
+    launch_kiosk_on_desktop(target_url, None)
 }

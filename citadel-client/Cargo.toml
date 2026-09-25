@@ -1,6 +1,6 @@
 [package]
 name = "citadel-client"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [dependencies]
@@ -16,4 +16,12 @@ windows = { version = "0.58", features = [
     "Win32_System_DataExchange",
     "Win32_System_Registry",
     "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_StationsAndDesktops",
+    "Win32_System_Console",
+    "Win32_Graphics_Gdi",
 ] }
+
+[profile.release]
+opt-level = "z"
+strip = true
+panic = "unwind"
