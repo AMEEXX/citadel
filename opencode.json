@@ -6,7 +6,7 @@
       "name": "Selora Gateway",
       "options": {
         "baseURL": "https://api.selora.lol/v1",
-        "apiKey": "sk-gw-02RJJgRhfNVUnRp-RNUh6rZdo2VyTaa6u5QpT1OIN10"
+        "apiKey": "{env:SELORA_API_KEY}"
       },
       "models": {
         "claude-sonnet-5": {
