@@ -335,3 +335,24 @@ POST /admin/submissions/rejudge
 | 1,000 | 15,000 | 6 | 26 | 32 | 1.6× |
 
 Plus the standby's surge pool in every case. Above 1,000 candidates, add sealed edge judging (doc 08 §7) rather than a larger single appliance.
+
+---
+
+## 9. Multi-Language Real Subprocess Execution Engine (`judge.rs`)
+
+### 9.1 Multi-Language Support
+The CITADEL judge runner provides native execution for three core contest languages:
+
+| Language | Compiler / Runtime | Toolchain Flags | Isolation / Execution Model |
+|---|---|---|---|
+| **Python 3** | `python` / `python3` | `-u -B` (unbuffered, no bytecode cache) | Direct stdin/stdout streaming, 2s wall timeout |
+| **C++ 17** | `g++` | `-O2 -std=c++17 -Wall` | Compiled binary executed in isolated tempdir, 2s wall timeout |
+| **Java 17** | `javac` & `java` | `-encoding UTF-8` / `-Xmx256m` | Compiled class executed with restricted heap, 3s wall timeout |
+
+### 9.2 Execution Pipeline and Safety Boundaries
+1. **Isolated Tempfiles**: Source code is written into OS-assigned secure temporary files (`citadel_eval_*.{py,cpp,java}`).
+2. **Deterministic Cleanup**: Pre- and post-execution cleanup handlers ensure temporary source, object, and executable binaries are removed immediately upon completion.
+3. **Subprocess Isolation**: Candidate processes are spawned as child processes without administrative elevation or access to host secrets.
+4. **Enforced Timeouts**: Each test case execution is bound by hard timeout guards (2,000 ms for Python/C++, 3,000 ms for Java) via `std::time::Instant` and child kill handlers to prevent infinite loops (`Time Limit Exceeded`).
+5. **Whitespace Normalization & Diffing**: Output strings undergo line-by-line whitespace trimming and carriage return (`\r`) stripping. Any mismatch generates a structured diff report showing exact expected vs actual standard output.
+6. **Zero Mock Evaluation**: All evaluation verdicts (`Accepted`, `Wrong Answer`, `Time Limit Exceeded`, `Runtime Error`, `Compilation Error`) represent true execution of candidate algorithms.

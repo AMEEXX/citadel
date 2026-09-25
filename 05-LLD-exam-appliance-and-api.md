@@ -461,3 +461,33 @@ Connection
 | **Total cold boot to exam-ready** | **≈ 5.5 min** | Comfortably inside NFR-10 (10 min) |
 
 The judge self-test is worth calling out: at every boot the appliance judges a known-good and a known-bad reference solution for each problem and asserts the expected verdicts. A judge that has drifted — wrong compiler, broken sandbox, corrupt test data — is caught at boot rather than by 600 candidates receiving wrong verdicts.
+
+---
+
+## 8. Recruiter LMS, Portal Code Editor, and Two-Stage Submission Pipeline
+
+### 8.1 Administrative & Recruiter Security Barrier
+To prevent candidate enumeration and unauthorized access to proctor controls or question authoring:
+- **Authentication**: All endpoints under `/admin` and `/api/v1/admin/*` (as well as `/proctor` telemetry) require a shared admin key (`CITADEL_ADMIN_KEY`, default: `citadel-recruiter-key-2026`).
+- **Mechanisms**: Key can be provided via `?key=...` query parameter, `X-Admin-Key` HTTP header, or HttpOnly session cookie (`citadel_admin_key`).
+- **Access Control**: Requests lacking a valid key receive HTTP `403 Forbidden` with a styled dark-theme security barrier page (`render_admin_denied_html`).
+- **Recruiter LMS Features**:
+  - **Live Candidate Monitoring**: Real-time table displaying Candidate ID, IP address, Active Question, Violation Count, Status (`Active`, `Flagged`, `Disqualified`), and Total Score.
+  - **One-Click Disqualification**: Setting candidate status to `Disqualified` immediately rejects all current and subsequent code submissions from that candidate.
+  - **Violation Stream**: Real-time listing of focus-lost, window-minimization, clipboard attempts, and unauthorized process alerts.
+  - **Test Case Manager**: Recruiter interface to add, inspect, and remove both sample test cases and hidden evaluation cases on the live server.
+  - **Dynamic Sync**: 2-second background polling keeps metrics synchronized across recruiter laptops connected to the local exam appliance Wi-Fi.
+
+### 8.2 Contest-Grade Code Editor & Two-Stage Submission Pipeline
+- **Split-Screen Layout**: Left pane contains the problem statement, constraints, and interactive sample case cards. Right pane houses the contest code editor with line numbers gutter, tab indentation, and bracket auto-closing.
+- **Language Support**: Python 3 (`python`), C++ 17 (`g++`), and Java 17 (`javac`/`java`).
+- **Two-Stage Execution**:
+  1. **Run Code (Sample Cases)**: Evaluates candidate code in a real subprocess sandbox against sample test cases only (`is_sample_run: true`). Outputs stdout, stderr, and line-by-line diffs against expected values.
+  2. **Submit Lock & Unlock**: The "Submit Solution" button begins in a disabled, padlocked state (`cursor: not-allowed`). Only when all sample test cases pass (100% Accepted) does the Submit button unlock and pulse green.
+  3. **Submit (Hidden Evaluation)**: Submits code to the appliance runner for evaluation against all test cases (both sample and hidden, `is_sample_run: false`), computing final contest score and recording the submission in candidate metrics.
+
+### 8.3 Canonical Question Bank: Two Sum (LeetCode #1)
+The appliance hosts canonical LeetCode #1 Two Sum (`q1-two-sum`, 100 pts) as the active problem:
+- **Sample Cases (3)**: Basic array pairs, negative offset pairs, and identical element pairs.
+- **Hidden Cases (5)**: Zero-target cases, negative number pairs, large array inputs, boundary duplicates, and large target values.
+- **Data Integrity**: Zero mock evaluation data. All passes and failures represent genuine subprocess compilation and standard I/O execution.
