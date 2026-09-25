@@ -1,6 +1,4 @@
-﻿#[path = "../src/main.rs"]
-#[allow(dead_code)]
-mod guard_svc;
+use guard_svc::format_log_line;
 
 fn matches_pattern(s: &str) -> bool {
     // pattern: ^SERVICE (STARTED|STOPPED) \d{4}-\d{2}-\d{2}T
@@ -27,7 +25,7 @@ fn matches_pattern(s: &str) -> bool {
 
 #[test]
 fn test_log_format_started() {
-    let line = guard_svc::format_log_line("STARTED");
+    let line = format_log_line("STARTED");
     assert!(
         matches_pattern(&line),
         "Expected '{}' to match pattern ^SERVICE (STARTED|STOPPED) \\d{{4}}-\\d{{2}}-\\d{{2}}T",
@@ -37,7 +35,7 @@ fn test_log_format_started() {
 
 #[test]
 fn test_log_format_stopped() {
-    let line = guard_svc::format_log_line("STOPPED");
+    let line = format_log_line("STOPPED");
     assert!(
         matches_pattern(&line),
         "Expected '{}' to match pattern ^SERVICE (STARTED|STOPPED) \\d{{4}}-\\d{{2}}-\\d{{2}}T",

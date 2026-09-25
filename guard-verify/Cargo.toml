@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 guard-net = { path = "../guard-net" }
+guard-svc = { path = "../guard-svc" }

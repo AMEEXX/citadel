@@ -1,6 +1,6 @@
-use std::fs::OpenOptions;
-use std::io::Write;
 use std::net::Ipv4Addr;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use windows_service::{
     define_windows_service,
@@ -11,58 +11,10 @@ use windows_service::{
     service_control_handler::{self, ServiceControlHandlerResult},
 };
 
-pub const LOG_DIR: &str = "C:\\ProgramData\\CitadelSpike";
-pub const LOG_FILE: &str = "C:\\ProgramData\\CitadelSpike\\guard.log";
-pub const SERVICE_NAME: &str = "CitadelGuardSpike";
-
-#[repr(C)]
-#[allow(non_snake_case)]
-struct SYSTEMTIME {
-    wYear: u16,
-    wMonth: u16,
-    wDayOfWeek: u16,
-    wDay: u16,
-    wHour: u16,
-    wMinute: u16,
-    wSecond: u16,
-    wMilliseconds: u16,
-}
-
-extern "system" {
-    fn GetSystemTime(lpSystemTime: *mut SYSTEMTIME);
-}
-
-pub fn get_iso8601_timestamp() -> String {
-    unsafe {
-        let mut st = std::mem::zeroed::<SYSTEMTIME>();
-        GetSystemTime(&mut st);
-        format!(
-            "{:04}-{:02}-{:02}T{:02}:{:02}:{:02}Z",
-            st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond
-        )
-    }
-}
-
-pub fn format_log_line(action: &str) -> String {
-    let timestamp = get_iso8601_timestamp();
-    format!("SERVICE {} {}", action, timestamp)
-}
-
-pub fn write_guard_log(action: &str) -> std::io::Result<()> {
-    let line = format_log_line(action);
-    write_custom_log(&line)
-}
-
-pub fn write_custom_log(line: &str) -> std::io::Result<()> {
-    let _ = std::fs::create_dir_all(LOG_DIR);
-    let mut file = OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(LOG_FILE)?;
-    writeln!(file, "{}", line)?;
-    file.flush()?;
-    Ok(())
-}
+use guard_svc::llm_detect;
+use guard_svc::{
+    get_iso8601_timestamp, write_custom_log, write_guard_log, SERVICE_NAME,
+};
 
 define_windows_service!(ffi_service_main, my_service_main);
 
@@ -116,6 +68,7 @@ fn run_service() -> windows_service::Result<()> {
 
     let (server_ip, server_port) = get_target_server();
 
+    // 1. Install WFP Zero-Internet / College LAN policy
     let wfp_engine = match guard_net::WfpEngine::open_dynamic() {
         Ok(mut engine) => {
             match engine.install_college_lan_policy(server_ip, server_port) {
@@ -144,8 +97,29 @@ fn run_service() -> windows_service::Result<()> {
         }
     };
 
+    // 2. Start Module M2 background scanner for rogue loopback listeners (Ollama / offline LLMs)
+    let stop_scanner = Arc::new(AtomicBool::new(false));
+    let stop_scanner_clone = stop_scanner.clone();
+    let scanner_handle = std::thread::spawn(move || {
+        let allowed_ports = [server_port];
+        while !stop_scanner_clone.load(Ordering::Relaxed) {
+            if let Ok(listeners) = llm_detect::scan_loopback_listeners() {
+                let violations = llm_detect::check_listener_violations(&listeners, &allowed_ports);
+                for v in violations {
+                    let _ = write_custom_log(&v.to_log_line());
+                }
+            }
+            std::thread::sleep(Duration::from_secs(2));
+        }
+    });
+
     let _ = shutdown_rx.recv();
 
+    // Stop M2 scanner
+    stop_scanner.store(true, Ordering::Relaxed);
+    let _ = scanner_handle.join();
+
+    // Tear down WFP engine
     drop(wfp_engine);
     let _ = write_custom_log(&format!("NET FILTER REMOVED {}", get_iso8601_timestamp()));
 
@@ -164,7 +138,6 @@ fn run_service() -> windows_service::Result<()> {
     Ok(())
 }
 
-#[cfg(not(test))]
 fn main() -> Result<(), windows_service::Error> {
     windows_service::service_dispatcher::start(SERVICE_NAME, ffi_service_main)
 }

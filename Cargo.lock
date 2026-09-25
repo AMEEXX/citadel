@@ -20,6 +20,7 @@ name = "guard-svc"
 version = "0.1.0"
 dependencies = [
  "guard-net",
+ "windows",
  "windows-service",
 ]
 
@@ -28,6 +29,7 @@ name = "guard-verify"
 version = "0.1.0"
 dependencies = [
  "guard-net",
+ "guard-svc",
 ]
 
 [[package]]
