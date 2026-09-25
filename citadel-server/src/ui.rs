@@ -1038,6 +1038,15 @@ public class Solution {
       }).catch(() => {});
     }, 5000);
 
+    window.addEventListener('beforeunload', () => {
+      try {
+        navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
+          candidate_id: CANDIDATE_ID,
+          reason: 'Candidate closed exam browser window'
+        }));
+      } catch(e) {}
+    });
+
     // Anti-cheat input restrictions
     document.addEventListener('contextmenu', e => e.preventDefault());
     window.addEventListener('blur', () => {
@@ -1147,7 +1156,7 @@ pub fn render_recruiter_lms_html() -> &'static str {
     /* STATS OVERVIEW CARDS */
     .stats-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(6, 1fr);
       gap: 16px;
       margin-bottom: 24px;
     }
@@ -1251,6 +1260,7 @@ pub fn render_recruiter_lms_html() -> &'static str {
     .status-active { background: rgba(16, 185, 129, 0.15); color: #34d399; }
     .status-flagged { background: rgba(245, 158, 11, 0.15); color: #fbbf24; }
     .status-disqualified { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+    .status-logged-out, .status-logged_out { background: rgba(148, 163, 184, 0.15); color: #94a3b8; }
 
     .btn-table {
       padding: 4px 10px;
@@ -1337,7 +1347,15 @@ pub fn render_recruiter_lms_html() -> &'static str {
         <div class="stat-val" style="color: #fbbf24;" id="stat-flagged">0</div>
       </div>
       <div class="stat-card">
-        <div class="stat-label">Total Submissions</div>
+        <div class="stat-label">Logged Out / Idle</div>
+        <div class="stat-val" style="color: #94a3b8;" id="stat-logged-out">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Disqualified</div>
+        <div class="stat-val" style="color: #f87171;" id="stat-disqualified">0</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Submissions (Pass/Err)</div>
         <div class="stat-val" style="color: #38bdf8;" id="stat-subs">0</div>
       </div>
     </div>
@@ -1494,7 +1512,9 @@ pub fn render_recruiter_lms_html() -> &'static str {
         document.getElementById('stat-total').innerText = data.total_candidates;
         document.getElementById('stat-active').innerText = data.active_candidates;
         document.getElementById('stat-flagged').innerText = data.flagged_candidates;
-        document.getElementById('stat-subs').innerText = data.total_submissions;
+        document.getElementById('stat-logged-out').innerText = data.logged_out_candidates;
+        document.getElementById('stat-disqualified').innerText = data.disqualified_candidates;
+        document.getElementById('stat-subs').innerText = `${data.total_submissions} (${data.passed_submissions_count}✓ / ${data.error_submissions_count}✗)`;
 
         // Render Candidates
         const candBody = document.getElementById('candidates-body');
@@ -1508,7 +1528,7 @@ pub fn render_recruiter_lms_html() -> &'static str {
               <td><span style="color: #60a5fa; font-weight: 700;">${c.total_score} pts</span></td>
               <td><span style="color: ${c.violations_count > 0 ? '#f87171' : '#34d399'}; font-weight: 700;">${c.violations_count}</span></td>
               <td><small>${new Date(c.last_seen).toLocaleTimeString()}</small></td>
-              <td><span class="status-pill status-${c.status.toLowerCase()}">${c.status}</span></td>
+              <td><span class="status-pill status-${c.status.toLowerCase().replace(/\s+/g, '-')}">${c.status}</span></td>
               <td>
                 ${c.status !== 'Disqualified' ? `<button class="btn-table btn-disqualify" onclick="disqualify('${c.candidate_id}')">Disqualify</button>` : `<button class="btn-table btn-clear" onclick="clearFlag('${c.candidate_id}')">Re-enable</button>`}
               </td>

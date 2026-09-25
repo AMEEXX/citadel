@@ -94,11 +94,21 @@ pub struct ProctorDashboardData {
     pub total_candidates: usize,
     pub active_candidates: usize,
     pub flagged_candidates: usize,
+    pub logged_out_candidates: usize,
+    pub disqualified_candidates: usize,
     pub total_submissions: usize,
+    pub error_submissions_count: usize,
+    pub passed_submissions_count: usize,
     pub candidates: Vec<CandidateSession>,
     pub recent_violations: Vec<IntegrityEvent>,
     pub recent_submissions: Vec<SubmissionRecord>,
     pub questions: Vec<Question>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct LogoutRequest {
+    pub candidate_id: String,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -175,6 +185,15 @@ impl Default for AppState {
                 status: "Flagged".to_string(),
                 total_score: 0,
             });
+            cands.insert("CAND-2026-003".to_string(), CandidateSession {
+                candidate_id: "CAND-2026-003".to_string(),
+                ip_address: "172.60.5.103".to_string(),
+                active_question: 1,
+                violations_count: 0,
+                last_seen: (chrono::Utc::now() - chrono::Duration::seconds(120)).to_rfc3339(),
+                status: "Logged Out".to_string(),
+                total_score: 0,
+            });
         }
 
         state
@@ -228,6 +247,7 @@ pub fn build_app() -> Router {
         .route("/api/v1/submissions", post(submit_code_handler))
         .route("/api/v1/integrity/heartbeat", post(heartbeat_handler))
         .route("/api/v1/integrity/event", post(report_event_handler))
+        .route("/api/v1/integrity/logout", post(logout_handler))
 
         // Protected Recruiter & Administrator Routes
         .route("/admin", get(admin_page_handler))
@@ -429,11 +449,31 @@ async fn heartbeat_handler(
 
     entry.active_question = req.active_question;
     entry.last_seen = chrono::Utc::now().to_rfc3339();
-    if !req.is_window_focused && entry.status != "Disqualified" {
-        entry.status = "Flagged".to_string();
+    if entry.status != "Disqualified" {
+        if !req.is_window_focused {
+            entry.status = "Flagged".to_string();
+        } else if entry.status == "Logged Out" {
+            entry.status = "Active".to_string();
+        }
     }
 
     StatusCode::OK
+}
+
+async fn logout_handler(
+    State(state): State<AppState>,
+    Json(req): Json<LogoutRequest>,
+) -> StatusCode {
+    let mut cands = state.candidates.lock().unwrap();
+    if let Some(cand) = cands.get_mut(&req.candidate_id) {
+        if cand.status != "Disqualified" {
+            cand.status = "Logged Out".to_string();
+        }
+        cand.last_seen = chrono::Utc::now().to_rfc3339();
+        StatusCode::OK
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 async fn report_event_handler(
@@ -559,7 +599,21 @@ async fn admin_metrics_handler(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let cands_lock = state.candidates.lock().unwrap();
+    let mut cands_lock = state.candidates.lock().unwrap();
+    let now = chrono::Utc::now();
+
+    // Inactivity timeout: candidates not seen for > 30s transition to Logged Out (unless Disqualified)
+    for cand in cands_lock.values_mut() {
+        if cand.status != "Disqualified" && cand.status != "Logged Out" {
+            if let Ok(last) = chrono::DateTime::parse_from_rfc3339(&cand.last_seen) {
+                let diff_secs = (now - last.with_timezone(&chrono::Utc)).num_seconds();
+                if diff_secs > 30 {
+                    cand.status = "Logged Out".to_string();
+                }
+            }
+        }
+    }
+
     let viols_lock = state.violations.lock().unwrap();
     let subs_lock = state.submissions.lock().unwrap();
     let questions_lock = state.questions.read().unwrap();
@@ -568,12 +622,27 @@ async fn admin_metrics_handler(
     let total_candidates = candidates.len();
     let active_candidates = candidates.iter().filter(|c| c.status == "Active").count();
     let flagged_candidates = candidates.iter().filter(|c| c.status == "Flagged").count();
+    let logged_out_candidates = candidates.iter().filter(|c| c.status == "Logged Out").count();
+    let disqualified_candidates = candidates.iter().filter(|c| c.status == "Disqualified").count();
+
+    let error_submissions_count = subs_lock
+        .iter()
+        .filter(|s| s.status != "Accepted")
+        .count();
+    let passed_submissions_count = subs_lock
+        .iter()
+        .filter(|s| s.status == "Accepted")
+        .count();
 
     Ok(Json(ProctorDashboardData {
         total_candidates,
         active_candidates,
         flagged_candidates,
+        logged_out_candidates,
+        disqualified_candidates,
         total_submissions: subs_lock.len(),
+        error_submissions_count,
+        passed_submissions_count,
         candidates,
         recent_violations: viols_lock.iter().rev().take(50).cloned().collect(),
         recent_submissions: subs_lock.iter().rev().take(50).cloned().collect(),
