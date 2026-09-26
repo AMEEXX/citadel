@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <title>CITADEL — Code Assessment Portal</title>
+  <script src="/static/ace.bundle.js"></script>
+  <style>
+    /* ─── COLOR SYSTEM (Synced from React component BG/BORDER/TEXT) ─── */
+    /* Every surface is a shade of pure black with a faint cold-blue undertone */
+    :root {
+      /* Backgrounds — from BG object in React component */
+      --bg-base:         #050508;   /* BG.page */
+      --bg-panel:        #0b0d13;   /* BG.panel — panels / titlebar */
+      --bg-editor:       #07080d;   /* BG.editor — code area */
+      --bg-problem:      #0b0d13;   /* problem pane = panel */
+      --bg-card:         #0f1118;   /* BG.surface — elevated cards */
+      --bg-surface-hover:#131620;   /* BG.hover */
+
+      /* Borders — from BORDER object */
+      --border-hair:     #141720;   /* BORDER.hair — barely-there hairline */
+      --border-subtle:   #1c2028;   /* BORDER.soft — standard border */
+      --border-medium:   #242830;   /* BORDER.medium */
+
+      /* Text — from TEXT object */
+      --text-primary:    #c8cede;   /* TEXT.primary — main text */
+      --text-secondary:  #7a8494;   /* TEXT.secondary — labels / meta */
+      --text-dim:        #3a4252;   /* TEXT.dim — gutters / disabled */
+      --text-ghost:      #1e2530;   /* TEXT.ghost — line numbers */
+
+      /* Functional accents — kept muted, never saturated */
+      --accent-lang:     #5b8fc7;   /* SYNTAX.typescript.keyword — steel blue for active states */
+      --accent-green:    #6aaa7a;   /* SYNTAX.python.number — muted green for passed/ok */
+      --accent-red:      #c07a5a;   /* SYNTAX.python.keyword — terracotta for danger */
+      --accent-amber:    #c8a858;   /* SYNTAX.python.function — amber for warning */
+      --accent-run-btn:  #2a4a6a;   /* Muted blue for Run Code button */
+
+      --font-ui:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0; }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #000000;  /* BG.void — outermost */
+      color: var(--text-primary);
+      font-family: var(--font-ui);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+      font-size: 13px;
+    }
+
+    /* Scrollbars — barely visible */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1a1d24; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-medium); }
+
+    ::selection { background: rgba(70, 110, 160, 0.25); color: #ffffff; }
+
+    /* ─── GLOBAL HEADER (48px) ─── */
+    header {
+      height: 48px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-hair);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      user-select: none;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-badge {
+      background: #1e3a5f;
+      color: var(--text-primary);
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      padding: 3px 10px;
+      border-radius: 3px;
+      border: 1px solid #2a5080;
+      font-family: var(--font-mono);
+    }
+
+    .exam-title-header {
+      font-size: 12.5px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-ui);
+    }
+
+    .badge-secure {
+      background: transparent;
+      border: 1px solid #1c2a1c;
+      color: #4a7a4a;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      letter-spacing: 0.04em;
+      font-family: var(--font-mono);
+    }
+
+    .secure-dot {
+      width: 5px;
+      height: 5px;
+      background: #4a7a4a;
+      border-radius: 50%;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .timer-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 3px;
+      padding: 4px 10px;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      letter-spacing: 0.04em;
+    }
+    .timer-container.timer-warning {
+      color: var(--accent-amber);
+      border-color: #2e2818;
+    }
+    .timer-container.timer-danger {
+      color: var(--accent-red);
+      border-color: #2e1812;
+    }
+
+    .btn-end-exam {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      font-family: var(--font-ui);
+    }
+    .btn-end-exam:hover {
+      background: #1a1218;
+      color: var(--accent-red);
+      border-color: #2e1818;
+    }
+
+    /* ─── MAIN WORKSPACE (SPLIT LAYOUT) ─── */
+    .workspace {
+      display: flex;
+      flex-direction: row;
+      flex: 1;
+      height: calc(100vh - 48px);
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* LEFT PANE: PROBLEM SPEC */
+    .pane-problem {
+      flex: 0 0 42%;
+      width: 42%;
+      min-width: 280px;
+      max-width: 70%;
+      background: var(--bg-problem);
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+    }
+
+    .problem-tabs {
+      height: 40px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-hair);
+      display: flex;
+      align-items: stretch;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+
+    .q-tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 1.5px solid var(--accent-lang);
+      color: var(--text-primary);
+      padding: 0 16px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: default;
+      letter-spacing: 0.02em;
+    }
+
+    .problem-content {
+      padding: 22px 24px;
+      overflow-y: auto;
+      line-height: 1.7;
+      flex: 1;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .q-header-meta {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .diff-badge {
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 3px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-family: var(--font-mono);
+    }
+    .diff-easy {
+      background: transparent;
+      color: var(--accent-green);
+      border: 1px solid #1c2a1c;
+    }
+
+    .points-badge {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+    }
+
+    /* tag-pill removed — keep class to avoid JS errors but hidden */
+    .tag-pill { display: none; }
+
+    .q-title {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 14px;
+      letter-spacing: -0.01em;
+      line-height: 1.35;
+    }
+
+    .q-desc p { margin-bottom: 12px; color: var(--text-primary); }
+    .q-desc code, .code-snippet {
+      font-family: var(--font-mono);
+      background: var(--bg-editor);
+      border: 1px solid var(--border-hair);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: #c8a858;   /* SYNTAX.python.function amber */
+      font-size: 12px;
+    }
+
+    .section-head {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin: 20px 0 8px;
+      font-family: var(--font-mono);
+    }
+
+    .test-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-hair);
+      border-radius: 4px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .test-card-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-bottom: 7px;
+      letter-spacing: 0.05em;
+      font-family: var(--font-mono);
+    }
+    .code-snippet {
+      display: block;
+      padding: 7px 10px;
+      margin-bottom: 6px;
+      white-space: pre-wrap;
+      color: var(--text-primary);
+    }
+
+    /* ─── VERTICAL RESIZER (BETWEEN PROBLEM & EDITOR) ─── */
+    .resizer-v {
+      width: 5px;
+      background: #000000;
+      border-left: 1px solid var(--border-hair);
+      border-right: 1px solid var(--border-hair);
+      cursor: col-resize;
+      user-select: none;
+      flex-shrink: 0;
+      position: relative;
+      touch-action: none;
+      transition: background 0.15s ease;
+      z-index: 25;
+    }
+    .resizer-v::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: -6px;
+      right: -6px;
+      z-index: 2;
+    }
+    .resizer-v::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      left: 0px;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 24px;
+      border-left: 1px solid var(--border-medium);
+      border-right: 1px solid var(--border-medium);
+    }
+    .resizer-v:hover, .resizer-v.dragging {
+      background: var(--border-medium) !important;
+    }
+
+    /* RIGHT PANE: CODE EDITOR + TEST DRAWER */
+    .pane-right {
+      flex: 1 1 0;
+      min-width: 320px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-editor);
+    }
+
+    /* TOP SECTION: CODE EDITOR */
+    .pane-editor {
+      flex: 1 1 0;
+      min-height: 160px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .editor-toolbar {
+      height: 40px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-hair);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .lang-tabs {
+      display: flex;
+      align-items: center;
+      gap: 1px;
+    }
+
+    /* Language tabs — styled like the React component tabs */
+    .lang-tab {
+      background: transparent;
+      color: var(--text-dim);
+      border: none;
+      border-top: 1.5px solid transparent;
+      border-radius: 3px 3px 0 0;
+      padding: 0 16px;
+      height: 40px;
+      font-size: 10.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.15s;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .lang-tab:hover { color: var(--text-secondary); }
+    .lang-tab.active {
+      background: var(--bg-editor);
+      color: var(--text-primary);
+      border-top-color: var(--accent-lang);
+    }
+    /* Language color swatch inside tab */
+    .lang-tab::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 2px;
+      background: currentColor;
+      opacity: 0.5;
+      flex-shrink: 0;
+    }
+    .lang-tab.active::before { opacity: 1; }
+
+    .btn-reset {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border-hair);
+      border-radius: 3px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      font-family: var(--font-ui);
+    }
+    .btn-reset:hover {
+      color: var(--text-secondary);
+      border-color: var(--border-subtle);
+    }
+
+    #code-editor {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      font-family: var(--font-mono) !important;
+      font-size: 13.5px !important;
+      line-height: 1.65 !important;
+      background: var(--bg-editor) !important;
+    }
+
+    /* Ace Editor — synced with React component gutter/active-line colors */
+    #code-editor .ace_gutter {
+      background: var(--bg-panel) !important;
+      color: var(--text-ghost) !important;
+      border-right: 1px solid var(--border-hair) !important;
+    }
+    #code-editor .ace_gutter-active-line {
+      background: #0f1118 !important;
+      color: var(--accent-lang) !important;
+      opacity: 0.8;
+    }
+    #code-editor .ace_marker-layer .ace_active-line {
+      background: rgba(91, 143, 199, 0.05) !important;
+    }
+    #code-editor .ace_cursor {
+      border-left: 2px solid var(--accent-lang) !important;
+      animation: blink 1.1s step-end infinite;
+    }
+
+    .editor-statusbar {
+      height: 27px;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border-hair);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      user-select: none;
+      flex-shrink: 0;
+      gap: 16px;
+    }
+
+    /* ─── HORIZONTAL RESIZER (BETWEEN EDITOR & DRAWER) ─── */
+    .resizer-h {
+      height: 5px;
+      background: #000000;
+      border-top: 1px solid var(--border-hair);
+      border-bottom: 1px solid var(--border-hair);
+      cursor: row-resize;
+      user-select: none;
+      flex-shrink: 0;
+      position: relative;
+      touch-action: none;
+      transition: background 0.15s ease;
+      z-index: 25;
+    }
+    .resizer-h::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: -6px;
+      bottom: -6px;
+      z-index: 2;
+    }
+    .resizer-h::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 0px;
+      transform: translateX(-50%);
+      width: 24px;
+      height: 3px;
+      border-top: 1px solid var(--border-medium);
+      border-bottom: 1px solid var(--border-medium);
+    }
+    .resizer-h:hover, .resizer-h.dragging {
+      background: var(--border-medium) !important;
+    }
+
+    /* BOTTOM SECTION: TEST DRAWER */
+    .pane-drawer {
+      flex: 0 0 240px;
+      height: 240px;
+      min-height: 90px;
+      max-height: 80%;
+      background: var(--bg-panel);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    .drawer-nav {
+      height: 40px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border-hair);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .drawer-nav-left {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .nav-pill {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-dim);
+      cursor: pointer;
+      padding: 4px 10px;
+      border-radius: 3px;
+      transition: all 0.15s ease;
+      background: transparent;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-family: var(--font-ui);
+    }
+    .nav-pill:hover { color: var(--text-secondary); }
+    .nav-pill.active {
+      color: var(--text-primary);
+      background: var(--bg-card);
+      border-color: var(--border-hair);
+    }
+
+    .drawer-nav-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-action {
+      border: none;
+      border-radius: 3px;
+      padding: 5px 14px;
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      font-family: var(--font-ui);
+    }
+
+    /* Run Code — muted steel blue, not bright */
+    .btn-run {
+      background: #1a2e48;
+      color: var(--text-secondary);
+      border: 1px solid #2a4060;
+    }
+    .btn-run:hover {
+      background: #1e3550;
+      color: var(--text-primary);
+      border-color: var(--accent-lang);
+    }
+
+    /* Submit — locked: barely visible; unlocked: muted green */
+    .btn-submit.locked {
+      background: transparent;
+      color: var(--text-dim);
+      cursor: not-allowed;
+      border: 1px solid var(--border-hair);
+    }
+    .btn-submit.unlocked {
+      background: #1a3028;
+      color: var(--accent-green);
+      cursor: pointer;
+      border: 1px solid #1c3024;
+    }
+    .btn-submit.unlocked:hover {
+      background: #1e3830;
+      color: #88cc88;
+      border-color: #2a4838;
+    }
+
+    .drawer-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 14px;
+      background: var(--bg-editor);
+    }
+
+    .case-pills {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .case-pill {
+      background: transparent;
+      border: 1px solid var(--border-hair);
+      border-radius: 3px;
+      color: var(--text-dim);
+      font-size: 11px;
+      font-weight: 500;
+      padding: 3px 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      font-family: var(--font-mono);
+    }
+    .case-pill:hover { color: var(--text-secondary); border-color: var(--border-subtle); }
+    .case-pill.active {
+      background: var(--bg-card);
+      border-color: var(--border-subtle);
+      color: var(--text-primary);
+    }
+    .case-pill.passed {
+      border-color: #1c2a1c;
+      color: var(--accent-green);
+    }
+
+    .test-details-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .detail-head {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 5px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-family: var(--font-mono);
+    }
+
+    .detail-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-hair);
+      border-radius: 3px;
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-primary);
+      white-space: pre-wrap;
+    }
+
+    .console-terminal {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-hair);
+      border-radius: 3px;
+      padding: 12px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+      line-height: 1.65;
+      min-height: 100px;
+    }
+
+    /* ─── MODALS & OVERLAYS ─── */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 28px;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 40px 80px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(255,255,255,0.02);
+    }
+
+    .modal-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+    }
+
+    .modal-body {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .conclusion-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+    }
+
+    .conclusion-card {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 40px;
+      max-width: 440px;
+      text-align: center;
+      box-shadow: 0 40px 80px rgba(0, 0, 0, 0.95);
+    }
+
+    /* INVISIBLE DRAG BARRIER OVERLAY */
+    #drag-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 99999;
+      user-select: none;
+      background: rgba(0, 0, 0, 0.001);
+      cursor: inherit;
+    }
+  </style>
+</head>
+<body>
+  <!-- INVISIBLE DRAG SHIELD -->
+  <div id="drag-overlay"></div>
+
+  <!-- HEADER -->
+  <header>
+    <div class="brand">
+      <div class="logo-badge">CITADEL</div>
+      <div class="exam-title-header">
+        <span>Campus Assessment Contest 2026</span>
+        <span class="badge-secure">
+          <span class="secure-dot"></span>
+          <span>SECURE EXAM RUNTIME</span>
+        </span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="timer-container" id="timer-box">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+          <path d="M8 3.5a.5.5 0 00-1 0V9a.5.5 0 00.252.434l3.5 2a.5.5 0 00.496-.868L8 8.71V3.5z"></path>
+          <path d="M8 16A8 8 0 108 0a8 8 0 000 16zm7-8A7 7 0 111 8a7 7 0 0114 0z"></path>
+        </svg>
+        <span id="timer-display">01:30:00</span>
+      </div>
+      <button class="btn-end-exam" id="btn-end-exam" onclick="openEndExamModal()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
+        </svg>
+        <span>End Exam</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- SPLIT WORKSPACE -->
+  <div class="workspace">
+    <!-- LEFT: PROBLEM SPEC -->
+    <div class="pane-problem" id="pane-problem">
+      <div class="problem-tabs">
+        <button class="q-tab-btn">Problem Statement</button>
+      </div>
+      <div class="problem-content">
+        <div class="q-header-meta">
+          <span class="diff-badge diff-easy">Easy</span>
+          <span class="points-badge">100 Points</span>
+          <span class="tag-pill">Array</span>
+          <span class="tag-pill">Hash Table</span>
+          <span class="tag-pill">Two Pointers</span>
+        </div>
+
+        <h1 class="q-title" id="q-title">1. Two Sum</h1>
+
+        <div class="q-desc" id="q-desc">
+          <p>Given an array of integers <code>nums</code> and an integer <code>target</code>, return <em>indices of the two numbers</em> such that they add up to <code>target</code>.</p>
+          <p>You may assume that each input would have <strong>exactly one solution</strong>, and you may not use the same element twice.</p>
+          <p>You can return the answer in any order (indices separated by space).</p>
+        </div>
+
+        <div class="section-head">EXAMPLES</div>
+        <div class="test-card">
+          <div class="test-card-title">Example 1</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
+          <code class="code-snippet">2 7 11 15 9</code>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Output:</div>
+          <code class="code-snippet">0 1</code>
+          <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Explanation: Because nums[0] + nums[1] == 2 + 7 == 9, we return indices 0 1.</div>
+        </div>
+
+        <div class="test-card">
+          <div class="test-card-title">Example 2</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
+          <code class="code-snippet">3 2 4 6</code>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Output:</div>
+          <code class="code-snippet">1 2</code>
+        </div>
+
+        <div class="test-card">
+          <div class="test-card-title">Example 3</div>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
+          <code class="code-snippet">3 3 6</code>
+          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Output:</div>
+          <code class="code-snippet">0 1</code>
+        </div>
+
+        <div class="section-head">CONSTRAINTS</div>
+        <ul style="padding-left: 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
+          <li><code>2 &lt;= nums.length &lt;= 10^4</code></li>
+          <li><code>-10^9 &lt;= nums[i] &lt;= 10^9</code></li>
+          <li><code>-10^9 &lt;= target &lt;= 10^9</code></li>
+          <li>Only one valid answer exists for each test case.</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- VERTICAL RESIZER DRAG HANDLE -->
+    <div class="resizer-v" id="resizer-v" title="Drag to resize panes"></div>
+
+    <!-- RIGHT: CODE EDITOR & TEST DRAWER -->
+    <div class="pane-right" id="pane-right">
+      <!-- TOP: ACE CODE EDITOR -->
+      <div class="pane-editor" id="pane-editor">
+        <div class="editor-toolbar">
+          <div class="toolbar-left">
+            <div class="lang-tabs lang-select" id="lang-select">
+              <button class="lang-tab active" id="tab-python" onclick="switchLanguage('python')">Python 3</button>
+              <button class="lang-tab" id="tab-cpp" onclick="switchLanguage('cpp')">C++ 17</button>
+              <button class="lang-tab" id="tab-java" onclick="switchLanguage('java')">Java 17</button>
+            </div>
+          </div>
+          <button class="btn-reset" onclick="resetStarterTemplate()">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+              <path fill-rule="evenodd" d="M8 2.5a5.487 5.487 0 00-4.131 1.869l1.204 1.204A.25.25 0 014.896 6H1.25A.25.25 0 011 5.75V2.104a.25.25 0 01.427-.177l1.38 1.38A7.001 7.001 0 0115 8a.75.75 0 01-1.5 0 5.5 5.5 0 00-5.5-5.5zm-5.5 5.5a.75.75 0 011.5 0 5.5 5.5 0 005.5 5.5 5.487 5.487 0 004.131-1.869l-1.204-1.204A.25.25 0 0111.104 10H14.75a.25.25 0 01.25.25v3.646a.25.25 0 01-.427.177l-1.38-1.38A7.001 7.001 0 011 8z"></path>
+            </svg>
+            Reset
+          </button>
+        </div>
+
+        <div id="code-editor"></div>
+
+        <div class="editor-statusbar">
+          <div id="status-lang-text" style="color: #5b8fc7; font-weight: 600; letter-spacing: 0.06em;">PYTHON 3</div>
+          <div id="status-pos">Ln 1, Col 1</div>
+          <div>Spaces: 4 &nbsp;|&nbsp; UTF-8</div>
+        </div>
+      </div>
+
+      <!-- HORIZONTAL RESIZER DRAG HANDLE -->
+      <div class="resizer-h" id="resizer-h" title="Drag to resize drawer"></div>
+
+      <!-- BOTTOM: TEST DRAWER -->
+      <div class="pane-drawer" id="pane-drawer">
+        <div class="drawer-nav">
+          <div class="drawer-nav-left">
+            <button class="nav-pill active" id="tab-drawer-tests" onclick="switchDrawerTab('tests')">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path fill-rule="evenodd" d="M2.5 1.75a.25.25 0 01.25-.25h8.5a.25.25 0 01.25.25v7.75a.75.75 0 001.5 0V1.75A1.75 1.75 0 0011.25 0h-8.5A1.75 1.75 0 001 1.75v12.5c0 .966.784 1.75 1.75 1.75h5.5a.75.75 0 000-1.5h-5.5a.25.25 0 01-.25-.25V1.75z"></path>
+              </svg>
+              Test Cases
+            </button>
+            <button class="nav-pill" id="tab-drawer-console" onclick="switchDrawerTab('console')">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path fill-rule="evenodd" d="M0 2.75C0 1.784.784 1 1.75 1h12.5c.966 0 1.75.784 1.75 1.75v10.5A1.75 1.75 0 0114.25 15H1.75A1.75 1.75 0 010 13.25V2.75zm1.75-.25a.25.25 0 00-.25.25v10.5c0 .138.112.25.25.25h12.5a.25.25 0 00.25-.25V2.75a.25.25 0 00-.25-.25H1.75z"></path>
+              </svg>
+              Console Output
+            </button>
+          </div>
+          <div class="drawer-nav-right">
+            <button class="btn-action btn-run" id="btn-run" onclick="runSampleCases()">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M4.5 3a.5.5 0 00-.75.434v9.132a.5.5 0 00.75.434l7.61-4.566a.5.5 0 000-.868L4.5 3z"></path>
+              </svg>
+              Run Code
+            </button>
+            <button class="btn-action btn-submit locked" id="submit-btn" disabled onclick="submitFinalCode()">
+              <span id="submit-icon">🔒</span>
+              <span id="submit-label">Run Sample Cases First</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="drawer-body">
+          <!-- VIEW: TEST CASES -->
+          <div id="view-tests">
+            <div class="case-pills" id="case-pill-container">
+              <button class="case-pill active" onclick="selectCaseView(0)">Case 1</button>
+              <button class="case-pill" onclick="selectCaseView(1)">Case 2</button>
+              <button class="case-pill" onclick="selectCaseView(2)">Case 3</button>
+            </div>
+            <div class="test-details-grid">
+              <div>
+                <div class="detail-head">Input</div>
+                <div class="detail-box" id="case-input">2 7 11 15 9</div>
+              </div>
+              <div>
+                <div class="detail-head">Expected Output</div>
+                <div class="detail-box" id="case-expected">0 1</div>
+              </div>
+            </div>
+            <div style="margin-top: 12px;">
+              <div class="detail-head">Actual Output</div>
+              <div class="detail-box" id="case-actual" style="color: var(--text-dim);">Click "Run Code" to compile and execute against sample test cases</div>
+            </div>
+          </div>
+
+          <!-- VIEW: CONSOLE OUTPUT -->
+          <div id="view-console" style="display: none;">
+            <div class="console-terminal" id="console-output">Run code to view compilation and execution logs.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- END EXAM CONFIRMATION MODAL -->
+  <div id="modal-end-exam" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div class="modal-title">End Assessment Session?</div>
+      <div class="modal-body">
+        Are you sure you want to end your examination session?
+        <div style="margin-top: 8px; color: #c8cede; font-size: 12.5px;">
+          Your final code will be evaluated. Once confirmed, this exam session will close.
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-action" style="background: #1e293b; color: #cbd5e1;" onclick="closeEndExamModal()">Continue Exam</button>
+        <button class="btn-action" style="background: #ef4444; color: #ffffff;" id="btn-confirm-end" onclick="executeEndExam()">Confirm & End Exam</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONCLUSION OVERLAY -->
+  <div id="conclusion-screen" class="conclusion-overlay" style="display: none;">
+    <div class="conclusion-card">
+      <div style="font-size: 32px; color: #6aaa7a; margin-bottom: 14px;">✓</div>
+      <h2 style="font-size: 17px; font-weight: 600; color: #c8cede; margin-bottom: 10px;">Assessment Submitted Successfully</h2>
+      <p style="color: #7a8494; font-size: 13px; line-height: 1.65; margin-bottom: 18px;">Your session has concluded and your final submission has been recorded.</p>
+      <div style="display: inline-block; background: #0f1a0f; border: 1px solid #1c2a1c; color: #6aaa7a; font-size: 11px; font-weight: 600; padding: 3px 12px; border-radius: 3px; margin-bottom: 14px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;">
+        Session closed
+      </div>
+      <p style="color: #3a4252; font-size: 11px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;">This window may now be closed.</p>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // STATE & CANONICAL STARTER BOILERPLATES
+    // =========================================================================
+    const CANDIDATE_ID = sessionStorage.getItem('citadel_candidate_id') || ("CAND-" + Math.floor(1000 + Math.random() * 9000));
+    sessionStorage.setItem('citadel_candidate_id', CANDIDATE_ID);
+
+    let currentLang = "python";
+    let samplePassed = false;
+    let latestDiffs = [];
+    let activeCaseIdx = 0;
+    let editor = null;
+
+    const SAMPLE_CASES = [
+      { input: "2 7 11 15 9", expected_output: "0 1" },
+      { input: "3 2 4 6", expected_output: "1 2" },
+      { input: "3 3 6", expected_output: "0 1" }
+    ];
+
+    const STARTERS = {
+      python: `import sys
+
+def two_sum(nums, target):
+    # Write your solution here
+    # Return a list containing the two indices [i, j]
+    seen = {}
+    for i, num in enumerate(nums):
+        diff = target - num
+        if diff in seen:
+            return [seen[diff], i]
+        seen[num] = i
+    return []
+
+if __name__ == "__main__":
+    input_data = sys.stdin.read().split()
+    if input_data:
+        target = int(input_data[-1])
+        nums = [int(x) for x in input_data[:-1]]
+        ans = two_sum(nums, target)
+        if len(ans) == 2:
+            print(f"{min(ans[0], ans[1])} {max(ans[0], ans[1])}")
+`,
+      cpp: `#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
+
+using namespace std;
+
+vector<int> twoSum(vector<int>& nums, int target) {
+    // Write your solution here
+    unordered_map<int, int> seen;
+    for (int i = 0; i < (int)nums.size(); i++) {
+        int diff = target - nums[i];
+        if (seen.count(diff)) {
+            return {seen[diff], i};
+        }
+        seen[nums[i]] = i;
+    }
+    return {};
+}
+
+int main() {
+    ios_base::sync_with_stdio(false);
+    cin.tie(NULL);
+
+    vector<int> nums;
+    int val;
+    while (cin >> val) {
+        nums.push_back(val);
+    }
+    if (nums.size() >= 2) {
+        int target = nums.back();
+        nums.pop_back();
+        vector<int> ans = twoSum(nums, target);
+        if (ans.size() == 2) {
+            cout << min(ans[0], ans[1]) << " " << max(ans[0], ans[1]) << "\n";
+        }
+    }
+    return 0;
+}
+`,
+      java: `import java.util.*;
+
+public class Solution {
+    public static int[] twoSum(int[] nums, int target) {
+        // Write your solution here
+        Map<Integer, Integer> seen = new HashMap<>();
+        for (int i = 0; i < nums.length; i++) {
+            int diff = target - nums[i];
+            if (seen.containsKey(diff)) {
+                return new int[]{seen.get(diff), i};
+            }
+            seen.put(nums[i], i);
+        }
+        return new int[]{};
+    }
+
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        List<Integer> list = new ArrayList<>();
+        while (sc.hasNextInt()) {
+            list.add(sc.nextInt());
+        }
+        if (list.size() >= 2) {
+            int target = list.remove(list.size() - 1);
+            int[] nums = new int[list.size()];
+            for (int i = 0; i < list.size(); i++) {
+                nums[i] = list.get(i);
+            }
+            int[] ans = twoSum(nums, target);
+            if (ans != null && ans.length == 2) {
+                System.out.println(Math.min(ans[0], ans[1]) + " " + Math.max(ans[0], ans[1]));
+            }
+        }
+    }
+}
+`
+    };
+
+    const codeStore = { ...STARTERS };
+
+    // =========================================================================
+    // ACE EDITOR INITIALIZATION (VIVID ONE DARK SYNTAX)
+    // =========================================================================
+    function initAceEditor() {
+      editor = ace.edit("code-editor");
+      editor.setTheme("ace/theme/one_dark");
+      editor.setFontSize("13.5px");
+      editor.setShowPrintMargin(false);
+
+      editor.setOptions({
+        tabSize: 4,
+        useSoftTabs: true,
+        highlightActiveLine: true,
+        wrap: false,
+        behavioursEnabled: true,
+        scrollPastEnd: 0.2
+      });
+
+      editor.session.setMode("ace/mode/python");
+      editor.setValue(STARTERS.python, -1);
+
+      editor.selection.on('changeCursor', () => {
+        const pos = editor.getCursorPosition();
+        document.getElementById('status-pos').innerText = `Ln ${pos.row + 1}, Col ${pos.column + 1}`;
+      });
+
+      editor.session.on('change', () => {
+        if (samplePassed) {
+          samplePassed = false;
+          lockSubmitButton("Re-run Sample Cases");
+        }
+      });
+    }
+
+    function switchLanguage(targetLang) {
+      if (!editor || targetLang === currentLang) return;
+      codeStore[currentLang] = editor.getValue();
+      currentLang = targetLang;
+
+      document.querySelectorAll('.lang-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById('tab-' + targetLang).classList.add('active');
+
+      const modeMap = { python: 'ace/mode/python', cpp: 'ace/mode/c_cpp', java: 'ace/mode/java' };
+      const labelMap = { python: 'PYTHON 3', cpp: 'C++ 17', java: 'JAVA 17' };
+
+      editor.session.setMode(modeMap[targetLang]);
+      editor.setValue(codeStore[targetLang] || STARTERS[targetLang], -1);
+      document.getElementById('status-lang-text').innerText = labelMap[targetLang];
+
+      samplePassed = false;
+      lockSubmitButton("Run Sample Cases First");
+      editor.resize();
+    }
+
+    function resetStarterTemplate() {
+      if (!editor) return;
+      if (confirm("Reset current editor code to starter boilerplate? Any unsaved edits will be replaced.")) {
+        editor.setValue(STARTERS[currentLang], -1);
+        samplePassed = false;
+        lockSubmitButton("Run Sample Cases First");
+      }
+    }
+
+    // =========================================================================
+    // SUBMISSION & JUDGE EVALUATION
+    // =========================================================================
+    function lockSubmitButton(label) {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = true;
+      btn.className = "btn-action btn-submit locked";
+      document.getElementById('submit-icon').innerText = "🔒";
+      document.getElementById('submit-label').innerText = label;
+    }
+
+    function unlockSubmitButton() {
+      const btn = document.getElementById('submit-btn');
+      btn.disabled = false;
+      btn.className = "btn-action btn-submit unlocked";
+      document.getElementById('submit-icon').innerText = "✓";
+      document.getElementById('submit-label').innerText = "Submit Solution";
+    }
+
+    async function runSampleCases() {
+      const runBtn = document.getElementById('btn-run');
+      runBtn.disabled = true;
+      runBtn.innerText = "Running...";
+
+      const code = editor.getValue();
+      const consoleOut = document.getElementById('console-output');
+      consoleOut.innerText = "Compiling and evaluating against sample test cases...";
+
+      try {
+        const response = await fetch('/api/v1/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            question_id: 'q1-two-sum',
+            language: currentLang,
+            source_code: code,
+            is_sample_run: true
+          })
+        });
+
+        const data = await response.json();
+        latestDiffs = data.sample_diffs || data.diffs || [];
+
+        if (data.status === "Disqualified") {
+          alert("Your session has been terminated by proctor administration.");
+          window.location.reload();
+          return;
+        }
+
+        if (data.error_message) {
+          consoleOut.innerText = "Execution Error:\n" + data.error_message;
+          switchDrawerTab('console');
+          lockSubmitButton("Fix Errors & Re-run");
+        } else {
+          consoleOut.innerText = `Evaluated ${data.total_cases} sample cases: ${data.passed_cases}/${data.total_cases} passed. (${data.runtime_ms} ms)`;
+
+          updateCasePills();
+          renderCaseDetails(activeCaseIdx);
+
+          if (data.status === "Accepted" && data.passed_cases === data.total_cases) {
+            samplePassed = true;
+            unlockSubmitButton();
+          } else {
+            samplePassed = false;
+            lockSubmitButton("Sample Cases Failed");
+          }
+        }
+      } catch (err) {
+        consoleOut.innerText = "Network / System Error during execution:\n" + err.message;
+        switchDrawerTab('console');
+      } finally {
+        runBtn.disabled = false;
+        runBtn.innerHTML = `
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M4.5 3a.5.5 0 00-.75.434v9.132a.5.5 0 00.75.434l7.61-4.566a.5.5 0 000-.868L4.5 3z"></path>
+          </svg>
+          Run Code
+        `;
+      }
+    }
+
+    async function submitFinalCode() {
+      if (!samplePassed) return;
+      const submitBtn = document.getElementById('submit-btn');
+      submitBtn.disabled = true;
+      document.getElementById('submit-label').innerText = "Submitting Final...";
+
+      const code = editor.getValue();
+      try {
+        const response = await fetch('/api/v1/submissions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            question_id: 'q1-two-sum',
+            language: currentLang,
+            source_code: code,
+            is_sample_run: false
+          })
+        });
+
+        const data = await response.json();
+        if (data.status === "Disqualified") {
+          alert("Submission rejected. Candidate is disqualified.");
+          return;
+        }
+
+        alert(`Final Submission Result: ${data.status}\nPassed ${data.passed_cases} of ${data.total_cases} test cases!`);
+        document.getElementById('conclusion-screen').style.display = 'flex';
+      } catch (err) {
+        alert("Failed to submit final solution: " + err.message);
+        unlockSubmitButton();
+      }
+    }
+
+    // =========================================================================
+    // TEST CASE NAVIGATION & DETAILS
+    // =========================================================================
+    function updateCasePills() {
+      const container = document.getElementById('case-pill-container');
+      container.innerHTML = SAMPLE_CASES.map((_, idx) => {
+        const diff = latestDiffs[idx];
+        const isPassed = diff && (diff.is_passed === true || diff.passed === true);
+        const activeClass = idx === activeCaseIdx ? 'active' : '';
+        const passedClass = isPassed ? 'passed' : '';
+        const symbol = isPassed ? '✓' : '';
+        return `<button class="case-pill ${activeClass} ${passedClass}" onclick="selectCaseView(${idx})">Case ${idx + 1} ${symbol}</button>`;
+      }).join('');
+    }
+
+    function selectCaseView(idx) {
+      activeCaseIdx = idx;
+      updateCasePills();
+      renderCaseDetails(idx);
+    }
+
+    function renderCaseDetails(idx) {
+      const sample = SAMPLE_CASES[idx];
+      const diff = latestDiffs[idx];
+
+      document.getElementById('case-input').innerText = sample.input;
+      document.getElementById('case-expected').innerText = sample.expected_output;
+
+      const actualBox = document.getElementById('case-actual');
+      if (diff) {
+        const isPassed = diff.is_passed === true || diff.passed === true;
+        const actualVal = diff.actual !== undefined ? diff.actual : (diff.actual_output !== undefined ? diff.actual_output : '(Empty)');
+        actualBox.innerText = actualVal;
+        actualBox.style.color = isPassed ? '#34d399' : '#f87171';
+      } else {
+        actualBox.innerText = 'Click "Run Code" to compile and execute against sample test cases';
+        actualBox.style.color = 'var(--text-dim)';
+      }
+    }
+
+    function switchDrawerTab(tab) {
+      document.getElementById('tab-drawer-tests').classList.remove('active');
+      document.getElementById('tab-drawer-console').classList.remove('active');
+      document.getElementById('view-tests').style.display = 'none';
+      document.getElementById('view-console').style.display = 'none';
+
+      if (tab === 'tests') {
+        document.getElementById('tab-drawer-tests').classList.add('active');
+        document.getElementById('view-tests').style.display = 'block';
+      } else {
+        document.getElementById('tab-drawer-console').classList.add('active');
+        document.getElementById('view-console').style.display = 'block';
+      }
+    }
+
+    // =========================================================================
+    // ROCK-SOLID WINDOW RESIZE CUSTOMIZATION (VERTICAL & HORIZONTAL)
+    // =========================================================================
+    function initResizers() {
+      const resizerV = document.getElementById('resizer-v');
+      const problemPane = document.getElementById('pane-problem');
+      const resizerH = document.getElementById('resizer-h');
+      const drawerPane = document.getElementById('pane-drawer');
+      const rightPane = document.getElementById('pane-right');
+      const dragOverlay = document.getElementById('drag-overlay');
+
+      let isDraggingV = false;
+      let isDraggingH = false;
+
+      // Pointer Event binding with pointer capture
+      resizerV.addEventListener('pointerdown', (e) => {
+        try { resizerV.setPointerCapture(e.pointerId); } catch(err) {}
+        isDraggingV = true;
+        resizerV.classList.add('dragging');
+        if (dragOverlay) {
+          dragOverlay.style.display = 'block';
+          dragOverlay.style.cursor = 'col-resize';
+        }
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      resizerH.addEventListener('pointerdown', (e) => {
+        try { resizerH.setPointerCapture(e.pointerId); } catch(err) {}
+        isDraggingH = true;
+        resizerH.classList.add('dragging');
+        if (dragOverlay) {
+          dragOverlay.style.display = 'block';
+          dragOverlay.style.cursor = 'row-resize';
+        }
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      function handleDragMove(clientX, clientY) {
+        if (isDraggingV) {
+          const minW = 280;
+          const maxW = window.innerWidth - 320;
+          const newW = Math.max(minW, Math.min(maxW, clientX));
+          problemPane.style.width = newW + 'px';
+          problemPane.style.flex = '0 0 ' + newW + 'px';
+          if (editor) editor.resize();
+        }
+
+        if (isDraggingH) {
+          const rightRect = rightPane.getBoundingClientRect();
+          const mouseY = clientY - rightRect.top;
+          const totalH = rightRect.height;
+          const newDrawerH = totalH - mouseY;
+          const minH = 90;
+          const maxH = totalH - 120;
+          const clampedH = Math.max(minH, Math.min(maxH, newDrawerH));
+          drawerPane.style.height = clampedH + 'px';
+          drawerPane.style.flex = '0 0 ' + clampedH + 'px';
+          if (editor) editor.resize();
+        }
+      }
+
+      window.addEventListener('pointermove', (e) => {
+        if (isDraggingV || isDraggingH) handleDragMove(e.clientX, e.clientY);
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (isDraggingV || isDraggingH) handleDragMove(e.clientX, e.clientY);
+      });
+
+      function endDrag(e) {
+        if (isDraggingV || isDraggingH) {
+          if (isDraggingV && e && e.pointerId) {
+            try { resizerV.releasePointerCapture(e.pointerId); } catch(err) {}
+          }
+          if (isDraggingH && e && e.pointerId) {
+            try { resizerH.releasePointerCapture(e.pointerId); } catch(err) {}
+          }
+          isDraggingV = false;
+          isDraggingH = false;
+          resizerV.classList.remove('dragging');
+          resizerH.classList.remove('dragging');
+          if (dragOverlay) dragOverlay.style.display = 'none';
+          document.body.style.userSelect = '';
+          document.body.style.cursor = '';
+          if (editor) editor.resize();
+        }
+      }
+
+      window.addEventListener('pointerup', endDrag);
+      window.addEventListener('mouseup', endDrag);
+      window.addEventListener('mouseleave', endDrag);
+      if (dragOverlay) {
+        dragOverlay.addEventListener('pointerup', endDrag);
+        dragOverlay.addEventListener('mouseup', endDrag);
+      }
+
+      window.addEventListener('resize', () => {
+        if (editor) editor.resize();
+      });
+    }
+
+    // =========================================================================
+    // TIMER & SECURITY HEARTBEAT
+    // =========================================================================
+    const TOTAL_EXAM_SECONDS = 90 * 60; // 1 hour 30 mins
+    let startTime = sessionStorage.getItem('citadel_start_time');
+    if (!startTime) {
+      startTime = Date.now();
+      sessionStorage.setItem('citadel_start_time', startTime);
+    } else {
+      startTime = parseInt(startTime, 10);
+    }
+
+    function updateTimer() {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      const remainingSeconds = Math.max(0, TOTAL_EXAM_SECONDS - elapsed);
+
+      const h = String(Math.floor(remainingSeconds / 3600)).padStart(2, '0');
+      const m = String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, '0');
+      const s = String(remainingSeconds % 60).padStart(2, '0');
+
+      const timerEl = document.getElementById('timer-display');
+      const timerBox = document.getElementById('timer-box');
+
+      if (timerEl) timerEl.innerText = `${h}:${m}:${s}`;
+      if (timerBox) {
+        if (remainingSeconds <= 300) {
+          timerBox.className = "timer-container timer-danger";
+        } else if (remainingSeconds <= 600) {
+          timerBox.className = "timer-container timer-warning";
+        } else {
+          timerBox.className = "timer-container";
+        }
+      }
+
+      if (remainingSeconds === 0) {
+        clearInterval(timerInterval);
+        alert("Assessment time has expired! Your code is being submitted automatically.");
+        submitFinalCode();
+        setTimeout(executeEndExam, 3000);
+      }
+    }
+
+    const timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+
+    // =========================================================================
+    // END EXAM FLOW
+    // =========================================================================
+    function openEndExamModal() {
+      document.getElementById('modal-end-exam').style.display = 'flex';
+    }
+    function closeEndExamModal() {
+      document.getElementById('modal-end-exam').style.display = 'none';
+    }
+
+    async function executeEndExam() {
+      const confirmBtn = document.getElementById('btn-confirm-end');
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.innerText = "Ending Session...";
+      }
+
+      try {
+        await fetch('/api/v1/integrity/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            reason: 'Candidate clicked End Exam and submitted session'
+          })
+        });
+      } catch (e) {}
+
+      document.getElementById('modal-end-exam').style.display = 'none';
+      document.getElementById('conclusion-screen').style.display = 'flex';
+
+      setTimeout(() => {
+        window.close();
+      }, 1500);
+    }
+
+    function sendHeartbeat() {
+      fetch('/api/v1/integrity/heartbeat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_id: CANDIDATE_ID,
+          active_question: 1,
+          is_window_focused: document.hasFocus(),
+        })
+      }).catch(() => {});
+    }
+
+    // Heartbeat on load and every 5s
+    sendHeartbeat();
+    setInterval(sendHeartbeat, 5000);
+
+    window.addEventListener('beforeunload', () => {
+      try {
+        navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
+          candidate_id: CANDIDATE_ID,
+          reason: 'Candidate closed exam browser window'
+        }));
+      } catch(e) {}
+    });
+
+    window.addEventListener('blur', () => {
+      fetch('/api/v1/integrity/event', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_id: CANDIDATE_ID,
+          event_type: 'WINDOW_FOCUS_LOST',
+          details: 'Candidate switched window or lost kiosk focus',
+          severity: 'HIGH',
+        })
+      }).catch(() => {});
+    });
+
+    // Initialize Ace & Resizers on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      initAceEditor();
+      initResizers();
+      updateCasePills();
+      renderCaseDetails(0);
+    });
+  </script>
+</body>
+</html>

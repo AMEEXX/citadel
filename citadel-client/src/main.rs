@@ -4,8 +4,24 @@ use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::time::Duration;
 
 use citadel_client::{
-    elevate_self, is_elevated, is_emergency_override_triggered, ClientLockdownGuard,
+    elevate_self, enforce_clean_environment, is_elevated, is_emergency_override_triggered, ClientLockdownGuard,
 };
+use windows::core::PCWSTR;
+use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+
+fn show_error_message(title: &str, message: &str) {
+    let wide_title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    let wide_msg: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
+
+    unsafe {
+        let _ = MessageBoxW(
+            None,
+            PCWSTR(wide_msg.as_ptr()),
+            PCWSTR(wide_title.as_ptr()),
+            MB_OK | MB_ICONERROR,
+        );
+    }
+}
 
 fn resolve_server_endpoint(preferred_ip: Ipv4Addr, port: u16) -> Ipv4Addr {
     // 1. Probe preferred IP
@@ -28,13 +44,20 @@ fn resolve_server_endpoint(preferred_ip: Ipv4Addr, port: u16) -> Ipv4Addr {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = std::env::args().collect();
 
-    // 1. Administrator Privilege Check (auto-elevate if possible, otherwise continue in safe user mode)
+    // 1. Mandatory Administrator Privilege Check
+    // If not elevated, request UAC elevation. If user declines, show error and exit.
     if !is_elevated() {
         let forward_args: Vec<String> = args.iter().skip(1).cloned().collect();
-        if let Ok(()) = elevate_self(&forward_args) {
-            return Ok(());
+        match elevate_self(&forward_args) {
+            Ok(()) => return Ok(()), // Elevated process launched, current instance exits
+            Err(e) => {
+                show_error_message(
+                    "Citadel Secure Exam Environment",
+                    "Administrator privileges are REQUIRED to launch the Citadel Lockdown Client.\n\n                     The secure exam environment cannot engage system-level protections without elevation.\n\n                     Please right-click 'citadel-client.exe' and choose 'Run as administrator'.",
+                );
+                return Err(format!("Elevation required but failed: {}", e).into());
+            }
         }
-        eprintln!("[CITADEL CLIENT] Running in Safe User Kiosk Mode (WFP kernel network lock requires elevation).");
     }
 
     let default_server_ip: Ipv4Addr = args
@@ -59,43 +82,66 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eprintln!(" Please start 'citadel-server.exe' first before running the client.");
         eprintln!(" Kiosk lockdown aborted safely. Normal desktop preserved.");
         eprintln!("====================================================================");
-        std::thread::sleep(Duration::from_secs(4));
+        show_error_message(
+            "Citadel Connection Error",
+            &format!(
+                "Cannot connect to the Citadel Exam Server at {}:{}.\n\n                 Please ensure 'citadel-server.exe' is started before launching the client.\n\n                 Exam lockdown aborted safely.",
+                server_ip, server_port
+            ),
+        );
         return Err(format!("Exam server at {}:{} is not reachable", server_ip, server_port).into());
     }
 
     let use_isolated_desktop = args.iter().any(|a| a == "--isolated-desktop")
         || std::env::var("CITADEL_ISOLATED_DESKTOP").map(|v| v == "1").unwrap_or(false);
 
-    // 2. Initialize security coordinator
-    let mut guard = ClientLockdownGuard::new_with_mode(server_ip, server_port, use_isolated_desktop)
+    // 2. Initialize security coordinator — immediately activates:
+    //    - Registry policies (DisableTaskMgr, NoWinKeys, DisableLock, etc.)
+    //    - System keyboard hook (Alt+Tab, Win keys, etc.)
+    //    - Taskbar suppression
+    //    - Clipboard flusher
+    //    - Touchpad multi-finger gesture lock
+    //    - WFP kernel firewall (zero internet except exam server)
+    //    - Explorer shell suppression
+    let is_production = args.iter().any(|a| a == "--production") || std::env::var("CITADEL_PRODUCTION").map(|v| v == "1").unwrap_or(false);
+
+    // 2. Pre-Launch Workstation Environment Scan & App Enforcement
+    //    Scans running apps, warns candidate, terminates prohibited background tools (browsers, chat, screen share),
+    //    and verifies 0 prohibited processes are running before opening the exam editor.
+    if !enforce_clean_environment(is_production) {
+        eprintln!("[CITADEL CLIENT] Environment scan aborted by candidate. Normal desktop preserved.");
+        return Ok(());
+    }
+    let mut guard = ClientLockdownGuard::new_with_mode(server_ip, server_port, use_isolated_desktop, is_production)
         .map_err(|e| format!("Failed to initialize security guard: {}", e))?;
 
-    // 3. Launch isolated full-screen kiosk browser directly on the Secure Desktop
-    //    and verify it is alive before switching physical screen & killing explorer
+    // 3. Launch isolated full-screen kiosk browser window
     let mut kiosk_child = match guard.launch_browser() {
         Ok(child) => child,
         Err(e) => {
             eprintln!("[CITADEL CLIENT] Could not launch browser kiosk: {}", e);
             eprintln!("[CITADEL CLIENT] Lockdown aborted safely. Restoring normal desktop...");
-            std::thread::sleep(Duration::from_secs(3));
+            show_error_message(
+                "Citadel Browser Launch Error",
+                &format!(
+                    "Failed to launch the secure exam browser:\n\n{}\n\nLockdown aborted safely. Your desktop is restored.",
+                    e
+                ),
+            );
             return Ok(());
         }
     };
 
-    // 4. Supervision loop with dead-process watchdog
+    // 4. Supervision loop with robust dead-process debounce
     let mut consecutive_dead_checks = 0;
     loop {
-        // Check if candidate finished exam and browser window closed normally
-        if let Ok(Some(_status)) = kiosk_child.try_wait() {
-            eprintln!("[CITADEL CLIENT] Exam browser closed. Concluding session...");
-            break;
-        }
+        let is_running = kiosk_child.is_alive();
+        let wait_res = kiosk_child.try_wait();
 
-        // Check if browser process is still alive
-        if !kiosk_child.is_alive() {
+        if !is_running || matches!(wait_res, Ok(Some(_))) {
             consecutive_dead_checks += 1;
-            if consecutive_dead_checks >= 6 { // 3 seconds of confirmed dead process
-                eprintln!("[CITADEL CLIENT] Browser window disappeared unexpectedly. Emergency restoring desktop...");
+            if consecutive_dead_checks >= 4 { // 2 seconds of confirmed closed browser
+                eprintln!("[CITADEL CLIENT] Exam browser closed. Concluding session and restoring desktop...");
                 break;
             }
         } else {
@@ -113,11 +159,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 5. Automatic RAII drop of `guard` restores:
-    //    - Unhooks keyboard & stops health monitor
-    //    - Switches back to default desktop & closes secure desktop
-    //    - Restarts explorer.exe shell
-    //    - Removes WFP kernel firewall rules
-    //    - Restores Task Manager and all registry policies
+    //    - Keyboard hook & health monitor stopped
+    //    - Secure desktop closed (if used) & restored to Default
+    //    - explorer.exe shell relaunched
+    //    - Taskbars restored and shown
+    //    - WFP kernel firewall rules removed
+    //    - Registry policies (Task Manager, WinKeys, Lock, etc.) restored
     drop(guard);
 
     Ok(())

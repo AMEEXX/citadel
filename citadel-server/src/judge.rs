@@ -180,6 +180,10 @@ fn run_python(
 
         if let Some(mut stdin) = child.stdin.take() {
             let _ = stdin.write_all(tc.input.as_bytes());
+            let _ = stdin.write_all(b"\
+");
+            let _ = stdin.flush();
+            drop(stdin);
         }
 
         let timeout = Duration::from_millis(3000);
@@ -388,6 +392,10 @@ fn run_cpp(
 
         if let Some(mut stdin) = child.stdin.take() {
             let _ = stdin.write_all(tc.input.as_bytes());
+            let _ = stdin.write_all(b"\
+");
+            let _ = stdin.flush();
+            drop(stdin);
         }
 
         let timeout = Duration::from_millis(2000);
@@ -589,6 +597,10 @@ fn run_java(
 
         if let Some(mut stdin) = child.stdin.take() {
             let _ = stdin.write_all(tc.input.as_bytes());
+            let _ = stdin.write_all(b"\
+");
+            let _ = stdin.flush();
+            drop(stdin);
         }
 
         let timeout = Duration::from_millis(3000);

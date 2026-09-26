@@ -30,11 +30,11 @@ use windows::Win32::System::Registry::{
 };
 use windows::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, OpenProcess, TerminateProcess, CREATE_NEW_PROCESS_GROUP,
-    PROCESS_INFORMATION, PROCESS_TERMINATE, STARTF_USESHOWWINDOW, STARTUPINFOW,
+    PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE, STARTF_USESHOWWINDOW, STARTUPINFOW,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics,
+    BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId,
     SetForegroundWindow, SetWindowPos, ShowWindow, HWND_BOTTOM, HWND_TOPMOST, SM_CXSCREEN,
     SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, SW_MAXIMIZE,
     SW_SHOW,
@@ -321,11 +321,8 @@ impl Drop for ClipboardGuard {
 // 5. Active Process Watchdog (Cheat Process Killer)
 // ============================================================================
 
-const BLACKLISTED_PROCESSES: &[&str] = &[
-    "taskmgr.exe",
-    "cmd.exe",
-    "powershell.exe",
-    "pwsh.exe",
+pub use crate::pre_flight::PROHIBITED_PROCESSES as BLACKLISTED_PROCESSES;
+const _OLD_BLACKLIST: &[&str] = &[
     "ollama.exe",
     "lmstudio.exe",
     "text-generation-webui",
@@ -365,7 +362,7 @@ impl ProcessWatchdog {
 
     fn scan_and_terminate(violations: &Arc<Mutex<Vec<String>>>) {
         let own_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
-        let dev_mode = std::env::var("CITADEL_DEV_MODE").is_ok() || std::env::var("CARGO").is_ok();
+        let _dev_mode = std::env::var("CITADEL_DEV_MODE").is_ok() || std::env::var("CARGO").is_ok();
         unsafe {
             let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
                 Ok(h) => h,
@@ -381,10 +378,15 @@ impl ProcessWatchdog {
                         .trim_matches(char::from(0))
                         .to_lowercase();
 
+                    // Whitelist: never terminate recovery utilities or citadel tools
+                    if exe_name.contains("recovery") || exe_name.contains("citadel") {
+                        continue;
+                    }
+
                     for &banned in BLACKLISTED_PROCESSES {
                         if exe_name.contains(banned) {
                             let pid = entry.th32ProcessID;
-                            if pid == own_pid || (dev_mode && (exe_name.contains("powershell") || exe_name.contains("cmd"))) {
+                            if pid == own_pid {
                                 continue;
                             }
                             eprintln!("[SECURITY VIOLATION] Unauthorized cheat tool detected: {} (PID: {})", exe_name, pid);
@@ -426,46 +428,112 @@ impl Drop for ProcessWatchdog {
 
 pub struct KioskProcess {
     pub h_process: HANDLE,
+    pub h_launcher: HANDLE,
     pub h_thread: HANDLE,
     pub pid: u32,
+    pub launcher_pid: u32,
+    pub profile_dir: PathBuf,
 }
 
 impl KioskProcess {
     pub fn is_alive(&self) -> bool {
-        unsafe {
-            let mut exit_code = 0u32;
-            if GetExitCodeProcess(self.h_process, &mut exit_code).is_ok() {
-                exit_code == 259 // STILL_ACTIVE
-            } else {
-                false
+        // 1. Check if the process handle is still reporting active
+        if !self.h_process.is_invalid() {
+            unsafe {
+                let mut exit_code = 0u32;
+                if GetExitCodeProcess(self.h_process, &mut exit_code).is_ok() && exit_code == 259 {
+                    return true;
+                }
             }
         }
+
+        // 2. Check if the browser window is still present on screen
+        unsafe {
+            if let Ok(wnd) = FindWindowW(w!("Chrome_WidgetWin_1"), None) {
+                if !wnd.is_invalid() {
+                    return true;
+                }
+            }
+        }
+
+        // 3. Check if any process with launcher as parent is alive
+        if let Some(child_pid) = find_child_process(self.launcher_pid) {
+            if child_pid != 0 {
+                return true;
+            }
+        }
+
+        false
     }
 
     pub fn try_wait(&mut self) -> Result<Option<u32>, std::io::Error> {
-        unsafe {
+        if self.is_alive() {
+            Ok(None)
+        } else {
             let mut exit_code = 0u32;
-            if GetExitCodeProcess(self.h_process, &mut exit_code).is_ok() {
-                if exit_code == 259 {
-                    Ok(None)
-                } else {
-                    Ok(Some(exit_code))
+            unsafe {
+                if !self.h_process.is_invalid() {
+                    let _ = GetExitCodeProcess(self.h_process, &mut exit_code);
                 }
-            } else {
-                Err(std::io::Error::last_os_error())
             }
+            Ok(Some(exit_code))
         }
     }
 
     pub fn terminate(&self) {
         unsafe {
-            let _ = TerminateProcess(self.h_process, 1);
+            if !self.h_process.is_invalid() {
+                let _ = TerminateProcess(self.h_process, 1);
+            }
+            if !self.h_launcher.is_invalid() && self.h_launcher != self.h_process {
+                let _ = TerminateProcess(self.h_launcher, 1);
+            }
         }
+        Self::kill_browser_tree(self.pid, self.launcher_pid);
     }
 
     pub fn kill(&mut self) -> Result<(), std::io::Error> {
         self.terminate();
         Ok(())
+    }
+
+    pub fn kill_browser_tree(main_pid: u32, launcher_pid: u32) {
+        unsafe {
+            let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+                Ok(h) => h,
+                Err(_) => return,
+            };
+
+            let mut entry = PROCESSENTRY32W::default();
+            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+            if Process32FirstW(snapshot, &mut entry).is_ok() {
+                loop {
+                    let pid = entry.th32ProcessID;
+                    let ppid = entry.th32ParentProcessID;
+                    let exe_name = String::from_utf16_lossy(&entry.szExeFile)
+                        .trim_matches(char::from(0))
+                        .to_lowercase();
+
+                    if pid == main_pid
+                        || pid == launcher_pid
+                        || ppid == main_pid
+                        || ppid == launcher_pid
+                        || ((exe_name.contains("msedge") || exe_name.contains("chrome")) && (ppid == main_pid || ppid == launcher_pid))
+                    {
+                        if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+                            let _ = TerminateProcess(hproc, 1);
+                            let _ = CloseHandle(hproc);
+                        }
+                    }
+
+                    if Process32NextW(snapshot, &mut entry).is_err() {
+                        break;
+                    }
+                }
+            }
+            let _ = CloseHandle(snapshot);
+        }
     }
 }
 
@@ -475,10 +543,40 @@ impl Drop for KioskProcess {
             if !self.h_thread.is_invalid() {
                 let _ = CloseHandle(self.h_thread);
             }
-            if !self.h_process.is_invalid() {
+            if !self.h_launcher.is_invalid() {
+                let _ = CloseHandle(self.h_launcher);
+            }
+            if !self.h_process.is_invalid() && self.h_process != self.h_launcher {
                 let _ = CloseHandle(self.h_process);
             }
         }
+    }
+}
+
+pub fn find_child_process(parent_pid: u32) -> Option<u32> {
+    unsafe {
+        let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            Ok(h) => h,
+            Err(_) => return None,
+        };
+
+        let mut entry = PROCESSENTRY32W::default();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                if entry.th32ParentProcessID == parent_pid {
+                    let child_pid = entry.th32ProcessID;
+                    let _ = CloseHandle(snapshot);
+                    return Some(child_pid);
+                }
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(snapshot);
+        None
     }
 }
 
@@ -513,17 +611,11 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
     eprintln!("[CITADEL CLIENT] Target desktop plane: {:?}", desktop_name.unwrap_or("Default"));
     eprintln!("[CITADEL CLIENT] Connecting to exam endpoint: {}", target_url);
 
+    // KIOSK HARDENING ARGS:
+    // CRITICAL: GPU flags (--disable-gpu, --disable-gpu-compositing, etc.) are REMOVED.
+    // Modern Edge/Chrome v130+ abort with code 0 if all GPU & software raster pipelines are stripped.
     let args = format!(
-        "\"{}\" --user-data-dir=\"{}\" --new-window --kiosk --edge-kiosk-type=fullscreen \
-         --no-first-run --no-default-browser-check --disable-pinch --disable-context-menu \
-         --overscroll-history-navigation=0 --disable-extensions --disable-component-update \
-         --disable-sync --disable-background-networking --disable-domain-reliability \
-         --disable-speech-api --disable-gpu --disable-gpu-compositing --disable-software-rasterizer \
-         --disable-d3d11 --disable-accelerated-2d-canvas \
-         --no-service-autorun --disable-background-mode --disable-backgrounding-occluded-windows \
-         --disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub \
-         --user-agent=\"CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)\" \
-         \"{}\"",
+        "\"{}\" --user-data-dir=\"{}\" --new-window --kiosk --edge-kiosk-type=fullscreen          --no-first-run --no-default-browser-check --disable-pinch --disable-context-menu          --overscroll-history-navigation=0 --disable-extensions --disable-component-update          --disable-sync --disable-background-networking --disable-domain-reliability          --disable-speech-api --no-service-autorun --disable-background-mode          --disable-backgrounding-occluded-windows          --disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub          --user-agent=\"CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)\"          \"{}\"",
         browser_path.display(),
         temp_profile.display(),
         target_url
@@ -563,25 +655,89 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         ).map_err(|e| format!("Failed to spawn kiosk browser process: {:?}", e))?;
     }
 
-    let kiosk = KioskProcess {
-        h_process: pi.hProcess,
-        h_thread: pi.hThread,
-        pid: pi.dwProcessId,
-    };
+    let launcher_pid = pi.dwProcessId;
+    let h_launcher = pi.hProcess;
+    let h_launcher_thread = pi.hThread;
 
-    // Verify browser did not terminate immediately on launch (e.g. GPU crash or delegation exit)
-    std::thread::sleep(Duration::from_millis(1500));
-    unsafe {
-        let mut exit_code = 0u32;
-        if GetExitCodeProcess(kiosk.h_process, &mut exit_code).is_ok() && exit_code != 259 {
-            return Err(format!(
-                "Browser process exited immediately after launch with code {}.                  Kiosk cannot render on this display configuration.",
-                exit_code
-            ));
+    eprintln!("[CITADEL CLIENT] Browser launcher initiated (PID: {}). Awaiting browser window...", launcher_pid);
+
+    // Modern Edge/Chrome uses multi-process delegation: the launcher process
+    // spawns child processes and may exit with code 0 while the children run the browser.
+    // We poll for up to 5 seconds to locate the live browser window and child process.
+    let mut real_browser_pid = launcher_pid;
+    let mut h_browser_process = h_launcher;
+    let mut confirmed_alive = false;
+
+    for _ in 0..50 {
+        thread::sleep(Duration::from_millis(100));
+
+        // 1. Check for Chromium top-level window
+        unsafe {
+            if let Ok(wnd) = FindWindowW(w!("Chrome_WidgetWin_1"), None) {
+                if !wnd.is_invalid() {
+                    let mut win_pid = 0u32;
+                    GetWindowThreadProcessId(wnd, Some(&mut win_pid));
+                    if win_pid != 0 {
+                        real_browser_pid = win_pid;
+                        if let Ok(hproc) = OpenProcess(
+                            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+                            false,
+                            win_pid,
+                        ) {
+                            h_browser_process = hproc;
+                        }
+                    }
+                    confirmed_alive = true;
+                    eprintln!("[CITADEL CLIENT] Browser window verified (HWND: {:?}, PID: {})", wnd.0, real_browser_pid);
+                    break;
+                }
+            }
+        }
+
+        // 2. Check for child process of the launcher
+        if let Some(child_pid) = find_child_process(launcher_pid) {
+            real_browser_pid = child_pid;
+            if let Ok(hproc) = unsafe {
+                OpenProcess(
+                    PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+                    false,
+                    child_pid,
+                )
+            } {
+                h_browser_process = hproc;
+            }
+            confirmed_alive = true;
+            eprintln!("[CITADEL CLIENT] Browser child process verified (PID: {})", child_pid);
+            break;
         }
     }
 
-    Ok(kiosk)
+    if !confirmed_alive {
+        // Check if launcher encountered a true crash (non-zero, non-259 exit code)
+        let mut exit_code = 0u32;
+        let query_ok = unsafe { GetExitCodeProcess(h_launcher, &mut exit_code).is_ok() };
+        if query_ok && exit_code != 259 && exit_code != 0 {
+            return Err(format!(
+                "Browser process terminated with error code {}. Please verify Edge/Chrome installation.",
+                exit_code
+            ));
+        }
+
+        // Final check: did window appear right at deadline?
+        let window_check = unsafe { FindWindowW(w!("Chrome_WidgetWin_1"), None) };
+        if window_check.is_err() || window_check.unwrap().is_invalid() {
+            return Err("Exam browser window failed to initialize within timeout.".into());
+        }
+    }
+
+    Ok(KioskProcess {
+        h_process: h_browser_process,
+        h_launcher,
+        h_thread: h_launcher_thread,
+        pid: real_browser_pid,
+        launcher_pid,
+        profile_dir: temp_profile,
+    })
 }
 
 pub fn launch_kiosk(target_url: &str) -> Result<KioskProcess, String> {

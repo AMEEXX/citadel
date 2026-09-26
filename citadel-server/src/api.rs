@@ -127,6 +127,15 @@ pub struct ReportEventRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct CreateQuestionPayload {
+    pub title: String,
+    pub difficulty: String,
+    pub points: u32,
+    pub description: String,
+    pub constraints: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct UpdateQuestionPayload {
     pub title: String,
     pub difficulty: String,
@@ -240,6 +249,7 @@ pub fn build_app() -> Router {
         .route("/", get(portal_or_gatekeeper_handler))
         .route("/exam", get(portal_handler))
         .route("/download/citadel-client.exe", get(download_client_handler))
+        .route("/static/ace.bundle.js", get(serve_ace_bundle_handler))
         .route("/health", get(health_handler))
         .route("/api/v1/exam/info", get(exam_info_handler))
         .route("/api/v1/questions", get(list_questions_handler))
@@ -255,6 +265,7 @@ pub fn build_app() -> Router {
         .route("/api/v1/admin/metrics", get(admin_metrics_handler))
         .route("/api/v1/admin/candidates/:id/disqualify", post(admin_disqualify_candidate_handler))
         .route("/api/v1/admin/candidates/:id/clear-flag", post(admin_clear_flag_candidate_handler))
+        .route("/api/v1/admin/questions", post(admin_create_question_handler))
         .route("/api/v1/admin/questions/:id", post(admin_update_question_handler))
         .route("/api/v1/admin/questions/:id/sample-cases", post(admin_add_sample_case_handler))
         .route("/api/v1/admin/questions/:id/sample-cases/:idx", delete(admin_delete_sample_case_handler))
@@ -275,7 +286,7 @@ pub fn build_app() -> Router {
 async fn portal_or_gatekeeper_handler(
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
-) -> Html<&'static str> {
+) -> impl IntoResponse {
     let user_agent = headers
         .get(header::USER_AGENT)
         .and_then(|h| h.to_str().ok())
@@ -284,16 +295,33 @@ async fn portal_or_gatekeeper_handler(
     let has_lockdown_ua = user_agent.contains("CitadelSecurityCore")
         || user_agent.contains("CITADEL-Lockdown-Client");
     let has_lockdown_token = params.get("token").map(|v| v.as_str()) == Some("citadel-secured-session");
+    let has_exam_mode = params.get("mode").map(|v| v.as_str()) == Some("exam");
 
-    if has_lockdown_ua || has_lockdown_token {
-        Html(render_portal_html())
+    let html_content = if has_lockdown_ua || has_lockdown_token || has_exam_mode {
+        render_portal_html()
     } else {
-        Html(render_gatekeeper_html())
-    }
+        render_gatekeeper_html()
+    };
+
+    (
+        [
+            (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+            (header::PRAGMA, "no-cache"),
+            (header::EXPIRES, "0"),
+        ],
+        Html(html_content),
+    )
 }
 
-async fn portal_handler() -> Html<&'static str> {
-    Html(render_portal_html())
+async fn portal_handler() -> impl IntoResponse {
+    (
+        [
+            (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+            (header::PRAGMA, "no-cache"),
+            (header::EXPIRES, "0"),
+        ],
+        Html(render_portal_html()),
+    )
 }
 
 async fn health_handler(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -564,7 +592,8 @@ async fn admin_page_handler(
     // Set cookie if key was passed in query
     let mut builder = Response::builder()
         .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "text/html; charset=utf-8");
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
 
     if let Some(key) = query.get("key") {
         let cookie_val = format!("citadel_admin_key={}; Path=/; HttpOnly; SameSite=Lax", key);
@@ -700,6 +729,43 @@ async fn admin_clear_flag_candidate_handler(
     }
 }
 
+async fn admin_create_question_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(payload): Json<CreateQuestionPayload>,
+) -> Result<Json<Question>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let mut questions = state.questions.write().unwrap();
+    let num = questions.len() + 1;
+    let id = format!("q{}-{}", num, payload.title.to_lowercase().replace(' ', "-"));
+    let mut starter_templates = HashMap::new();
+    starter_templates.insert("python".to_string(), "def solution():\n    pass\n".to_string());
+    starter_templates.insert("cpp".to_string(), "#include <iostream>\nusing namespace std;\nint main() {\n    return 0;\n}\n".to_string());
+    starter_templates.insert("java".to_string(), "public class Solution {\n    public static void main(String[] args) {}\n}\n".to_string());
+
+    let q = Question {
+        id: id.clone(),
+        number: num as u32,
+        title: payload.title,
+        difficulty: payload.difficulty,
+        points: payload.points,
+        tags: vec!["Algorithms".to_string()],
+        description: payload.description,
+        input_format: "Standard input format".to_string(),
+        output_format: "Standard output format".to_string(),
+        constraints: payload.constraints,
+        sample_cases: Vec::new(),
+        hidden_cases: Vec::new(),
+        starter_templates,
+    };
+    questions.push(q.clone());
+    Ok(Json(q))
+}
+
 async fn admin_update_question_handler(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
@@ -816,4 +882,15 @@ async fn admin_delete_hidden_case_handler(
     } else {
         StatusCode::NOT_FOUND
     }
+}
+
+
+async fn serve_ace_bundle_handler() -> impl axum::response::IntoResponse {
+    (
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "application/javascript; charset=utf-8",
+        )],
+        include_str!("../static/ace.bundle.js"),
+    )
 }

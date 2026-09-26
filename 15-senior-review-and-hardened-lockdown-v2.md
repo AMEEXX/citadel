@@ -157,3 +157,10 @@ No change to the existing hierarchy, restated with sharper teeth given the delta
 With §6 applied, the software side of this is about as close to airtight as the current state of the art allows, and the reasoning holds up: remote control needs a network path that doesn't exist once radios are dead, and local inference needs execution that doesn't happen once the allow-list is narrow and complete. That is a genuinely strong position, stronger than anything relying on browser-layer detection.
 
 But "completely solid proof" should never be the customer-facing claim, for the same reason doc 03 §9 already refuses to overclaim: a phone in a pocket, a second person, an earpiece — none of that touches software, on any tier, ever. The correct claim, and the one worth putting in front of a customer, is **"software-side cheating is structurally closed; physical invigilation is a deliberate, documented part of the design, not a gap in it."** That sentence survives a hostile security review. "Nothing can beat this" does not.
+
+---
+
+## 8. Windows Lockdown Client Production Architecture Reference
+
+The concrete production implementation, including resolution of Edge multi-process delegation, GPU renderer flags, registry policies, low-level keyboard hooks, and crash recovery, is documented in:
+??? [CITADEL_SECURITY_ARCHITECTURE.md](file:///CITADEL_SECURITY_ARCHITECTURE.md).

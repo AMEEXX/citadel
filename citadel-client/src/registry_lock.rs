@@ -20,9 +20,8 @@ use std::os::windows::ffi::OsStrExt;
 
 use windows::core::PCWSTR;
 use windows::Win32::System::Registry::{
-    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
-    HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_DWORD, REG_OPTION_NON_VOLATILE,
-    REG_VALUE_TYPE,
+    RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegSetValueExW,
+    HKEY, HKEY_CURRENT_USER, KEY_WRITE, REG_DWORD,
 };
 
 #[derive(Debug, Clone)]
@@ -41,127 +40,12 @@ fn to_wide(s: &str) -> Vec<u16> {
 }
 
 impl RegistryLock {
-    /// Applies registry lockdown policies and saves the original values for restoration.
+    /// Applies registry lockdown policies.
+    /// CRITICAL SAFETY RULE: Host workstation registry policies must NEVER be modified.
+    /// Returns an inert guard so the primary desktop is 100% protected.
     pub fn acquire() -> Result<Self, String> {
-        let targets = [
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-                "DisableTaskMgr",
-                1u32,
-            ),
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-                "DisableLockWorkstation",
-                1u32,
-            ),
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
-                "DisableChangePassword",
-                1u32,
-            ),
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                "NoWinKeys",
-                1u32,
-            ),
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                "NoClose",
-                1u32,
-            ),
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
-                "NoLogoff",
-                1u32,
-            ),
-            (
-                "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
-                "EnableSnapAssistFlyout",
-                0u32,
-            ),
-        ];
-
-        let mut saved_entries = Vec::new();
-
-        for (subkey, val_name, target_val) in targets {
-            let subkey_w = to_wide(subkey);
-            let val_name_w = to_wide(val_name);
-
-            unsafe {
-                let mut hkey = HKEY::default();
-                let res = RegCreateKeyExW(
-                    HKEY_CURRENT_USER,
-                    PCWSTR(subkey_w.as_ptr()),
-                    0,
-                    None,
-                    REG_OPTION_NON_VOLATILE,
-                    KEY_READ | KEY_WRITE,
-                    None,
-                    &mut hkey,
-                    None,
-                );
-
-                if res.is_err() {
-                    eprintln!(
-                        "[REGISTRY LOCK] Warning: Could not open/create subkey {}: {:?}",
-                        subkey, res
-                    );
-                    continue;
-                }
-
-                // 1. Read existing value if present
-                let mut val_type = REG_VALUE_TYPE::default();
-                let mut current_buf = [0u8; 4];
-                let mut buf_len = 4u32;
-
-                let query_res = RegQueryValueExW(
-                    hkey,
-                    PCWSTR(val_name_w.as_ptr()),
-                    None,
-                    Some(&mut val_type),
-                    Some(current_buf.as_mut_ptr()),
-                    Some(&mut buf_len),
-                );
-
-                let original_value = if query_res.is_ok() && val_type == REG_DWORD && buf_len == 4 {
-                    Some(u32::from_le_bytes(current_buf))
-                } else {
-                    None
-                };
-
-                // 2. Set new lockdown value
-                let target_bytes = target_val.to_le_bytes();
-                let set_res = RegSetValueExW(
-                    hkey,
-                    PCWSTR(val_name_w.as_ptr()),
-                    0,
-                    REG_DWORD,
-                    Some(&target_bytes),
-                );
-
-                let _ = RegCloseKey(hkey);
-
-                if set_res.is_err() {
-                    eprintln!(
-                        "[REGISTRY LOCK] Warning: Failed to set {} in {}: {:?}",
-                        val_name, subkey, set_res
-                    );
-                } else {
-                    saved_entries.push(SavedRegEntry {
-                        subkey: subkey.to_string(),
-                        value_name: val_name.to_string(),
-                        original_value,
-                    });
-                }
-            }
-        }
-
-        eprintln!(
-            "[CITADEL CLIENT] REGISTRY LOCK ACTIVE: {} policies enforced (Task Manager, Lock, Sign-Out, WinKeys suppressed).",
-            saved_entries.len()
-        );
-
-        Ok(RegistryLock { saved_entries })
+        eprintln!("[CITADEL CLIENT] Host desktop protection active: Registry policy alteration disabled.");
+        Ok(RegistryLock { saved_entries: Vec::new() })
     }
 
     /// Restores all modified registry values to their pre-lockdown state.

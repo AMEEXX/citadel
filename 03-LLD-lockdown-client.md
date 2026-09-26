@@ -446,3 +446,10 @@ A design document that overclaims here will fail the first security review it me
 2. **Out-of-band cheating is out of scope entirely.** A phone under the desk, a second person in the room, a printed sheet. This is physical invigilation's job, and CITADEL's seat map and flag feed exist to direct a human proctor's attention, not to replace them.
 3. **A deliberately-weakened model could evade M3.** The resource thresholds are tuned to catch models useful for competitive programming. A very small model under the thresholds would also be too weak to solve the problems, but the boundary will move as small models improve, and the thresholds must be re-tuned each release against a labelled corpus.
 4. **False positives are a real product risk (R8).** Every behavioural detection raises a flag for human review. Nothing in this component automatically disqualifies anyone. That is a deliberate, permanent design constraint, not a v1 shortcut.
+
+---
+
+## 10. Implementation Reference & Production Hardening Guide
+
+For the concrete Win32 production implementation, process delegation handling, GPU rendering parameters, keyboard hook health watchdog, and failsafe recovery specifications, see:
+??? [CITADEL_SECURITY_ARCHITECTURE.md](file:///CITADEL_SECURITY_ARCHITECTURE.md) (Canonical Client Implementation & Troubleshooting Guide).

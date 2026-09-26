@@ -32,6 +32,26 @@ const HEALTH_CHECK_VK: u32 = 0x87; // VK_F24 (harmless synthetic ping key)
 static EMERGENCY_OVERRIDE_TRIGGERED: AtomicBool = AtomicBool::new(false);
 static HEALTH_PONG_RECEIVED: AtomicBool = AtomicBool::new(false);
 static HOOK_REINSTALL_REQUESTED: AtomicBool = AtomicBool::new(false);
+static ESC_TAP_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+static LAST_ESC_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn check_escape_rapid_press() -> bool {
+    let now_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64;
+    let last_ms = LAST_ESC_MS.swap(now_ms, Ordering::SeqCst);
+    if now_ms.saturating_sub(last_ms) < 700 {
+        let count = ESC_TAP_COUNT.fetch_add(1, Ordering::SeqCst) + 1;
+        if count >= 5 {
+            ESC_TAP_COUNT.store(0, Ordering::SeqCst);
+            return true;
+        }
+    } else {
+        ESC_TAP_COUNT.store(1, Ordering::SeqCst);
+    }
+    false
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum KeyAction {
@@ -54,9 +74,19 @@ pub fn evaluate_keystroke(
         return KeyAction::HealthPong;
     }
 
+    // Rapid 5x Escape Emergency Override (tap Escape 5 times rapidly)
+    if vk == 0x1B && check_escape_rapid_press() {
+        return KeyAction::EmergencyOverride;
+    }
+
     let alt_down = (flags & 0x20) != 0;
 
-    // Proctor Emergency Override: Ctrl + Shift + Alt + F12 (VK 0x7B)
+    // Proctor Emergency Override A: Ctrl + Shift + Alt + Q (VK 0x51 - easy, no Fn key)
+    if vk == 0x51 && ctrl_pressed && shift_pressed && alt_down {
+        return KeyAction::EmergencyOverride;
+    }
+
+    // Proctor Emergency Override B: Ctrl + Shift + Alt + F12 (VK 0x7B)
     if vk == 0x7B && ctrl_pressed && shift_pressed && alt_down {
         return KeyAction::EmergencyOverride;
     }

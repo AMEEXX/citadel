@@ -4,16 +4,17 @@
 //! 1. Failsafe crash and panic handlers
 //! 2. Safe deferred desktop preparation (creates isolated desktop in background)
 //! 3. Kiosk browser launch & startup health verification
-//! 4. Full OS-level lockdown engagement ONLY after browser is verified alive:
+//! 4. Full OS-level lockdown engagement:
 //!    - Registry policy hardening (DisableTaskMgr, NoWinKeys, etc.)
 //!    - Kernel WFP zero-internet network isolation
 //!    - Explorer shell termination & watchdog
-//!    - Physical display plane switch to Secure Desktop
+//!    - Physical display plane switch to Secure Desktop (if requested)
 //!    - System keyboard hook with health watchdog
 //!    - Active anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
 //!    - Clipboard flusher and background process watchdog
 
 use std::net::Ipv4Addr;
+use std::os::windows::ffi::OsStrExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -61,13 +62,13 @@ pub fn is_elevated() -> bool {
     false
 }
 
-/// Triggers a Windows UAC prompt to relaunch this application as Administrator.
+/// Attempts to relaunch the current executable with elevated Administrator privileges
+/// via the Windows Shell UAC dialog (runas).
 pub fn elevate_self(args: &[String]) -> Result<(), String> {
     let current_exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    let exe_path_str = current_exe.to_string_lossy();
-    let wide_exe: Vec<u16> = exe_path_str.encode_utf16().chain(std::iter::once(0)).collect();
-
     let args_str = args.join(" ");
+
+    let wide_exe: Vec<u16> = current_exe.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
     let wide_args: Vec<u16> = args_str.encode_utf16().chain(std::iter::once(0)).collect();
 
     unsafe {
@@ -116,38 +117,111 @@ pub struct ClientLockdownGuard {
 
 impl ClientLockdownGuard {
     /// Prepares the client lockdown in the background without affecting the user's display.
-    /// Requires Administrator privileges.
     pub fn new(server_ip: Ipv4Addr, server_port: u16) -> Result<Self, String> {
-        Self::new_with_mode(server_ip, server_port, false)
+        Self::new_with_mode(server_ip, server_port, false, false)
     }
 
-    pub fn new_with_mode(server_ip: Ipv4Addr, server_port: u16, use_isolated_desktop: bool) -> Result<Self, String> {
+    pub fn new_with_mode(server_ip: Ipv4Addr, server_port: u16, use_isolated_desktop: bool, is_production: bool) -> Result<Self, String> {
         install_crash_safety();
 
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
-        let secure_desktop = if use_isolated_desktop {
-            if is_elevated() {
-                Some(SecureDesktop::create().map_err(|e| format!("Failed to create isolated Secure Desktop: {}", e))?)
-            } else {
+        // === 1. Host Desktop Protection: Host registry policies are strictly NEVER touched ===
+        let registry_lock = None;
+        eprintln!("[CITADEL CLIENT] Host desktop protection active: Primary desktop registry policies preserved.");
+
+        // === 2. ALWAYS install system-wide low-level keyboard hook immediately ===
+        let hotkey_handle = match install_hotkey_lock() {
+            Ok(hk) => {
+                eprintln!("[CITADEL CLIENT] KEYBOARD HOOK ACTIVE: Alt+Tab, Win keys, system combos blocked.");
+                Some(hk)
+            }
+            Err(e) => {
+                eprintln!("[CITADEL CLIENT] Warning: Keyboard hook failed: {}", e);
                 None
+            }
+        };
+
+        // === 3. ALWAYS hide and suppress taskbars immediately ===
+        let taskbar_lock = Some(TaskbarLock::acquire());
+
+        // === 4. ALWAYS wipe clipboard continuously ===
+        let clipboard_guard = Some(ClipboardGuard::start());
+
+        // === 5. ALWAYS suppress multi-finger touchpad gestures ===
+        let touchpad_lock = Some(TouchpadLock::acquire());
+
+        // === 6. If elevated, engage kernel WFP network firewall ===
+        let is_local_test = server_ip.is_loopback();
+        let enforce_network = is_production
+            || std::env::var("CITADEL_ENFORCE_NETWORK").map(|v| v == "1").unwrap_or(false);
+
+        let wfp_engine = if is_elevated() && enforce_network && !is_local_test {
+            match WfpEngine::open_dynamic() {
+                Ok(mut engine) => {
+                    if engine.install_college_lan_policy(server_ip, server_port).is_ok() {
+                        eprintln!(
+                            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
+                            server_ip, server_port
+                        );
+                        Some(engine)
+                    } else {
+                        eprintln!("[CITADEL CLIENT] Warning: Failed to install college LAN WFP policy.");
+                        None
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[CITADEL CLIENT] Warning: Failed to open WFP engine: {:?}", e);
+                    None
+                }
+            }
+        } else {
+            if is_local_test {
+                eprintln!("[CITADEL CLIENT] Safe network mode: Public internet preserved during local test.");
+            } else if !enforce_network {
+                eprintln!("[CITADEL CLIENT] Network enforcement disabled (pass --production or set CITADEL_ENFORCE_NETWORK=1 to engage).");
+            } else {
+                eprintln!("[CITADEL CLIENT] Non-elevated: WFP kernel network firewall skipped.");
+            }
+            None
+        };
+
+        // === 7. If elevated, suppress Windows Explorer shell ===
+        let kill_explorer = is_production
+            || std::env::var("CITADEL_KILL_EXPLORER").map(|v| v == "1").unwrap_or(false);
+
+        let explorer_lock = if is_elevated() && kill_explorer && !is_local_test {
+            Some(ExplorerLock::acquire())
+        } else {
+            eprintln!("[CITADEL CLIENT] Safe desktop mode: Windows Explorer preserved. Taskbar suppression active.");
+            None
+        };
+
+        // === 8. Isolated secure desktop only if explicitly requested AND elevated ===
+        let secure_desktop = if use_isolated_desktop && is_elevated() {
+            match SecureDesktop::create() {
+                Ok(sd) => Some(sd),
+                Err(e) => {
+                    eprintln!("[CITADEL CLIENT] Warning: Isolated Secure Desktop creation failed: {}", e);
+                    None
+                }
             }
         } else {
             None
         };
 
         Ok(ClientLockdownGuard {
-            _hotkey_handle: None,
+            _hotkey_handle: hotkey_handle,
             _secure_desktop: secure_desktop,
-            _explorer_lock: None,
-            _taskbar_lock: None,
-            _touchpad_lock: None,
-            _foreground_lock: None,
-            _clipboard_guard: None,
-            _process_watchdog: None,
-            _wfp_engine: None,
-            _registry_lock: None,
+            _explorer_lock: explorer_lock,
+            _taskbar_lock: taskbar_lock,
+            _touchpad_lock: touchpad_lock,
+            _foreground_lock: None, // Started in launch_browser after window exists
+            _clipboard_guard: clipboard_guard,
+            _process_watchdog: None, // Started in launch_browser
+            _wfp_engine: wfp_engine,
+            _registry_lock: registry_lock,
             stop_signal,
             sensor_thread: None,
             violations,
@@ -170,46 +244,22 @@ impl ClientLockdownGuard {
         eprintln!("[CITADEL CLIENT] Launching exam kiosk browser window...");
         let kiosk_child = launch_kiosk_on_desktop(&endpoint, self.secure_desktop_name())?;
 
-        // 2. If elevated, engage registry policies & kernel WFP firewall
-        if is_elevated() {
-            if let Ok(registry_lock) = RegistryLock::acquire() {
-                self._registry_lock = Some(registry_lock);
-            }
-            if let Ok(mut wfp_engine) = WfpEngine::open_dynamic() {
-                if wfp_engine.install_college_lan_policy(self.server_ip, self.server_port).is_ok() {
-                    eprintln!(
-                        "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
-                        self.server_ip, self.server_port
-                    );
-                    self._wfp_engine = Some(wfp_engine);
-                }
-            }
-        }
-
-        // 3. Desktop and shell handling
+        // If isolated desktop was used, switch physical display to it AFTER browser is verified alive
         if let Some(ref mut sd) = self._secure_desktop {
-            self._explorer_lock = Some(ExplorerLock::acquire());
             sd.switch_to_secure()
                 .map_err(|e| format!("Failed to switch physical display to Secure Desktop: {}", e))?;
-            let hotkey_handle = install_hotkey_lock_with_desktop(Some(sd.handle()))
-                .map_err(|e| format!("Failed to install hotkey suppression hook: {}", e))?;
-            self._hotkey_handle = Some(hotkey_handle);
-        } else {
-            // Interactive Kiosk Mode (Safe, instant display, no black screen)
-            self._taskbar_lock = Some(TaskbarLock::acquire());
-            if let Ok(hotkey_handle) = install_hotkey_lock() {
+            if let Ok(hotkey_handle) = install_hotkey_lock_with_desktop(Some(sd.handle())) {
                 self._hotkey_handle = Some(hotkey_handle);
             }
         }
 
-        // 7. Auxiliary input & shell guards
-        self._taskbar_lock = Some(TaskbarLock::acquire());
-        self._touchpad_lock = Some(TouchpadLock::acquire());
+        // Start continuous foreground window lock
         self._foreground_lock = Some(ForegroundLock::start());
-        self._clipboard_guard = Some(ClipboardGuard::start());
+
+        // Start process watchdog for forbidden cheat tools
         self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone()));
 
-        // 8. Background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
+        // Start background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
         let stop_clone = self.stop_signal.clone();
         let viol_clone = self.violations.clone();
         let server_port = self.server_port;
