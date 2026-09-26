@@ -1,8 +1,11 @@
 //! CITADEL Pre-Launch Environment Scanner & Enforcement
 //!
-//! Scans running workstation processes, notifies candidate, forcefully terminates
-//! prohibited applications (browsers, chat, screen recorders, cheat tools),
-//! and verifies the environment is 100% clean before the exam kiosk opens.
+//! Scans running workstation processes, forcefully terminates prohibited applications
+//! (browsers, chat, screen recorders, cheat tools), and strictly verifies the environment
+//! is 100% clean before the exam kiosk opens.
+//!
+//! Zero tolerance: The candidate CANNOT bypass or cancel this check. The verification
+//! loop repeats indefinitely until ALL prohibited processes are eliminated.
 
 use std::collections::HashSet;
 use std::ffi::OsString;
@@ -18,7 +21,7 @@ use windows::Win32::System::Threading::{
     GetCurrentProcessId, OpenProcess, TerminateProcess, PROCESS_TERMINATE,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    MessageBoxW, MESSAGEBOX_STYLE, IDOK, MB_ICONINFORMATION, MB_ICONWARNING, MB_OKCANCEL,
+    MessageBoxW, MESSAGEBOX_STYLE, MB_ICONWARNING, MB_OK,
 };
 
 pub const PROHIBITED_PROCESSES: &[&str] = &[
@@ -30,6 +33,10 @@ pub const PROHIBITED_PROCESSES: &[&str] = &[
     "opera_gx.exe",
     "vivaldi.exe",
     "tor.exe",
+    "msedge.exe",
+    "edge.exe",
+    "iexplore.exe",
+
     // Communication & Collaboration
     "discord.exe",
     "slack.exe",
@@ -38,6 +45,8 @@ pub const PROHIBITED_PROCESSES: &[&str] = &[
     "teams.exe",
     "skype.exe",
     "signal.exe",
+    "zoom.exe",
+
     // Remote Desktop & Screen Sharing
     "teamviewer.exe",
     "anydesk.exe",
@@ -45,7 +54,8 @@ pub const PROHIBITED_PROCESSES: &[&str] = &[
     "vncviewer.exe",
     "ultraviewer.exe",
     "parsec.exe",
-    "zoom.exe",
+    "mstsc.exe",
+
     // Cheats, AI, & Screen Capture
     "obs64.exe",
     "obs32.exe",
@@ -55,6 +65,7 @@ pub const PROHIBITED_PROCESSES: &[&str] = &[
     "screenclippinghost.exe",
     "ollama.exe",
     "lmstudio.exe",
+    "chatgpt.exe",
 ];
 
 fn show_dialog(title: &str, message: &str, style: MESSAGEBOX_STYLE) -> windows::Win32::UI::WindowsAndMessaging::MESSAGEBOX_RESULT {
@@ -92,15 +103,25 @@ pub fn scan_prohibited_processes(own_pid: u32, is_production: bool) -> Vec<(Stri
 
                 let pid = entry.th32ProcessID;
 
-                // Never flag or terminate own process, recovery tools, or citadel server
-                if pid != own_pid && !exe_name.contains("citadel") && !exe_name.contains("recovery") {
-                    // In testing mode, preserve developer environment (antigravity, rustc, cargo)
-                    let is_dev_tool = exe_name.contains("antigravity") || exe_name.contains("cargo") || exe_name.contains("rustc");
+                // Never terminate own process, recovery tools, citadel server, or webview2 runtime
+                let is_citadel_internal = pid == own_pid
+                    || exe_name.contains("citadel")
+                    || exe_name.contains("recovery")
+                    || exe_name.contains("msedgewebview2");
+
+                if !is_citadel_internal {
+                    // In testing mode, preserve developer environment (antigravity, rustc, cargo, vscode)
+                    let is_dev_tool = exe_name.contains("antigravity")
+                        || exe_name.contains("cargo")
+                        || exe_name.contains("rustc")
+                        || exe_name.contains("powershell")
+                        || exe_name.contains("cmd.exe");
+
                     if !is_production && is_dev_tool {
                         // Skip dev tool in non-production testing
                     } else {
                         for &prohibited in PROHIBITED_PROCESSES {
-                            if exe_name == prohibited || (exe_name.contains(prohibited) && !exe_name.contains("citadel")) {
+                            if exe_name == prohibited || (exe_name.contains(prohibited) && !exe_name.contains("msedgewebview2")) {
                                 detected.push((exe_name.clone(), pid));
                                 break;
                             }
@@ -126,104 +147,65 @@ pub fn terminate_prohibited_processes(processes: &[(String, u32)]) {
             if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, *pid) {
                 let _ = TerminateProcess(hproc, 1);
                 let _ = CloseHandle(hproc);
-                eprintln!("[PRE-FLIGHT] Terminated prohibited process: {} (PID: {})", name, pid);
+                eprintln!("[PRE-FLIGHT] Auto-terminated prohibited process: {} (PID: {})", name, pid);
             }
         }
     }
 }
 
-/// Runs the complete pre-flight scan & clean cycle.
-/// Returns true if the environment is clean and ready for exam launch, false if candidate canceled.
+/// Runs the complete strict pre-flight scan & clean cycle.
+/// Zero tolerance: Automatically terminates detected apps first. If any survive, prompts candidate
+/// to close them manually and will NEVER proceed until 100% of prohibited processes are closed.
 pub fn enforce_clean_environment(is_production: bool) -> bool {
     let own_pid = unsafe { GetCurrentProcessId() };
 
-    // Step 1: Initial scan
+    // Step 1: Initial auto-kill scan
     let detected = scan_prohibited_processes(own_pid, is_production);
-
     if !detected.is_empty() {
-        // Collect unique process names for clean presentation
-        let mut unique_names: Vec<String> = detected
-            .iter()
-            .map(|(name, _)| name.clone())
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .collect();
-        unique_names.sort();
-
-        let list_str = unique_names
-            .iter()
-            .map(|name| format!("  • {}", name))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        let msg = format!(
-            "CITADEL Secure Assessment Environment\n\n\
-            The following external applications are currently open on your workstation:\n\n\
-            {}\n\n\
-            To maintain exam integrity, all external applications must be closed before the exam environment can open.\n\n\
-            Click 'OK' to automatically close these applications and proceed.\n\
-            Click 'Cancel' to abort.",
-            list_str
-        );
-
-        let choice = show_dialog("CITADEL Pre-Exam Environment Scan", &msg, MB_OKCANCEL | MB_ICONINFORMATION);
-        if choice != IDOK {
-            eprintln!("[PRE-FLIGHT] Candidate canceled environment cleanup. Aborting launch.");
-            return false;
-        }
-
-        // Forcefully terminate detected apps
+        eprintln!("[PRE-FLIGHT] Detected {} prohibited application(s). Initiating auto-termination...", detected.len());
         terminate_prohibited_processes(&detected);
         std::thread::sleep(Duration::from_millis(800));
     }
 
-    // Step 2: Verification Loop
+    // Step 2: Strict, infinite verification loop — NO ESCAPE until workstation is clean
     loop {
         let remaining = scan_prohibited_processes(own_pid, is_production);
         if remaining.is_empty() {
-            eprintln!("[PRE-FLIGHT] Workstation verified clean. Ready for exam launch.");
+            eprintln!("[PRE-FLIGHT] Workstation verified 100% clean. Ready for exam launch.");
             break;
         }
 
-        // Attempt second cleanup pass
+        // Secondary automatic kill attempt
         terminate_prohibited_processes(&remaining);
-        std::thread::sleep(Duration::from_millis(500));
+        std::thread::sleep(Duration::from_millis(600));
 
         let still_running = scan_prohibited_processes(own_pid, is_production);
         if still_running.is_empty() {
-            eprintln!("[PRE-FLIGHT] Workstation verified clean after secondary pass.");
+            eprintln!("[PRE-FLIGHT] Workstation clean after secondary kill pass.");
             break;
         }
 
+        // Still running: Candidate MUST close them manually. Dialog has NO Cancel button.
         let mut remaining_names: Vec<String> = still_running
             .iter()
-            .map(|(name, pid)| format!("{} (PID: {})", name, pid))
+            .map(|(name, pid)| format!("  • {} (PID: {})", name, pid))
             .collect::<HashSet<_>>()
             .into_iter()
             .collect();
         remaining_names.sort();
 
-        let list_str = remaining_names
-            .iter()
-            .map(|s| format!("  • {}", s))
-            .collect::<Vec<_>>()
-            .join("\n");
-
+        let list_str = remaining_names.join("\n");
         let warn_msg = format!(
-            "Prohibited Applications Still Running\n\n\
-            The following applications could not be closed automatically (they may be protected by Windows or running under another user):\n\n\
-            {}\n\n\
-            Please manually close these applications from your taskbar or Task Manager.\n\n\
-            Click 'OK' to re-scan and verify.\n\
-            Click 'Cancel' to abort exam launch.",
+            "CITADEL Security Boundary: Prohibited Applications Running\n\n            The following applications are running and could not be terminated automatically:\n\n            {}\n\n            CITADEL policy requires that ALL external applications, browsers, communication tools,\n            and screen sharing software MUST be closed before the assessment environment can open.\n\n            Please manually close these applications from your taskbar or Task Manager.\n\n            Click 'OK' after closing them to re-scan and verify.",
             list_str
         );
 
-        let choice = show_dialog("CITADEL Application Verification", &warn_msg, MB_OKCANCEL | MB_ICONWARNING);
-        if choice != IDOK {
-            eprintln!("[PRE-FLIGHT] Candidate canceled during manual close verification. Aborting launch.");
-            return false;
-        }
+        // MB_OK with MB_ICONWARNING: Candidate cannot click Cancel. They must click OK to re-scan.
+        let _ = show_dialog("CITADEL Security Verification Required", &warn_msg, MB_OK | MB_ICONWARNING);
+
+        // Immediately try auto-terminating again after dialog dismiss
+        terminate_prohibited_processes(&still_running);
+        std::thread::sleep(Duration::from_millis(500));
     }
 
     true

@@ -15,6 +15,7 @@
 
 use std::net::Ipv4Addr;
 use std::os::windows::ffi::OsStrExt;
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -89,6 +90,35 @@ pub fn elevate_self(args: &[String]) -> Result<(), String> {
     }
 }
 
+
+pub struct BluetoothLock {
+    was_active: bool,
+}
+
+impl BluetoothLock {
+    pub fn acquire() -> Self {
+        eprintln!("[CITADEL CLIENT] Disabling Bluetooth service & wireless interfaces for exam security...");
+        let _ = std::process::Command::new("net")
+            .args(["stop", "bthserv", "/y"])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output();
+
+        BluetoothLock { was_active: true }
+    }
+}
+
+impl Drop for BluetoothLock {
+    fn drop(&mut self) {
+        if self.was_active {
+            eprintln!("[CITADEL CLIENT] Restoring Bluetooth service...");
+            let _ = std::process::Command::new("net")
+                .args(["start", "bthserv"])
+                .creation_flags(0x08000000) // CREATE_NO_WINDOW
+                .output();
+        }
+    }
+}
+
 pub struct ClientLockdownGuard {
     // Fields are dropped in declaration order on exit/panic:
     // 1. Hotkey handle unhooks and stops health watchdog
@@ -107,6 +137,7 @@ pub struct ClientLockdownGuard {
     _wfp_engine: Option<WfpEngine>,
     // 6. Registry lock restores Task Manager, WinKeys, Lock, etc.
     _registry_lock: Option<RegistryLock>,
+    _bluetooth_lock: Option<BluetoothLock>,
 
     stop_signal: Arc<AtomicBool>,
     sensor_thread: Option<JoinHandle<()>>,
@@ -129,6 +160,13 @@ impl ClientLockdownGuard {
 
         // === 1. Host Desktop Protection: Host registry policies are strictly NEVER touched ===
         let registry_lock = None;
+
+        // Bluetooth hardware & service suppression
+        let bluetooth_lock = if is_elevated() {
+            Some(BluetoothLock::acquire())
+        } else {
+            None
+        };
         eprintln!("[CITADEL CLIENT] Host desktop protection active: Primary desktop registry policies preserved.");
 
         // === 2. ALWAYS install system-wide low-level keyboard hook immediately ===
@@ -222,6 +260,7 @@ impl ClientLockdownGuard {
             _process_watchdog: None, // Started in launch_browser
             _wfp_engine: wfp_engine,
             _registry_lock: registry_lock,
+            _bluetooth_lock: bluetooth_lock,
             stop_signal,
             sensor_thread: None,
             violations,

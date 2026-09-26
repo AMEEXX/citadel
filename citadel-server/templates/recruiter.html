@@ -2,211 +2,253 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <title>CITADEL Recruiter Console & Examination Fleet Command</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CITADEL LMS — Recruiter & Proctor Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #070a0f;
-      --bg-surface: #0c101a;
-      --bg-surface-elevated: #131b28;
-      --border-subtle: #1e293b;
-      --border-focus: #38bdf8;
-      --text-main: #f8fafc;
-      --text-muted: #94a3b8;
-      --text-dim: #64748b;
-      --accent-blue: #38bdf8;
+      --bg-void: #000000;
+      --bg-page: #050508;
+      --bg-panel: #0b0d13;
+      --bg-surface: #0f1118;
+      --bg-surface-elevated: #131620;
+      --border-hairline: #141720;
+      --border-subtle: #1c2028;
+      --border-medium: #242830;
+      --text-main: #c8cede;
+      --text-muted: #7a8494;
+      --text-dim: #444c5c;
       --accent-green: #34d399;
-      --accent-amber: #fbbf24;
+      --accent-yellow: #fbbf24;
       --accent-red: #f87171;
-      --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      --font-mono: Consolas, "JetBrains Mono", monospace;
+      --accent-blue: #60a5fa;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: var(--bg-base);
+      background: var(--bg-page);
       color: var(--text-main);
-      font-family: var(--font-ui);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
+      font-size: 13px;
     }
 
+    /* HEADER */
     header {
-      height: 48px;
-      background: var(--bg-surface);
+      background: var(--bg-panel);
       border-bottom: 1px solid var(--border-subtle);
-      padding: 0 24px;
+      padding: 12px 24px;
       display: flex;
-      align-items: center;
       justify-content: space-between;
-      flex-shrink: 0;
+      align-items: center;
     }
-
     .brand-title {
-      font-size: 14px;
-      font-weight: 700;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      font-weight: 600;
+      font-size: 15px;
     }
-
     .brand-logo {
-      background: #2563eb;
-      color: white;
+      background: var(--bg-surface-elevated);
+      border: 1px solid var(--border-medium);
+      color: #fff;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 11px;
       padding: 3px 8px;
       border-radius: 4px;
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.1em;
     }
-
     .header-actions {
       display: flex;
       align-items: center;
       gap: 14px;
     }
 
+    /* EXAM STATUS & LIVE CONTROLS */
+    .exam-badge {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 0.05em;
+    }
+    .badge-not-live {
+      background: rgba(148, 163, 184, 0.1);
+      color: #94a3b8;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .badge-live {
+      background: rgba(52, 211, 153, 0.12);
+      color: var(--accent-green);
+      border: 1px solid rgba(52, 211, 153, 0.35);
+      animation: pulse-border 2s infinite;
+    }
+    .badge-ended {
+      background: rgba(248, 113, 113, 0.15);
+      color: var(--accent-red);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+    }
+
+    @keyframes pulse-border {
+      0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+    }
+
+    .btn-live {
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-go-live {
+      background: #059669;
+      border: 1px solid #10b981;
+      color: #fff;
+    }
+    .btn-go-live:hover { background: #10b981; }
+    .btn-stop-live {
+      background: #dc2626;
+      border: 1px solid #ef4444;
+      color: #fff;
+    }
+    .btn-stop-live:hover { background: #ef4444; }
+
     .sync-indicator {
       display: flex;
       align-items: center;
       gap: 6px;
-      font-size: 11.5px;
-      color: var(--accent-green);
-      font-weight: 600;
-      background: rgba(52, 211, 153, 0.1);
-      padding: 3px 10px;
-      border-radius: 20px;
-      border: 1px solid rgba(52, 211, 153, 0.25);
+      font-size: 11px;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
     }
-
     .sync-dot {
       width: 6px;
       height: 6px;
       background: var(--accent-green);
       border-radius: 50%;
+      box-shadow: 0 0 6px var(--accent-green);
     }
 
+    /* NAVIGATION TABS */
     .nav-tabs {
-      background: var(--bg-surface);
+      background: var(--bg-panel);
       border-bottom: 1px solid var(--border-subtle);
       padding: 0 24px;
       display: flex;
-      gap: 4px;
-      height: 40px;
-      flex-shrink: 0;
+      gap: 8px;
     }
-
     .nav-tab {
       background: transparent;
       border: none;
       border-bottom: 2px solid transparent;
       color: var(--text-muted);
-      padding: 0 16px;
+      padding: 12px 16px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.15s;
+      transition: all 0.15s ease;
     }
-
     .nav-tab:hover { color: #fff; }
     .nav-tab.active {
-      color: var(--accent-blue);
+      color: #fff;
       border-bottom-color: var(--accent-blue);
     }
 
-    main {
-      padding: 24px;
-      flex: 1;
-      overflow-y: auto;
-    }
+    /* MAIN LAYOUT */
+    main { padding: 24px; max-width: 1400px; margin: 0 auto; }
 
     .stats-row {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 14px;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 16px;
       margin-bottom: 24px;
     }
-
     .stat-card {
-      background: var(--bg-surface);
+      background: var(--bg-panel);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
+      border-radius: 6px;
       padding: 16px;
     }
-
     .stat-label {
       font-size: 11px;
-      font-weight: 600;
       color: var(--text-muted);
-      margin-bottom: 6px;
+      font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
     }
-
     .stat-val {
       font-size: 24px;
-      font-weight: 800;
-      font-family: var(--font-mono);
+      font-weight: 700;
       color: #fff;
+      font-family: 'JetBrains Mono', monospace;
     }
 
     .card {
-      background: var(--bg-surface);
+      background: var(--bg-panel);
       border: 1px solid var(--border-subtle);
-      border-radius: 8px;
-      padding: 20px;
+      border-radius: 6px;
+      overflow: hidden;
       margin-bottom: 24px;
     }
-
     .card-head {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-subtle);
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 16px;
+      background: var(--bg-surface);
     }
-
     .card-title {
+      font-weight: 600;
       font-size: 14px;
-      font-weight: 700;
       color: #fff;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
     }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
+    /* TABLE */
+    table { width: 100%; border-collapse: collapse; text-align: left; }
     th {
-      text-align: left;
-      padding: 10px 12px;
       background: var(--bg-surface-elevated);
       color: var(--text-muted);
       font-size: 11px;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.05em;
+      padding: 12px 18px;
       border-bottom: 1px solid var(--border-subtle);
     }
-
     td {
-      padding: 12px;
-      border-bottom: 1px solid var(--border-subtle);
-      color: var(--text-main);
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-hairline);
+      font-size: 13px;
     }
+    tr:hover td { background: var(--bg-surface); }
 
-    tr:hover td { background: rgba(255, 255, 255, 0.02); }
-
+    /* STATUS BADGES */
     .status-badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
       font-size: 11px;
       font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
     }
-
     .status-active { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
     .status-flagged { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
     .status-logged-out { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
@@ -216,18 +258,22 @@
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border-subtle);
       color: #fff;
-      padding: 4px 10px;
+      padding: 5px 12px;
       border-radius: 4px;
       font-size: 12px;
       font-weight: 600;
       cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
       transition: all 0.15s;
     }
-    .btn-sm:hover { background: #1e293b; }
+    .btn-sm:hover { background: #1e2433; border-color: var(--border-medium); }
 
     .btn-danger {
-      background: rgba(239, 68, 68, 0.15);
-      border-color: rgba(239, 68, 68, 0.35);
+      background: rgba(239, 68, 68, 0.12);
+      border-color: rgba(239, 68, 68, 0.3);
       color: #f87171;
     }
     .btn-danger:hover {
@@ -235,32 +281,206 @@
       color: #fff;
     }
 
+    .btn-clear {
+      background: rgba(52, 211, 153, 0.12);
+      border-color: rgba(52, 211, 153, 0.3);
+      color: #34d399;
+    }
+    .btn-clear:hover {
+      background: #10b981;
+      color: #fff;
+    }
+
     .btn-primary {
       background: #2563eb;
-      border-color: #2563eb;
+      border-color: #3b82f6;
       color: #fff;
     }
     .btn-primary:hover { background: #3b82f6; }
+
+    /* QUESTION BANK STYLES */
+    .q-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 6px;
+      padding: 18px;
+      margin-bottom: 16px;
+      transition: border-color 0.15s;
+    }
+    .q-card:hover { border-color: var(--border-medium); }
+    .q-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .q-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .diff-badge {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+    }
+    .diff-easy { background: rgba(52, 211, 153, 0.15); color: #34d399; }
+    .diff-medium { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
+    .diff-hard { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+
+    .q-desc {
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .q-cases-toggle {
+      color: var(--accent-blue);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      background: none;
+      border: none;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .cases-panel {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border-subtle);
+      display: none;
+    }
+    .cases-subhead {
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      margin: 12px 0 8px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .case-item {
+      background: var(--bg-void);
+      border: 1px solid var(--border-hairline);
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11.5px;
+    }
+    .case-data { display: flex; gap: 16px; align-items: center; }
+    .case-in { color: #60a5fa; }
+    .case-out { color: #34d399; }
+
+    .add-case-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      background: var(--bg-panel);
+      padding: 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-subtle);
+    }
+    .input-case {
+      background: var(--bg-void);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      flex: 1;
+    }
+
+    /* MODAL */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+      backdrop-filter: blur(4px);
+    }
+    .modal-box {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-medium);
+      border-radius: 8px;
+      width: 540px;
+      max-width: 90vw;
+      padding: 24px;
+    }
+    .modal-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; color: #fff; }
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 6px;
+    }
+    .form-input, .form-textarea, .form-select {
+      width: 100%;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      outline: none;
+    }
+    .form-input:focus, .form-textarea:focus, .form-select:focus {
+      border-color: var(--accent-blue);
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 20px;
+    }
   </style>
 </head>
 <body>
   <header>
     <div class="brand-title">
       <span class="brand-logo">CITADEL</span>
-      <span>Recruiter Console</span>
+      <span>Recruiter Console & LMS Command</span>
     </div>
     <div class="header-actions">
+      <div id="exam-status-badge" class="exam-badge badge-not-live">EXAM NOT STARTED</div>
+      <button id="btn-toggle-live" class="btn-live btn-go-live" onclick="toggleExamLive()">▶ GO LIVE</button>
       <div class="sync-indicator">
         <div class="sync-dot"></div>
         <span>Live Heartbeat</span>
       </div>
-      <a href="/exam" class="btn-sm">Open Candidate Portal</a>
+      <a href="/exam" target="_blank" class="btn-sm">Open Candidate Portal ↗</a>
     </div>
   </header>
 
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchNav('candidates')">Candidate Monitoring</button>
-    <button class="nav-tab" onclick="switchNav('questions')">Problem Bank</button>
+    <button class="nav-tab" onclick="switchNav('questions')">Problem Bank & Test Suites</button>
   </div>
 
   <main>
@@ -295,7 +515,7 @@
     <div id="view-candidates" class="card">
       <div class="card-head">
         <div class="card-title">Live Candidate Fleet</div>
-        <button class="btn-sm" onclick="fetchMetrics()">Refresh</button>
+        <button class="btn-sm" onclick="fetchMetrics()">Refresh Fleet</button>
       </div>
       <table>
         <thead>
@@ -309,7 +529,7 @@
           </tr>
         </thead>
         <tbody id="candidate-table-body">
-          <tr><td colspan="6" style="text-align: center; color: var(--text-muted);">Loading candidates...</td></tr>
+          <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading candidates...</td></tr>
         </tbody>
       </table>
     </div>
@@ -317,16 +537,60 @@
     <!-- VIEW: QUESTIONS -->
     <div id="view-questions" class="card" style="display: none;">
       <div class="card-head">
-        <div class="card-title">Assessment Problem Bank</div>
-        <button class="btn-sm btn-primary">+ Add Problem</button>
+        <div class="card-title">Assessment Problem Bank & Test Suites</div>
+        <button class="btn-sm btn-primary" onclick="openAddProblemModal()">+ Add Problem</button>
       </div>
-      <div id="questions-list"></div>
+      <div id="questions-list" style="padding: 20px;"></div>
     </div>
   </main>
+
+  <!-- ADD PROBLEM MODAL -->
+  <div id="modal-add-problem" class="modal-overlay">
+    <div class="modal-box">
+      <div class="modal-head">
+        <div class="modal-title">Create New Assessment Problem</div>
+        <button class="btn-sm" onclick="closeAddProblemModal()">✕</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Problem Title</label>
+        <input id="q-new-title" class="form-input" placeholder="e.g. Merge Two Sorted Lists" />
+      </div>
+      <div style="display: flex; gap: 12px;" class="form-group">
+        <div style="flex: 1;">
+          <label class="form-label">Difficulty</label>
+          <select id="q-new-diff" class="form-select">
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+        <div style="flex: 1;">
+          <label class="form-label">Points</label>
+          <input id="q-new-points" type="number" class="form-input" value="100" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Description (HTML or Plain Text)</label>
+        <textarea id="q-new-desc" class="form-textarea" rows="4" placeholder="Given an array of integers..."></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Constraints (one per line)</label>
+        <textarea id="q-new-constraints" class="form-textarea" rows="3" placeholder="1 <= nums.length <= 10^5
+-10^9 <= nums[i] <= 10^9"></textarea>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-sm" onclick="closeAddProblemModal()">Cancel</button>
+        <button class="btn-sm btn-primary" onclick="submitCreateProblem()">Create Problem</button>
+      </div>
+    </div>
+  </div>
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
     const AUTH_KEY = urlParams.get('key') || 'citadel-recruiter-key-2026';
+
+    let currentExamLive = false;
+    let questionsData = [];
 
     function switchNav(view) {
       document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
@@ -348,21 +612,73 @@
         if (!res.ok) return;
         const data = await res.json();
 
+        // 1. Metric stat cards
         document.getElementById('stat-total').innerText = data.total_candidates;
         document.getElementById('stat-active').innerText = data.active_candidates;
         document.getElementById('stat-flagged').innerText = data.flagged_candidates;
         document.getElementById('stat-logged-out').innerText = data.logged_out_candidates;
         document.getElementById('stat-disqualified').innerText = data.disqualified_candidates;
-        document.getElementById('stat-subs').innerText = data.submissions.length;
+        document.getElementById('stat-subs').innerText = data.total_submissions;
 
+        // 2. Exam Live State
+        if (data.exam_live) {
+          updateExamLiveUI(data.exam_live);
+        }
+
+        // 3. Question Cache
+        if (data.questions) {
+          questionsData = data.questions;
+          if (document.getElementById('view-questions').style.display === 'block') {
+            renderQuestionsList();
+          }
+        }
+
+        // 4. Candidate Table
         renderCandidateTable(data.candidates);
-      } catch (e) {}
+      } catch (e) {
+        console.error("fetchMetrics error:", e);
+      }
+    }
+
+    function updateExamLiveUI(liveState) {
+      currentExamLive = liveState.is_live;
+      const badge = document.getElementById('exam-status-badge');
+      const btn = document.getElementById('btn-toggle-live');
+
+      if (liveState.is_live) {
+        badge.className = "exam-badge badge-live";
+        badge.innerText = "● EXAM LIVE";
+        btn.className = "btn-live btn-stop-live";
+        btn.innerText = "⏹ STOP LIVE";
+      } else if (liveState.ended_at) {
+        badge.className = "exam-badge badge-ended";
+        badge.innerText = "EXAM CONCLUDED";
+        btn.className = "btn-live btn-go-live";
+        btn.innerText = "▶ RE-START EXAM";
+      } else {
+        badge.className = "exam-badge badge-not-live";
+        badge.innerText = "EXAM NOT STARTED";
+        btn.className = "btn-live btn-go-live";
+        btn.innerText = "▶ GO LIVE";
+      }
+    }
+
+    async function toggleExamLive() {
+      if (currentExamLive) {
+        if (!confirm("Are you sure you want to STOP the exam? Candidates will no longer be able to submit or view questions.")) {
+          return;
+        }
+        await fetch(`/api/v1/admin/exam/stop-live?key=${AUTH_KEY}`, { method: 'POST' });
+      } else {
+        await fetch(`/api/v1/admin/exam/go-live?key=${AUTH_KEY}`, { method: 'POST' });
+      }
+      fetchMetrics();
     }
 
     function renderCandidateTable(candidates) {
       const tbody = document.getElementById('candidate-table-body');
       if (!candidates || candidates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 24px;">No candidates connected</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-muted); padding: 28px;">No candidates connected yet</td></tr>';
         return;
       }
 
@@ -376,15 +692,18 @@
 
         return `
           <tr>
-            <td style="font-weight: 700; color: #fff;">${c.id}</td>
+            <td style="font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace;">${c.candidate_id}</td>
             <td><span class="status-badge ${statusClass}">${c.status}</span></td>
-            <td>${c.active_question}</td>
-            <td>${c.score} pts</td>
-            <td>${lastSeen}</td>
+            <td>Problem #${c.active_question}</td>
+            <td style="font-weight: 600; color: #34d399; font-family: 'JetBrains Mono', monospace;">${c.total_score} pts</td>
+            <td style="color: var(--text-muted); font-size: 12px;">${lastSeen}</td>
             <td>
               ${c.status !== 'Disqualified' ? `
-                <button class="btn-sm btn-danger" onclick="disqualifyCandidate('${c.id}')">Disqualify</button>
-              ` : '<span style="color: var(--text-dim); font-size: 11px;">Disqualified</span>'}
+                <button class="btn-sm btn-danger" onclick="disqualifyCandidate('${c.candidate_id}')">Disqualify</button>
+              ` : '<span style="color: var(--text-dim); font-size: 11px; font-weight: 600;">Disqualified</span>'}
+              ${c.status === 'Flagged' ? `
+                <button class="btn-sm btn-clear" style="margin-left: 6px;" onclick="clearFlagCandidate('${c.candidate_id}')">Clear Flag</button>
+              ` : ''}
             </td>
           </tr>
         `;
@@ -392,24 +711,217 @@
     }
 
     async function disqualifyCandidate(id) {
-      if (!confirm(`Disqualify candidate ${id}?`)) return;
+      if (!confirm(`Are you sure you want to DISQUALIFY candidate ${id}? All current and future code submissions will be rejected.`)) return;
       await fetch(`/api/v1/admin/candidates/${id}/disqualify?key=${AUTH_KEY}`, { method: 'POST' });
       fetchMetrics();
     }
 
+    async function clearFlagCandidate(id) {
+      await fetch(`/api/v1/admin/candidates/${id}/clear-flag?key=${AUTH_KEY}`, { method: 'POST' });
+      fetchMetrics();
+    }
+
+    // =========================================================================
+    // PROBLEM BANK & TEST SUITE MANAGEMENT
+    // =========================================================================
     async function loadQuestions() {
-      const res = await fetch('/api/v1/questions');
-      const qList = await res.json();
+      await fetchMetrics();
+      renderQuestionsList();
+    }
+
+    function renderQuestionsList() {
       const container = document.getElementById('questions-list');
-      container.innerHTML = qList.map(q => `
-        <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 16px; margin-bottom: 12px;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <div style="font-weight: 700; color: #fff;">${q.title} (${q.difficulty})</div>
-            <div style="color: var(--text-muted); font-size: 12px;">${q.sample_cases.length} Sample Cases</div>
+      if (!questionsData || questionsData.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); text-align: center; padding: 24px;">No problems available. Click "+ Add Problem" to create one.</div>';
+        return;
+      }
+
+      container.innerHTML = questionsData.map((q, qIdx) => {
+        let diffClass = 'diff-easy';
+        if (q.difficulty === 'Medium') diffClass = 'diff-medium';
+        else if (q.difficulty === 'Hard') diffClass = 'diff-hard';
+
+        const sampleCases = q.sample_cases || [];
+        const hiddenCases = q.hidden_cases || [];
+
+        return `
+          <div class="q-card">
+            <div class="q-head">
+              <div class="q-title">
+                <span>#${q.number || (qIdx + 1)}. ${q.title}</span>
+                <span class="diff-badge ${diffClass}">${q.difficulty}</span>
+                <span style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${q.points} pts</span>
+              </div>
+              <button class="q-cases-toggle" onclick="toggleCasesPanel('cases-${q.id}')">
+                Manage Cases (${sampleCases.length} sample, ${hiddenCases.length} hidden) ▾
+              </button>
+            </div>
+            <div class="q-desc">${q.description}</div>
+
+            <div id="cases-${q.id}" class="cases-panel">
+              <!-- SAMPLE CASES -->
+              <div class="cases-subhead">
+                <span>Sample Test Cases (${sampleCases.length})</span>
+              </div>
+              ${sampleCases.map((tc, idx) => `
+                <div class="case-item">
+                  <div class="case-data">
+                    <span style="color: var(--text-dim);">#${idx + 1}</span>
+                    <span>In: <strong class="case-in">${escapeHtml(tc.input)}</strong></span>
+                    <span>Expected: <strong class="case-out">${escapeHtml(tc.expected_output)}</strong></span>
+                    ${tc.explanation ? `<span style="color: var(--text-muted);">(${escapeHtml(tc.explanation)})</span>` : ''}
+                  </div>
+                  <button class="btn-sm btn-danger" style="padding: 2px 8px; font-size: 11px;" onclick="deleteTestCase('${q.id}', 'sample', ${idx})">Delete</button>
+                </div>
+              `).join('')}
+
+              <div class="add-case-row">
+                <input id="new-sample-in-${q.id}" class="input-case" placeholder="Sample Input (e.g. 2 7 11 15 9)" />
+                <input id="new-sample-out-${q.id}" class="input-case" placeholder="Expected Output (e.g. 0 1)" />
+                <input id="new-sample-exp-${q.id}" class="input-case" placeholder="Explanation (optional)" />
+                <button class="btn-sm btn-primary" onclick="addTestCase('${q.id}', 'sample')">+ Add Sample Case</button>
+              </div>
+
+              <!-- HIDDEN CASES -->
+              <div class="cases-subhead" style="margin-top: 18px;">
+                <span>Hidden Evaluation Test Cases (${hiddenCases.length})</span>
+              </div>
+              ${hiddenCases.map((tc, idx) => `
+                <div class="case-item">
+                  <div class="case-data">
+                    <span style="color: var(--text-dim);">#${idx + 1}</span>
+                    <span>In: <strong class="case-in">${escapeHtml(tc.input)}</strong></span>
+                    <span>Expected: <strong class="case-out">${escapeHtml(tc.expected_output)}</strong></span>
+                  </div>
+                  <button class="btn-sm btn-danger" style="padding: 2px 8px; font-size: 11px;" onclick="deleteTestCase('${q.id}', 'hidden', ${idx})">Delete</button>
+                </div>
+              `).join('')}
+
+              <div class="add-case-row">
+                <input id="new-hidden-in-${q.id}" class="input-case" placeholder="Hidden Input (e.g. -1 -2 -3 -4 -5 -8)" />
+                <input id="new-hidden-out-${q.id}" class="input-case" placeholder="Expected Output (e.g. 2 4)" />
+                <button class="btn-sm btn-primary" onclick="addTestCase('${q.id}', 'hidden')">+ Add Hidden Case</button>
+              </div>
+            </div>
           </div>
-          <p style="color: var(--text-muted); font-size: 13px; line-height: 1.5;">${q.description.substring(0, 150)}...</p>
-        </div>
-      `).join('');
+        `;
+      }).join('');
+    }
+
+    function toggleCasesPanel(id) {
+      const panel = document.getElementById(id);
+      if (panel.style.display === 'block') {
+        panel.style.display = 'none';
+      } else {
+        panel.style.display = 'block';
+      }
+    }
+
+    async function addTestCase(qId, type) {
+      let inputVal = '';
+      let outputVal = '';
+      let expVal = null;
+      let url = '';
+
+      if (type === 'sample') {
+        inputVal = document.getElementById(`new-sample-in-${qId}`).value.trim();
+        outputVal = document.getElementById(`new-sample-out-${qId}`).value.trim();
+        expVal = document.getElementById(`new-sample-exp-${qId}`).value.trim() || null;
+        url = `/api/v1/admin/questions/${qId}/sample-cases?key=${AUTH_KEY}`;
+      } else {
+        inputVal = document.getElementById(`new-hidden-in-${qId}`).value.trim();
+        outputVal = document.getElementById(`new-hidden-out-${qId}`).value.trim();
+        url = `/api/v1/admin/questions/${qId}/hidden-cases?key=${AUTH_KEY}`;
+      }
+
+      if (!inputVal || !outputVal) {
+        alert("Both input and expected output are required.");
+        return;
+      }
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          input: inputVal,
+          expected_output: outputVal,
+          explanation: expVal
+        })
+      });
+
+      if (res.ok) {
+        await fetchMetrics();
+        toggleCasesPanel(`cases-${qId}`); // keep open
+      } else {
+        alert("Failed to add test case.");
+      }
+    }
+
+    async function deleteTestCase(qId, type, idx) {
+      if (!confirm(`Delete ${type} test case #${idx + 1}?`)) return;
+      const endpoint = type === 'sample' ? 'sample-cases' : 'hidden-cases';
+      const res = await fetch(`/api/v1/admin/questions/${qId}/${endpoint}/${idx}?key=${AUTH_KEY}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        await fetchMetrics();
+        toggleCasesPanel(`cases-${qId}`);
+      } else {
+        alert("Failed to delete test case.");
+      }
+    }
+
+    function openAddProblemModal() {
+      document.getElementById('modal-add-problem').style.display = 'flex';
+    }
+    function closeAddProblemModal() {
+      document.getElementById('modal-add-problem').style.display = 'none';
+    }
+
+    async function submitCreateProblem() {
+      const title = document.getElementById('q-new-title').value.trim();
+      const difficulty = document.getElementById('q-new-diff').value;
+      const points = parseInt(document.getElementById('q-new-points').value, 10) || 100;
+      const description = document.getElementById('q-new-desc').value.trim();
+      const constraintsRaw = document.getElementById('q-new-constraints').value.trim();
+
+      if (!title || !description) {
+        alert("Problem title and description are required.");
+        return;
+      }
+
+      const constraints = constraintsRaw ? constraintsRaw.split('\n').map(s => s.trim()).filter(Boolean) : [];
+
+      const res = await fetch(`/api/v1/admin/questions?key=${AUTH_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          difficulty,
+          points,
+          description,
+          constraints
+        })
+      });
+
+      if (res.ok) {
+        closeAddProblemModal();
+        document.getElementById('q-new-title').value = '';
+        document.getElementById('q-new-desc').value = '';
+        document.getElementById('q-new-constraints').value = '';
+        await fetchMetrics();
+      } else {
+        alert("Failed to create problem.");
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     }
 
     fetchMetrics();

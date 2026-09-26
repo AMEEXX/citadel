@@ -843,64 +843,29 @@
   <div class="workspace">
     <!-- LEFT: PROBLEM SPEC -->
     <div class="pane-problem" id="pane-problem">
-      <div class="problem-tabs">
-        <button class="q-tab-btn">Problem Statement</button>
+      <div class="problem-tabs" id="problem-tab-list" style="display: flex; gap: 4px; overflow-x: auto; padding: 6px 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border-hair);">
+        <!-- DYNAMICALLY POPULATED QUESTION TABS -->
       </div>
-      <div class="problem-content">
-        <div class="q-header-meta">
+      <div class="problem-content" id="problem-content-area" style="overflow-y: auto; padding: 20px 24px;">
+        <div class="q-header-meta" id="q-meta-container" style="display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
           <span class="diff-badge diff-easy">Easy</span>
           <span class="points-badge">100 Points</span>
-          <span class="tag-pill">Array</span>
-          <span class="tag-pill">Hash Table</span>
-          <span class="tag-pill">Two Pointers</span>
         </div>
 
-        <h1 class="q-title" id="q-title">1. Two Sum</h1>
+        <h1 class="q-title" id="q-title">Loading Assessment Problem...</h1>
 
-        <div class="q-desc" id="q-desc">
-          <p>Given an array of integers <code>nums</code> and an integer <code>target</code>, return <em>indices of the two numbers</em> such that they add up to <code>target</code>.</p>
-          <p>You may assume that each input would have <strong>exactly one solution</strong>, and you may not use the same element twice.</p>
-          <p>You can return the answer in any order (indices separated by space).</p>
+        <div class="q-desc" id="q-desc" style="color: var(--text-secondary); font-size: 13.5px; line-height: 1.65; margin: 16px 0;">
+          Please wait while assessment specifications are loaded from the secure offline server.
         </div>
 
-        <div class="section-head">EXAMPLES</div>
-        <div class="test-card">
-          <div class="test-card-title">Example 1</div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
-          <code class="code-snippet">2 7 11 15 9</code>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Output:</div>
-          <code class="code-snippet">0 1</code>
-          <div style="font-size: 12.5px; color: var(--text-muted); margin-top: 6px;">Explanation: Because nums[0] + nums[1] == 2 + 7 == 9, we return indices 0 1.</div>
-        </div>
+        <div class="section-head" style="font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; margin: 24px 0 10px 0; font-family: var(--font-mono);">EXAMPLES</div>
+        <div id="q-examples-container"></div>
 
-        <div class="test-card">
-          <div class="test-card-title">Example 2</div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
-          <code class="code-snippet">3 2 4 6</code>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Output:</div>
-          <code class="code-snippet">1 2</code>
-        </div>
-
-        <div class="test-card">
-          <div class="test-card-title">Example 3</div>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
-          <code class="code-snippet">3 3 6</code>
-          <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Output:</div>
-          <code class="code-snippet">0 1</code>
-        </div>
-
-        <div class="section-head">CONSTRAINTS</div>
-        <ul style="padding-left: 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;">
-          <li><code>2 &lt;= nums.length &lt;= 10^4</code></li>
-          <li><code>-10^9 &lt;= nums[i] &lt;= 10^9</code></li>
-          <li><code>-10^9 &lt;= target &lt;= 10^9</code></li>
-          <li>Only one valid answer exists for each test case.</li>
-        </ul>
+        <div class="section-head" style="font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; margin: 24px 0 10px 0; font-family: var(--font-mono);">CONSTRAINTS</div>
+        <ul id="q-constraints-list" style="padding-left: 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;"></ul>
       </div>
     </div>
-
-    <!-- VERTICAL RESIZER DRAG HANDLE -->
-    <div class="resizer-v" id="resizer-v" title="Drag to resize panes"></div>
+<div class="resizer-v" id="resizer-v" title="Drag to resize panes"></div>
 
     <!-- RIGHT: CODE EDITOR & TEST DRAWER -->
     <div class="pane-right" id="pane-right">
@@ -1028,127 +993,69 @@
     </div>
   </div>
 
+  
+  <!-- EXAM NOT STARTED OVERLAY -->
+  <div id="exam-not-started-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
+    <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel);">
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); color: #60a5fa; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; margin-bottom: 20px;">
+        <span style="width: 7px; height: 7px; background: #60a5fa; border-radius: 50%; box-shadow: 0 0 8px #60a5fa; animation: pulse-border 1.5s infinite;"></span>
+        <span>AWAITING PROCTOR INITIATION</span>
+      </div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 12px; letter-spacing: -0.01em;">Assessment Not Started</h2>
+      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+        The exam administrator has not yet initiated the examination fleet. Please remain on this screen; your assessment session will begin automatically as soon as the proctor hits <strong>Go Live</strong>.
+      </p>
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-hair); border-radius: 4px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
+        <span style="color: var(--text-dim);">Candidate Identifier:</span>
+        <span id="overlay-cand-id" style="font-weight: 600; color: #fff;"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- EXAM CONCLUDED OVERLAY -->
+  <div id="exam-concluded-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
+    <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel);">
+      <div style="font-size: 36px; color: #f87171; margin-bottom: 16px;">⏹</div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 12px;">Assessment Concluded</h2>
+      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+        The examination session has been concluded by the proctor or the exam time duration has expired. All code submissions are now closed.
+      </p>
+      <div style="display: inline-block; background: #1a0f0f; border: 1px solid #3b1818; color: #f87171; font-size: 11.5px; font-weight: 600; padding: 5px 14px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;">
+        Session Terminated & Locked
+      </div>
+    </div>
+  </div>
+
   <script>
     // =========================================================================
-    // STATE & CANONICAL STARTER BOILERPLATES
+    // PERSISTENT CANDIDATE IDENTITY (localStorage across sessions & reloads)
     // =========================================================================
-    const CANDIDATE_ID = sessionStorage.getItem('citadel_candidate_id') || ("CAND-" + Math.floor(1000 + Math.random() * 9000));
-    sessionStorage.setItem('citadel_candidate_id', CANDIDATE_ID);
+    let candidateId = localStorage.getItem('citadel_candidate_id');
+    if (!candidateId) {
+      const randNum = Math.floor(100000 + Math.random() * 900000);
+      candidateId = `CAND-${randNum}`;
+      localStorage.setItem('citadel_candidate_id', candidateId);
+    }
+    const CANDIDATE_ID = candidateId;
+    const overlayCandIdEl = document.getElementById('overlay-cand-id');
+    if (overlayCandIdEl) overlayCandIdEl.innerText = CANDIDATE_ID;
 
+    // =========================================================================
+    // STATE & PROBLEM BANK
+    // =========================================================================
     let currentLang = "python";
+    let questionsList = [];
+    let activeQuestion = null;
     let samplePassed = false;
     let latestDiffs = [];
     let activeCaseIdx = 0;
     let editor = null;
+    let examStartedOnce = false;
+    let remainingSeconds = 90 * 60;
+    let timerInterval = null;
 
-    const SAMPLE_CASES = [
-      { input: "2 7 11 15 9", expected_output: "0 1" },
-      { input: "3 2 4 6", expected_output: "1 2" },
-      { input: "3 3 6", expected_output: "0 1" }
-    ];
-
-    const STARTERS = {
-      python: `import sys
-
-def two_sum(nums, target):
-    # Write your solution here
-    # Return a list containing the two indices [i, j]
-    seen = {}
-    for i, num in enumerate(nums):
-        diff = target - num
-        if diff in seen:
-            return [seen[diff], i]
-        seen[num] = i
-    return []
-
-if __name__ == "__main__":
-    input_data = sys.stdin.read().split()
-    if input_data:
-        target = int(input_data[-1])
-        nums = [int(x) for x in input_data[:-1]]
-        ans = two_sum(nums, target)
-        if len(ans) == 2:
-            print(f"{min(ans[0], ans[1])} {max(ans[0], ans[1])}")
-`,
-      cpp: `#include <iostream>
-#include <vector>
-#include <unordered_map>
-#include <algorithm>
-
-using namespace std;
-
-vector<int> twoSum(vector<int>& nums, int target) {
-    // Write your solution here
-    unordered_map<int, int> seen;
-    for (int i = 0; i < (int)nums.size(); i++) {
-        int diff = target - nums[i];
-        if (seen.count(diff)) {
-            return {seen[diff], i};
-        }
-        seen[nums[i]] = i;
-    }
-    return {};
-}
-
-int main() {
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-
-    vector<int> nums;
-    int val;
-    while (cin >> val) {
-        nums.push_back(val);
-    }
-    if (nums.size() >= 2) {
-        int target = nums.back();
-        nums.pop_back();
-        vector<int> ans = twoSum(nums, target);
-        if (ans.size() == 2) {
-            cout << min(ans[0], ans[1]) << " " << max(ans[0], ans[1]) << "\n";
-        }
-    }
-    return 0;
-}
-`,
-      java: `import java.util.*;
-
-public class Solution {
-    public static int[] twoSum(int[] nums, int target) {
-        // Write your solution here
-        Map<Integer, Integer> seen = new HashMap<>();
-        for (int i = 0; i < nums.length; i++) {
-            int diff = target - nums[i];
-            if (seen.containsKey(diff)) {
-                return new int[]{seen.get(diff), i};
-            }
-            seen.put(nums[i], i);
-        }
-        return new int[]{};
-    }
-
-    public static void main(String[] args) {
-        Scanner sc = new Scanner(System.in);
-        List<Integer> list = new ArrayList<>();
-        while (sc.hasNextInt()) {
-            list.add(sc.nextInt());
-        }
-        if (list.size() >= 2) {
-            int target = list.remove(list.size() - 1);
-            int[] nums = new int[list.size()];
-            for (int i = 0; i < list.size(); i++) {
-                nums[i] = list.get(i);
-            }
-            int[] ans = twoSum(nums, target);
-            if (ans != null && ans.length == 2) {
-                System.out.println(Math.min(ans[0], ans[1]) + " " + Math.max(ans[0], ans[1]));
-            }
-        }
-    }
-}
-`
-    };
-
-    const codeStore = { ...STARTERS };
+    // Code store: [question_id][language] -> string
+    const questionCodeStore = {};
 
     // =========================================================================
     // ACE EDITOR INITIALIZATION (VIVID ONE DARK SYNTAX)
@@ -1169,7 +1076,6 @@ public class Solution {
       });
 
       editor.session.setMode("ace/mode/python");
-      editor.setValue(STARTERS.python, -1);
 
       editor.selection.on('changeCursor', () => {
         const pos = editor.getCursorPosition();
@@ -1184,9 +1090,137 @@ public class Solution {
       });
     }
 
+    // =========================================================================
+    // QUESTION BANK & PROBLEM NAVIGATION
+    // =========================================================================
+    async function fetchQuestions() {
+      try {
+        const res = await fetch('/api/v1/questions');
+        if (!res.ok) return;
+        const summaries = await res.json();
+        if (!summaries || summaries.length === 0) return;
+
+        // Fetch full question detail for each
+        const fullQuestions = [];
+        for (const s of summaries) {
+          const qRes = await fetch(`/api/v1/questions/${s.id}`);
+          if (qRes.ok) {
+            const qData = await qRes.json();
+            fullQuestions.push(qData);
+          }
+        }
+
+        questionsList = fullQuestions;
+        renderQuestionTabs();
+        if (!activeQuestion && questionsList.length > 0) {
+          selectQuestion(questionsList[0].id);
+        }
+      } catch (err) {
+        console.error("fetchQuestions error:", err);
+      }
+    }
+
+    function renderQuestionTabs() {
+      const container = document.getElementById('problem-tab-list');
+      if (!container) return;
+      container.innerHTML = questionsList.map((q, idx) => {
+        const isActive = activeQuestion && activeQuestion.id === q.id;
+        const activeClass = isActive ? 'active' : '';
+        return `
+          <button class="q-tab-btn ${activeClass}" onclick="selectQuestion('${q.id}')">
+            #${q.number} ${q.title} (${q.points} pts)
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectQuestion(qId) {
+      const targetQ = questionsList.find(q => q.id === qId);
+      if (!targetQ) return;
+
+      // 1. Save current question editor code
+      if (activeQuestion && editor) {
+        if (!questionCodeStore[activeQuestion.id]) questionCodeStore[activeQuestion.id] = {};
+        questionCodeStore[activeQuestion.id][currentLang] = editor.getValue();
+      }
+
+      activeQuestion = targetQ;
+      renderQuestionTabs();
+      renderActiveProblemContent();
+
+      // 2. Load code for new question
+      if (!questionCodeStore[targetQ.id]) questionCodeStore[targetQ.id] = {};
+      const savedCode = questionCodeStore[targetQ.id][currentLang];
+      const templateCode = (targetQ.starter_templates && targetQ.starter_templates[currentLang]) || "";
+      const codeToLoad = savedCode !== undefined ? savedCode : templateCode;
+
+      if (editor) {
+        editor.setValue(codeToLoad, -1);
+      }
+
+      samplePassed = false;
+      latestDiffs = [];
+      activeCaseIdx = 0;
+      lockSubmitButton("Run Sample Cases First");
+      updateCasePills();
+      renderCaseDetails(0);
+
+      // 3. Heartbeat update
+      sendHeartbeat();
+    }
+
+    function renderActiveProblemContent() {
+      if (!activeQuestion) return;
+      const q = activeQuestion;
+
+      let diffClass = 'diff-easy';
+      if (q.difficulty === 'Medium') diffClass = 'diff-medium';
+      else if (q.difficulty === 'Hard') diffClass = 'diff-hard';
+
+      const metaEl = document.getElementById('q-meta-container');
+      if (metaEl) {
+        metaEl.innerHTML = `
+          <span class="diff-badge ${diffClass}">${q.difficulty}</span>
+          <span class="points-badge">${q.points} Points</span>
+          ${(q.tags || []).map(t => `<span class="tag-pill">${escapeHtml(t)}</span>`).join('')}
+        `;
+      }
+
+      const titleEl = document.getElementById('q-title');
+      if (titleEl) titleEl.innerText = `${q.number}. ${q.title}`;
+
+      const descEl = document.getElementById('q-desc');
+      if (descEl) descEl.innerHTML = q.description;
+
+      const examplesEl = document.getElementById('q-examples-container');
+      if (examplesEl) {
+        examplesEl.innerHTML = (q.sample_cases || []).map((tc, idx) => `
+          <div class="test-card">
+            <div class="test-card-title">Example ${idx + 1}</div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
+            <code class="code-snippet">${escapeHtml(tc.input)}</code>
+            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; margin-top: 8px;">Expected Output:</div>
+            <code class="code-snippet">${escapeHtml(tc.expected_output)}</code>
+            ${tc.explanation ? `<div style="font-size: 12.5px; color: var(--text-muted); margin-top: 8px;">Explanation: ${escapeHtml(tc.explanation)}</div>` : ''}
+          </div>
+        `).join('');
+      }
+
+      const constraintsEl = document.getElementById('q-constraints-list');
+      if (constraintsEl) {
+        constraintsEl.innerHTML = (q.constraints || []).map(c => `<li><code>${escapeHtml(c)}</code></li>`).join('');
+      }
+    }
+
     function switchLanguage(targetLang) {
       if (!editor || targetLang === currentLang) return;
-      codeStore[currentLang] = editor.getValue();
+
+      // Save current code
+      if (activeQuestion) {
+        if (!questionCodeStore[activeQuestion.id]) questionCodeStore[activeQuestion.id] = {};
+        questionCodeStore[activeQuestion.id][currentLang] = editor.getValue();
+      }
+
       currentLang = targetLang;
 
       document.querySelectorAll('.lang-tab').forEach(el => el.classList.remove('active'));
@@ -1196,7 +1230,17 @@ public class Solution {
       const labelMap = { python: 'PYTHON 3', cpp: 'C++ 17', java: 'JAVA 17' };
 
       editor.session.setMode(modeMap[targetLang]);
-      editor.setValue(codeStore[targetLang] || STARTERS[targetLang], -1);
+
+      // Load target code
+      let codeToLoad = "";
+      if (activeQuestion) {
+        if (questionCodeStore[activeQuestion.id] && questionCodeStore[activeQuestion.id][targetLang] !== undefined) {
+          codeToLoad = questionCodeStore[activeQuestion.id][targetLang];
+        } else if (activeQuestion.starter_templates && activeQuestion.starter_templates[targetLang]) {
+          codeToLoad = activeQuestion.starter_templates[targetLang];
+        }
+      }
+      editor.setValue(codeToLoad, -1);
       document.getElementById('status-lang-text').innerText = labelMap[targetLang];
 
       samplePassed = false;
@@ -1205,9 +1249,12 @@ public class Solution {
     }
 
     function resetStarterTemplate() {
-      if (!editor) return;
+      if (!editor || !activeQuestion) return;
       if (confirm("Reset current editor code to starter boilerplate? Any unsaved edits will be replaced.")) {
-        editor.setValue(STARTERS[currentLang], -1);
+        const templateCode = (activeQuestion.starter_templates && activeQuestion.starter_templates[currentLang]) || "";
+        editor.setValue(templateCode, -1);
+        if (!questionCodeStore[activeQuestion.id]) questionCodeStore[activeQuestion.id] = {};
+        questionCodeStore[activeQuestion.id][currentLang] = templateCode;
         samplePassed = false;
         lockSubmitButton("Run Sample Cases First");
       }
@@ -1218,6 +1265,7 @@ public class Solution {
     // =========================================================================
     function lockSubmitButton(label) {
       const btn = document.getElementById('submit-btn');
+      if (!btn) return;
       btn.disabled = true;
       btn.className = "btn-action btn-submit locked";
       document.getElementById('submit-icon').innerText = "🔒";
@@ -1226,6 +1274,7 @@ public class Solution {
 
     function unlockSubmitButton() {
       const btn = document.getElementById('submit-btn');
+      if (!btn) return;
       btn.disabled = false;
       btn.className = "btn-action btn-submit unlocked";
       document.getElementById('submit-icon').innerText = "✓";
@@ -1233,13 +1282,14 @@ public class Solution {
     }
 
     async function runSampleCases() {
+      if (!activeQuestion) return;
       const runBtn = document.getElementById('btn-run');
       runBtn.disabled = true;
       runBtn.innerText = "Running...";
 
       const code = editor.getValue();
       const consoleOut = document.getElementById('console-output');
-      consoleOut.innerText = "Compiling and evaluating against sample test cases...";
+      consoleOut.innerText = `Compiling and evaluating against sample test cases for ${activeQuestion.title}...`;
 
       try {
         const response = await fetch('/api/v1/submissions', {
@@ -1247,7 +1297,7 @@ public class Solution {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             candidate_id: CANDIDATE_ID,
-            question_id: 'q1-two-sum',
+            question_id: activeQuestion.id,
             language: currentLang,
             source_code: code,
             is_sample_run: true
@@ -1263,12 +1313,25 @@ public class Solution {
           return;
         }
 
-        if (data.error_message) {
-          consoleOut.innerText = "Execution Error:\n" + data.error_message;
+        if (data.status === "Exam Inactive") {
+          alert("The assessment is currently not active. Please wait for the recruiter to start the exam.");
+          return;
+        }
+
+        if (data.status === "Compilation Error" || data.status === "Runtime Error") {
+          consoleOut.innerText = `Status: ${data.status}
+
+Diagnostics:
+${data.details}`;
           switchDrawerTab('console');
           lockSubmitButton("Fix Errors & Re-run");
+          updateCasePills();
+          renderCaseDetails(activeCaseIdx);
         } else {
-          consoleOut.innerText = `Evaluated ${data.total_cases} sample cases: ${data.passed_cases}/${data.total_cases} passed. (${data.runtime_ms} ms)`;
+          consoleOut.innerText = `Evaluated ${data.total_cases} sample cases: ${data.passed_cases}/${data.total_cases} passed. (${data.runtime_ms} ms)
+Status: ${data.status}
+
+${data.details}`;
 
           updateCasePills();
           renderCaseDetails(activeCaseIdx);
@@ -1282,7 +1345,8 @@ public class Solution {
           }
         }
       } catch (err) {
-        consoleOut.innerText = "Network / System Error during execution:\n" + err.message;
+        consoleOut.innerText = "Network / System Error during execution:
+" + err.message;
         switchDrawerTab('console');
       } finally {
         runBtn.disabled = false;
@@ -1296,7 +1360,7 @@ public class Solution {
     }
 
     async function submitFinalCode() {
-      if (!samplePassed) return;
+      if (!samplePassed || !activeQuestion) return;
       const submitBtn = document.getElementById('submit-btn');
       submitBtn.disabled = true;
       document.getElementById('submit-label').innerText = "Submitting Final...";
@@ -1308,7 +1372,7 @@ public class Solution {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             candidate_id: CANDIDATE_ID,
-            question_id: 'q1-two-sum',
+            question_id: activeQuestion.id,
             language: currentLang,
             source_code: code,
             is_sample_run: false
@@ -1321,8 +1385,11 @@ public class Solution {
           return;
         }
 
-        alert(`Final Submission Result: ${data.status}\nPassed ${data.passed_cases} of ${data.total_cases} test cases!`);
-        document.getElementById('conclusion-screen').style.display = 'flex';
+        alert(`Submission Result for ${activeQuestion.title}:
+Status: ${data.status}
+Passed: ${data.passed_cases} of ${data.total_cases} test cases!
+Score Awarded: ${data.score} pts`);
+        sendHeartbeat();
       } catch (err) {
         alert("Failed to submit final solution: " + err.message);
         unlockSubmitButton();
@@ -1334,7 +1401,10 @@ public class Solution {
     // =========================================================================
     function updateCasePills() {
       const container = document.getElementById('case-pill-container');
-      container.innerHTML = SAMPLE_CASES.map((_, idx) => {
+      if (!container || !activeQuestion) return;
+      const sampleCases = activeQuestion.sample_cases || [];
+
+      container.innerHTML = sampleCases.map((_, idx) => {
         const diff = latestDiffs[idx];
         const isPassed = diff && (diff.is_passed === true || diff.passed === true);
         const activeClass = idx === activeCaseIdx ? 'active' : '';
@@ -1351,21 +1421,30 @@ public class Solution {
     }
 
     function renderCaseDetails(idx) {
-      const sample = SAMPLE_CASES[idx];
+      if (!activeQuestion) return;
+      const sampleCases = activeQuestion.sample_cases || [];
+      const sample = sampleCases[idx];
+      if (!sample) return;
+
       const diff = latestDiffs[idx];
 
-      document.getElementById('case-input').innerText = sample.input;
-      document.getElementById('case-expected').innerText = sample.expected_output;
-
+      const inBox = document.getElementById('case-input');
+      const expBox = document.getElementById('case-expected');
       const actualBox = document.getElementById('case-actual');
-      if (diff) {
-        const isPassed = diff.is_passed === true || diff.passed === true;
-        const actualVal = diff.actual !== undefined ? diff.actual : (diff.actual_output !== undefined ? diff.actual_output : '(Empty)');
-        actualBox.innerText = actualVal;
-        actualBox.style.color = isPassed ? '#34d399' : '#f87171';
-      } else {
-        actualBox.innerText = 'Click "Run Code" to compile and execute against sample test cases';
-        actualBox.style.color = 'var(--text-dim)';
+
+      if (inBox) inBox.innerText = sample.input;
+      if (expBox) expBox.innerText = sample.expected_output;
+
+      if (actualBox) {
+        if (diff) {
+          const isPassed = diff.is_passed === true || diff.passed === true;
+          const actualVal = diff.actual !== undefined ? diff.actual : (diff.actual_output !== undefined ? diff.actual_output : '(Empty)');
+          actualBox.innerText = actualVal;
+          actualBox.style.color = isPassed ? '#34d399' : '#f87171';
+        } else {
+          actualBox.innerText = 'Click "Run Code" to compile and execute against sample test cases';
+          actualBox.style.color = 'var(--text-dim)';
+        }
       }
     }
 
@@ -1385,7 +1464,7 @@ public class Solution {
     }
 
     // =========================================================================
-    // ROCK-SOLID WINDOW RESIZE CUSTOMIZATION (VERTICAL & HORIZONTAL)
+    // RESIZERS
     // =========================================================================
     function initResizers() {
       const resizerV = document.getElementById('resizer-v');
@@ -1398,7 +1477,6 @@ public class Solution {
       let isDraggingV = false;
       let isDraggingH = false;
 
-      // Pointer Event binding with pointer capture
       resizerV.addEventListener('pointerdown', (e) => {
         try { resizerV.setPointerCapture(e.pointerId); } catch(err) {}
         isDraggingV = true;
@@ -1478,6 +1556,7 @@ public class Solution {
       window.addEventListener('pointerup', endDrag);
       window.addEventListener('mouseup', endDrag);
       window.addEventListener('mouseleave', endDrag);
+
       if (dragOverlay) {
         dragOverlay.addEventListener('pointerup', endDrag);
         dragOverlay.addEventListener('mouseup', endDrag);
@@ -1489,49 +1568,77 @@ public class Solution {
     }
 
     // =========================================================================
-    // TIMER & SECURITY HEARTBEAT
+    // EXAM STATUS, TIMER & LIVE CONTROL
     // =========================================================================
-    const TOTAL_EXAM_SECONDS = 90 * 60; // 1 hour 30 mins
-    let startTime = sessionStorage.getItem('citadel_start_time');
-    if (!startTime) {
-      startTime = Date.now();
-      sessionStorage.setItem('citadel_start_time', startTime);
-    } else {
-      startTime = parseInt(startTime, 10);
+    async function checkExamStatus() {
+      try {
+        const res = await fetch('/api/v1/exam/status');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const notStartedOverlay = document.getElementById('exam-not-started-overlay');
+        const concludedOverlay = document.getElementById('exam-concluded-overlay');
+
+        if (data.is_live) {
+          examStartedOnce = true;
+          if (notStartedOverlay) notStartedOverlay.style.display = 'none';
+          if (concludedOverlay) concludedOverlay.style.display = 'none';
+
+          remainingSeconds = data.remaining_seconds;
+          updateTimerUI(remainingSeconds);
+
+          if (questionsList.length === 0) {
+            await fetchQuestions();
+          }
+        } else {
+          if (examStartedOnce || data.ended_at) {
+            // Exam was live and has ended
+            if (notStartedOverlay) notStartedOverlay.style.display = 'none';
+            if (concludedOverlay) concludedOverlay.style.display = 'flex';
+            lockSubmitButton("Exam Concluded");
+            const runBtn = document.getElementById('btn-run');
+            if (runBtn) runBtn.disabled = true;
+          } else {
+            // Exam has not started yet
+            if (notStartedOverlay) notStartedOverlay.style.display = 'flex';
+            if (concludedOverlay) concludedOverlay.style.display = 'none';
+          }
+        }
+      } catch (err) {
+        console.error("checkExamStatus error:", err);
+      }
     }
 
-    function updateTimer() {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      const remainingSeconds = Math.max(0, TOTAL_EXAM_SECONDS - elapsed);
-
-      const h = String(Math.floor(remainingSeconds / 3600)).padStart(2, '0');
-      const m = String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, '0');
-      const s = String(remainingSeconds % 60).padStart(2, '0');
+    function updateTimerUI(secs) {
+      const h = String(Math.floor(secs / 3600)).padStart(2, '0');
+      const m = String(Math.floor((secs % 3600) / 60)).padStart(2, '0');
+      const s = String(secs % 60).padStart(2, '0');
 
       const timerEl = document.getElementById('timer-display');
       const timerBox = document.getElementById('timer-box');
 
       if (timerEl) timerEl.innerText = `${h}:${m}:${s}`;
       if (timerBox) {
-        if (remainingSeconds <= 300) {
+        if (secs <= 300) {
           timerBox.className = "timer-container timer-danger";
-        } else if (remainingSeconds <= 600) {
+        } else if (secs <= 600) {
           timerBox.className = "timer-container timer-warning";
         } else {
           timerBox.className = "timer-container";
         }
       }
 
-      if (remainingSeconds === 0) {
-        clearInterval(timerInterval);
-        alert("Assessment time has expired! Your code is being submitted automatically.");
-        submitFinalCode();
-        setTimeout(executeEndExam, 3000);
+      if (secs === 0 && examStartedOnce) {
+        checkExamStatus();
       }
     }
 
-    const timerInterval = setInterval(updateTimer, 1000);
-    updateTimer();
+    function tickTimer() {
+      if (remainingSeconds > 0 && examStartedOnce) {
+        remainingSeconds--;
+        updateTimerUI(remainingSeconds);
+      }
+    }
 
     // =========================================================================
     // END EXAM FLOW
@@ -1570,21 +1677,28 @@ public class Solution {
     }
 
     function sendHeartbeat() {
+      const activeQNum = activeQuestion ? activeQuestion.number : 1;
       fetch('/api/v1/integrity/heartbeat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           candidate_id: CANDIDATE_ID,
-          active_question: 1,
+          active_question: activeQNum,
           is_window_focused: document.hasFocus(),
         })
       }).catch(() => {});
     }
 
-    // Heartbeat on load and every 5s
-    sendHeartbeat();
-    setInterval(sendHeartbeat, 5000);
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
 
+    // Event listeners
     window.addEventListener('beforeunload', () => {
       try {
         navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
@@ -1607,12 +1721,15 @@ public class Solution {
       }).catch(() => {});
     });
 
-    // Initialize Ace & Resizers on page load
+    // Page initialization
     window.addEventListener('DOMContentLoaded', () => {
       initAceEditor();
       initResizers();
-      updateCasePills();
-      renderCaseDetails(0);
+      checkExamStatus();
+      setInterval(checkExamStatus, 2500);
+      setInterval(tickTimer, 1000);
+      sendHeartbeat();
+      setInterval(sendHeartbeat, 5000);
     });
   </script>
 </body>

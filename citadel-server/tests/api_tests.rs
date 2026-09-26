@@ -6,6 +6,24 @@ use http_body_util::BodyExt;
 use serde_json::json;
 use tower::ServiceExt;
 
+
+use axum::Router;
+
+async fn set_exam_live(app: &Router) {
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/exam/go-live?key=citadel-recruiter-key-2026")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+}
+
 use citadel_server::{
     api::{HealthResponse, ProctorDashboardData, SubmissionResponse},
     build_app,
@@ -80,12 +98,15 @@ async fn test_exam_info_endpoint() {
 
     assert_eq!(info.exam_id, "citadel-campus-2026-drive");
     assert_eq!(info.duration_minutes, 90);
-    assert_eq!(info.total_points, 100);
+    assert_eq!(info.total_points, 300);
+    assert_eq!(info.total_questions, 3);
 }
 
 #[tokio::test]
 async fn test_list_questions_endpoint() {
     let app = build_app();
+    set_exam_live(&app).await;
+
     let response = app
         .oneshot(
             Request::builder()
@@ -100,15 +121,126 @@ async fn test_list_questions_endpoint() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let questions: Vec<QuestionSummary> = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(questions.len(), 1);
+    assert_eq!(questions.len(), 3);
     assert_eq!(questions[0].id, "q1-two-sum");
-    assert_eq!(questions[0].title, "Two Sum");
+    assert_eq!(questions[1].id, "q2-three-sum");
+    assert_eq!(questions[2].id, "q3-find-largest-element");
     assert_eq!(questions[0].points, 100);
+    assert_eq!(questions[1].points, 150);
+    assert_eq!(questions[2].points, 50);
+}
+
+#[tokio::test]
+async fn test_exam_not_live_blocks_candidate_access() {
+    let app = build_app();
+
+    // 1. Questions endpoint returns empty array when not live
+    let q_res = app.clone()
+        .oneshot(Request::builder().uri("/api/v1/questions").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(q_res.status(), StatusCode::OK);
+    let q_body = q_res.into_body().collect().await.unwrap().to_bytes();
+    let questions: Vec<QuestionSummary> = serde_json::from_slice(&q_body).unwrap();
+    assert_eq!(questions.len(), 0);
+
+    // 2. Direct question detail returns 403 Forbidden when not live
+    let det_res = app.clone()
+        .oneshot(Request::builder().uri("/api/v1/questions/q1-two-sum").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(det_res.status(), StatusCode::FORBIDDEN);
+
+    // 3. Submissions return Exam Inactive status when not live
+    let sub_res = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/submissions")
+                .header("Content-Type", "application/json")
+                .body(Body::from(json!({
+                    "question_id": "q1-two-sum",
+                    "language": "python",
+                    "source_code": "print('hello')",
+                    "is_sample_run": true,
+                    "candidate_id": "CAND-OFFLINE"
+                }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(sub_res.status(), StatusCode::OK);
+    let sub_body = sub_res.into_body().collect().await.unwrap().to_bytes();
+    let sub_data: SubmissionResponse = serde_json::from_slice(&sub_body).unwrap();
+    assert_eq!(sub_data.status, "Exam Inactive");
+}
+
+#[tokio::test]
+async fn test_admin_go_live_and_stop_live_lifecycle() {
+    let app = build_app();
+
+    // 1. Initial status -> not live
+    let st1_res = app.clone()
+        .oneshot(Request::builder().uri("/api/v1/exam/status").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(st1_res.status(), StatusCode::OK);
+    let st1_body = st1_res.into_body().collect().await.unwrap().to_bytes();
+    let st1: serde_json::Value = serde_json::from_slice(&st1_body).unwrap();
+    assert_eq!(st1["is_live"], false);
+
+    // 2. Go Live via admin endpoint
+    set_exam_live(&app).await;
+
+    // 3. Status should now be live
+    let st2_res = app.clone()
+        .oneshot(Request::builder().uri("/api/v1/exam/status").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(st2_res.status(), StatusCode::OK);
+    let st2_body = st2_res.into_body().collect().await.unwrap().to_bytes();
+    let st2: serde_json::Value = serde_json::from_slice(&st2_body).unwrap();
+    assert_eq!(st2["is_live"], true);
+    assert!(st2["remaining_seconds"].as_u64().unwrap() > 0);
+
+    // 4. Questions now accessible
+    let q_res = app.clone()
+        .oneshot(Request::builder().uri("/api/v1/questions").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(q_res.status(), StatusCode::OK);
+    let q_body = q_res.into_body().collect().await.unwrap().to_bytes();
+    let q_list: Vec<QuestionSummary> = serde_json::from_slice(&q_body).unwrap();
+    assert_eq!(q_list.len(), 3);
+
+    // 5. Stop live via admin endpoint
+    let stop_res = app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/exam/stop-live?key=citadel-recruiter-key-2026")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stop_res.status(), StatusCode::OK);
+
+    // 6. Status now ended / not live
+    let st3_res = app.clone()
+        .oneshot(Request::builder().uri("/api/v1/exam/status").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(st3_res.status(), StatusCode::OK);
+    let st3_body = st3_res.into_body().collect().await.unwrap().to_bytes();
+    let st3: serde_json::Value = serde_json::from_slice(&st3_body).unwrap();
+    assert_eq!(st3["is_live"], false);
 }
 
 #[tokio::test]
 async fn test_get_single_question() {
     let app = build_app();
+    set_exam_live(&app).await;
     let response = app
         .oneshot(
             Request::builder()
@@ -136,6 +268,7 @@ async fn test_get_single_question() {
 #[tokio::test]
 async fn test_get_invalid_question_returns_404() {
     let app = build_app();
+    set_exam_live(&app).await;
     let response = app
         .oneshot(
             Request::builder()
@@ -152,6 +285,7 @@ async fn test_get_invalid_question_returns_404() {
 #[tokio::test]
 async fn test_real_judge_correct_python_solution() {
     let app = build_app();
+    set_exam_live(&app).await;
     let payload = json!({
         "question_id": "q1-two-sum",
         "language": "python",
@@ -185,6 +319,7 @@ async fn test_real_judge_correct_python_solution() {
 #[tokio::test]
 async fn test_real_judge_bogus_code_fails() {
     let app = build_app();
+    set_exam_live(&app).await;
     let payload = json!({
         "question_id": "q1-two-sum",
         "language": "python",
@@ -218,6 +353,7 @@ async fn test_real_judge_bogus_code_fails() {
 #[tokio::test]
 async fn test_real_judge_wrong_answer() {
     let app = build_app();
+    set_exam_live(&app).await;
     let payload = json!({
         "question_id": "q1-two-sum",
         "language": "python",
@@ -249,6 +385,7 @@ async fn test_real_judge_wrong_answer() {
 #[tokio::test]
 async fn test_final_submission_evaluates_hidden_cases() {
     let app = build_app();
+    set_exam_live(&app).await;
     let payload = json!({
         "question_id": "q1-two-sum",
         "language": "python",
@@ -351,7 +488,8 @@ async fn test_secured_portal_html_serves_exam() {
 
     assert!(html.contains("<!DOCTYPE html>"));
     assert!(html.contains("CITADEL"));
-    assert!(html.contains("Two Sum"));
+    assert!(html.contains("checkExamStatus"));
+    assert!(html.contains("exam-not-started-overlay"));
     assert!(html.contains("code-editor"));
     assert!(html.contains("submit-btn"));
     assert!(html.contains("drawer-console"));
@@ -547,6 +685,7 @@ async fn test_candidate_focus_loss_flags_candidate() {
 #[tokio::test]
 async fn test_submission_error_and_pass_metrics_alignment() {
     let app = build_app();
+    set_exam_live(&app).await;
     let cand_id = "cand-sub-metrics-04";
 
     // Initial metrics
@@ -647,6 +786,7 @@ async fn test_submission_error_and_pass_metrics_alignment() {
 #[tokio::test]
 async fn test_admin_disqualification_and_submission_block() {
     let app = build_app();
+    set_exam_live(&app).await;
     let cand_id = "cand-disq-test-05";
 
     // Register candidate
@@ -726,6 +866,7 @@ async fn test_admin_disqualification_and_submission_block() {
 #[tokio::test]
 async fn test_admin_dynamic_testcase_management() {
     let app = build_app();
+    set_exam_live(&app).await;
 
     // 1. Add new sample test case
     let add_res = app
@@ -795,7 +936,8 @@ async fn test_admin_dynamic_testcase_management() {
 #[tokio::test]
 async fn test_portal_and_recruiter_ui_rendering_complete() {
     let portal_html = citadel_server::ui::render_portal_html();
-    assert!(portal_html.contains("Two Sum"));
+    assert!(portal_html.contains("checkExamStatus"));
+    assert!(portal_html.contains("exam-not-started-overlay"));
     assert!(portal_html.contains("code-editor"));
     assert!(portal_html.contains("submit-btn"));
     assert!(portal_html.contains("lang-select"));
@@ -812,6 +954,8 @@ async fn test_portal_and_recruiter_ui_rendering_complete() {
     assert!(recruiter_html.contains("stat-logged-out"));
     assert!(recruiter_html.contains("stat-disqualified"));
     assert!(recruiter_html.contains("stat-subs"));
+    assert!(recruiter_html.contains("btn-toggle-live"));
+    assert!(recruiter_html.contains("exam-status-badge"));
     assert!(recruiter_html.contains("status-logged-out"));
     assert!(recruiter_html.contains("fetchMetrics"));
 }

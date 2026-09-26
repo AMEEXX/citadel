@@ -71,7 +71,7 @@ pub struct CandidateSession {
     pub active_question: u32,
     pub violations_count: u32,
     pub last_seen: String,
-    pub status: String, // "Active", "Flagged", "Disqualified"
+    pub status: String, // "Active", "Flagged", "Disqualified", "Logged Out"
     pub total_score: u32,
 }
 
@@ -89,6 +89,23 @@ pub struct SubmissionRecord {
     pub timestamp: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExamLiveState {
+    pub is_live: bool,
+    pub started_at: Option<String>,
+    pub duration_minutes: u32,
+    pub ended_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExamStatusResponse {
+    pub is_live: bool,
+    pub started_at: Option<String>,
+    pub remaining_seconds: u64,
+    pub total_duration_minutes: u32,
+    pub ended_at: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProctorDashboardData {
     pub total_candidates: usize,
@@ -103,6 +120,7 @@ pub struct ProctorDashboardData {
     pub recent_violations: Vec<IntegrityEvent>,
     pub recent_submissions: Vec<SubmissionRecord>,
     pub questions: Vec<Question>,
+    pub exam_live: ExamLiveState,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -157,6 +175,7 @@ pub struct AppState {
     pub violations: Arc<Mutex<Vec<IntegrityEvent>>>,
     pub submissions: Arc<Mutex<Vec<SubmissionRecord>>>,
     pub questions: Arc<RwLock<Vec<Question>>>,
+    pub exam_live: Arc<RwLock<ExamLiveState>>,
     pub admin_key: String,
 }
 
@@ -165,47 +184,23 @@ impl Default for AppState {
         let admin_key = std::env::var("CITADEL_ADMIN_KEY")
             .unwrap_or_else(|_| "citadel-recruiter-key-2026".to_string());
 
-        let state = AppState {
+        let initial_live = std::env::var("CITADEL_EXAM_AUTO_LIVE")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        AppState {
             candidates: Arc::new(Mutex::new(HashMap::new())),
             violations: Arc::new(Mutex::new(Vec::new())),
             submissions: Arc::new(Mutex::new(Vec::new())),
             questions: Arc::new(RwLock::new(get_all_questions())),
+            exam_live: Arc::new(RwLock::new(ExamLiveState {
+                is_live: initial_live,
+                started_at: if initial_live { Some(chrono::Utc::now().to_rfc3339()) } else { None },
+                duration_minutes: 90,
+                ended_at: None,
+            })),
             admin_key,
-        };
-
-        // Seed initial candidates for demo monitoring
-        {
-            let mut cands = state.candidates.lock().unwrap();
-            cands.insert("CAND-2026-001".to_string(), CandidateSession {
-                candidate_id: "CAND-2026-001".to_string(),
-                ip_address: "172.60.5.101".to_string(),
-                active_question: 1,
-                violations_count: 0,
-                last_seen: chrono::Utc::now().to_rfc3339(),
-                status: "Active".to_string(),
-                total_score: 0,
-            });
-            cands.insert("CAND-2026-002".to_string(), CandidateSession {
-                candidate_id: "CAND-2026-002".to_string(),
-                ip_address: "172.60.5.102".to_string(),
-                active_question: 1,
-                violations_count: 2,
-                last_seen: chrono::Utc::now().to_rfc3339(),
-                status: "Flagged".to_string(),
-                total_score: 0,
-            });
-            cands.insert("CAND-2026-003".to_string(), CandidateSession {
-                candidate_id: "CAND-2026-003".to_string(),
-                ip_address: "172.60.5.103".to_string(),
-                active_question: 1,
-                violations_count: 0,
-                last_seen: (chrono::Utc::now() - chrono::Duration::seconds(120)).to_rfc3339(),
-                status: "Logged Out".to_string(),
-                total_score: 0,
-            });
         }
-
-        state
     }
 }
 
@@ -252,6 +247,7 @@ pub fn build_app() -> Router {
         .route("/static/ace.bundle.js", get(serve_ace_bundle_handler))
         .route("/health", get(health_handler))
         .route("/api/v1/exam/info", get(exam_info_handler))
+        .route("/api/v1/exam/status", get(exam_status_handler))
         .route("/api/v1/questions", get(list_questions_handler))
         .route("/api/v1/questions/:id", get(get_question_handler))
         .route("/api/v1/submissions", post(submit_code_handler))
@@ -263,6 +259,8 @@ pub fn build_app() -> Router {
         .route("/admin", get(admin_page_handler))
         .route("/proctor", get(proctor_redirect_handler))
         .route("/api/v1/admin/metrics", get(admin_metrics_handler))
+        .route("/api/v1/admin/exam/go-live", post(admin_go_live_handler))
+        .route("/api/v1/admin/exam/stop-live", post(admin_stop_live_handler))
         .route("/api/v1/admin/candidates/:id/disqualify", post(admin_disqualify_candidate_handler))
         .route("/api/v1/admin/candidates/:id/clear-flag", post(admin_clear_flag_candidate_handler))
         .route("/api/v1/admin/questions", post(admin_create_question_handler))
@@ -340,7 +338,46 @@ async fn exam_info_handler() -> Json<ExamInfo> {
     Json(get_exam_info())
 }
 
+async fn exam_status_handler(State(state): State<AppState>) -> Json<ExamStatusResponse> {
+    let mut live_lock = state.exam_live.write().unwrap();
+    let total_secs = (live_lock.duration_minutes as i64) * 60;
+    let mut remaining_seconds = 0u64;
+
+    if live_lock.is_live {
+        if let Some(ref started_str) = live_lock.started_at {
+            if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                let now = chrono::Utc::now();
+                let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                if elapsed >= total_secs {
+                    // Time expired! Automatically conclude exam
+                    live_lock.is_live = false;
+                    live_lock.ended_at = Some(now.to_rfc3339());
+                    remaining_seconds = 0;
+                } else {
+                    remaining_seconds = (total_secs - elapsed) as u64;
+                }
+            } else {
+                remaining_seconds = total_secs as u64;
+            }
+        } else {
+            remaining_seconds = total_secs as u64;
+        }
+    }
+
+    Json(ExamStatusResponse {
+        is_live: live_lock.is_live,
+        started_at: live_lock.started_at.clone(),
+        remaining_seconds,
+        total_duration_minutes: live_lock.duration_minutes,
+        ended_at: live_lock.ended_at.clone(),
+    })
+}
+
 async fn list_questions_handler(State(state): State<AppState>) -> Json<Vec<QuestionSummary>> {
+    let live = state.exam_live.read().unwrap().is_live;
+    if !live {
+        return Json(vec![]);
+    }
     let questions = state.questions.read().unwrap();
     Json(get_question_summaries(&questions))
 }
@@ -349,6 +386,10 @@ async fn get_question_handler(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<Question>, StatusCode> {
+    let live = state.exam_live.read().unwrap().is_live;
+    if !live {
+        return Err(StatusCode::FORBIDDEN);
+    }
     let questions = state.questions.read().unwrap();
     questions
         .iter()
@@ -363,6 +404,21 @@ async fn submit_code_handler(
     State(state): State<AppState>,
     Json(payload): Json<SubmissionRequest>,
 ) -> Result<Json<SubmissionResponse>, StatusCode> {
+    let is_live = state.exam_live.read().unwrap().is_live;
+    if !is_live {
+        return Ok(Json(SubmissionResponse {
+            submission_id: format!("sub-{}", chrono::Utc::now().timestamp_millis()),
+            status: "Exam Inactive".to_string(),
+            passed_cases: 0,
+            total_cases: 0,
+            score: 0,
+            runtime_ms: 0,
+            memory_mb: 0.0,
+            details: "Assessment session is currently not active. Submissions are disabled until recruiter goes live.".to_string(),
+            sample_diffs: None,
+        }));
+    }
+
     let cand_id = payload.candidate_id.clone().unwrap_or_else(|| "CAND-DEFAULT".to_string());
 
     // 1. Check if candidate is disqualified
@@ -468,7 +524,7 @@ async fn heartbeat_handler(
     let entry = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
         candidate_id: req.candidate_id.clone(),
         ip_address: "127.0.0.1".to_string(),
-        active_question: 1,
+        active_question: req.active_question,
         violations_count: 0,
         last_seen: chrono::Utc::now().to_rfc3339(),
         status: "Active".to_string(),
@@ -561,7 +617,7 @@ async fn download_client_handler() -> Result<Response, StatusCode> {
                 .header(header::CONTENT_TYPE, "application/vnd.microsoft.portable-executable")
                 .header(
                     header::CONTENT_DISPOSITION,
-                    "attachment; filename=\"citadel-client.exe\"",
+                    r#"attachment; filename="citadel-client.exe""#,
                 )
                 .body(Body::from(bytes))
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -589,7 +645,6 @@ async fn admin_page_handler(
             .unwrap();
     }
 
-    // Set cookie if key was passed in query
     let mut builder = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
@@ -619,6 +674,35 @@ async fn proctor_redirect_handler(
     }
 }
 
+async fn admin_go_live_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ExamLiveState>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let mut live_lock = state.exam_live.write().unwrap();
+    live_lock.is_live = true;
+    live_lock.started_at = Some(chrono::Utc::now().to_rfc3339());
+    live_lock.ended_at = None;
+    Ok(Json(live_lock.clone()))
+}
+
+async fn admin_stop_live_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ExamLiveState>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let mut live_lock = state.exam_live.write().unwrap();
+    live_lock.is_live = false;
+    live_lock.ended_at = Some(chrono::Utc::now().to_rfc3339());
+    Ok(Json(live_lock.clone()))
+}
+
 async fn admin_metrics_handler(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
@@ -646,6 +730,7 @@ async fn admin_metrics_handler(
     let viols_lock = state.violations.lock().unwrap();
     let subs_lock = state.submissions.lock().unwrap();
     let questions_lock = state.questions.read().unwrap();
+    let exam_live_lock = state.exam_live.read().unwrap();
 
     let candidates: Vec<CandidateSession> = cands_lock.values().cloned().collect();
     let total_candidates = candidates.len();
@@ -676,6 +761,7 @@ async fn admin_metrics_handler(
         recent_violations: viols_lock.iter().rev().take(50).cloned().collect(),
         recent_submissions: subs_lock.iter().rev().take(50).cloned().collect(),
         questions: questions_lock.clone(),
+        exam_live: exam_live_lock.clone(),
     }))
 }
 
@@ -684,7 +770,6 @@ async fn proctor_metrics_handler(
     Query(query): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> Result<Json<ProctorDashboardData>, StatusCode> {
-    // Check authorization to prevent student access
     if !is_admin_authorized(&headers, &query, &state) {
         return Err(StatusCode::FORBIDDEN);
     }
@@ -883,7 +968,6 @@ async fn admin_delete_hidden_case_handler(
         StatusCode::NOT_FOUND
     }
 }
-
 
 async fn serve_ace_bundle_handler() -> impl axum::response::IntoResponse {
     (
