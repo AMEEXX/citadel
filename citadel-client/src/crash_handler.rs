@@ -123,6 +123,55 @@ pub fn emergency_restore_system() {
         .creation_flags(0x08000000)
         .output();
 
+    // 5. Restore Precision Touchpad multi-finger gestures
+    let touchpad_subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad");
+    unsafe {
+        let mut hkey = HKEY::default();
+        if RegOpenKeyExW(
+            HKEY_CURRENT_USER,
+            PCWSTR(touchpad_subkey.as_ptr()),
+            0,
+            KEY_WRITE,
+            &mut hkey,
+        ).is_ok() {
+            let stale_zero_keys = [
+                "ThreeFingerSlideUp",
+                "ThreeFingerSlideDown",
+                "ThreeFingerSlideLeft",
+                "ThreeFingerSlideRight",
+                "ThreeFingerTap",
+                "FourFingerSlideUp",
+                "FourFingerSlideDown",
+                "FourFingerSlideLeft",
+                "FourFingerSlideRight",
+                "FourFingerTap",
+                "ThreeFingerDownEnabled",
+                "FourFingerDownEnabled",
+            ];
+            for &k in &stale_zero_keys {
+                let kw = to_wide(k);
+                let _ = RegDeleteValueW(hkey, PCWSTR(kw.as_ptr()));
+            }
+            let enabled_bytes = 1u32.to_le_bytes();
+            for &k in &[
+                "ThreeFingerSlideEnabled",
+                "ThreeFingerTapEnabled",
+                "FourFingerSlideEnabled",
+                "FourFingerTapEnabled",
+            ] {
+                let kw = to_wide(k);
+                let _ = windows::Win32::System::Registry::RegSetValueExW(
+                    hkey,
+                    PCWSTR(kw.as_ptr()),
+                    0,
+                    windows::Win32::System::Registry::REG_DWORD,
+                    Some(&enabled_bytes),
+                );
+            }
+            let _ = RegCloseKey(hkey);
+        }
+    }
+
     eprintln!("[CITADEL EMERGENCY] Failsafe restoration executed.");
 }
 

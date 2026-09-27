@@ -9,7 +9,6 @@
 //! 5. System clipboard wiper (prevents external copy/paste data leakage)
 //! 6. Active process watchdog (detects and terminates blacklisted cheat processes)
 
-use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
@@ -25,8 +24,8 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Registry::{
-    RegCloseKey, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER,
-    KEY_READ, KEY_WRITE, REG_DWORD, REG_VALUE_TYPE,
+    RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegSetValueExW, HKEY,
+    HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_DWORD,
 };
 use windows::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, OpenProcess, TerminateProcess, CREATE_NEW_PROCESS_GROUP,
@@ -118,23 +117,21 @@ impl Drop for TaskbarLock {
 }
 
 // ============================================================================
-// 2. Touchpad Gesture Suppression (3-finger & 4-finger swipes)
+// 2. Touchpad Gesture Protection & Restoration
 // ============================================================================
 
 const TOUCHPAD_REG_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
 
-const TOUCHPAD_GESTURE_KEYS: &[&str] = &[
-    "ThreeFingerSlideEnabled",
-    "ThreeFingerTapEnabled",
-    "FourFingerSlideEnabled",
-    "FourFingerTapEnabled",
-    "ThreeFingerDownEnabled",
-    "FourFingerDownEnabled",
-];
-
-pub struct TouchpadLock {
-    saved_values: HashMap<String, u32>,
-}
+/// Manages multi-finger touchpad gesture safety.
+///
+/// Multi-finger gestures (3-finger & 4-finger swipes) synthesize system hotkeys
+/// (Win+Tab, Alt+Tab, Win+D), which are actively intercepted and dropped by Citadel's
+/// low-level keyboard hook (evaluate_keystroke) during active lockdown.
+///
+/// To protect the candidate's personal laptop and ensure their touchpad gestures
+/// remain 100% functional after the exam, TouchpadLock restores the standard
+/// Precision Touchpad configuration and clears any stale zero-overrides.
+pub struct TouchpadLock;
 
 fn to_wide_str(s: &str) -> Vec<u16> {
     OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
@@ -142,9 +139,12 @@ fn to_wide_str(s: &str) -> Vec<u16> {
 
 impl TouchpadLock {
     pub fn acquire() -> Self {
-        let mut saved = HashMap::new();
-        let subkey_w = to_wide_str(TOUCHPAD_REG_SUBKEY);
+        Self::restore_system_defaults();
+        TouchpadLock
+    }
 
+    pub fn restore_system_defaults() {
+        let subkey_w = to_wide_str(TOUCHPAD_REG_SUBKEY);
         unsafe {
             let mut hkey = HKEY::default();
             if RegOpenKeyExW(
@@ -154,68 +154,54 @@ impl TouchpadLock {
                 KEY_READ | KEY_WRITE,
                 &mut hkey,
             ).is_ok() {
-                for &val_name in TOUCHPAD_GESTURE_KEYS {
+                // Delete any zero-overrides that disabled slide gestures
+                let stale_zero_keys = [
+                    "ThreeFingerSlideUp",
+                    "ThreeFingerSlideDown",
+                    "ThreeFingerSlideLeft",
+                    "ThreeFingerSlideRight",
+                    "ThreeFingerTap",
+                    "FourFingerSlideUp",
+                    "FourFingerSlideDown",
+                    "FourFingerSlideLeft",
+                    "FourFingerSlideRight",
+                    "FourFingerTap",
+                    "ThreeFingerDownEnabled",
+                    "FourFingerDownEnabled",
+                ];
+
+                for &val_name in &stale_zero_keys {
                     let val_name_w = to_wide_str(val_name);
-                    let mut val_type = REG_VALUE_TYPE::default();
-                    let mut data_buf = [0u8; 4];
-                    let mut data_len = 4u32;
+                    let _ = RegDeleteValueW(hkey, PCWSTR(val_name_w.as_ptr()));
+                }
 
-                    if RegQueryValueExW(
-                        hkey,
-                        PCWSTR(val_name_w.as_ptr()),
-                        None,
-                        Some(&mut val_type),
-                        Some(data_buf.as_mut_ptr()),
-                        Some(&mut data_len),
-                    ).is_ok() && val_type == REG_DWORD && data_len == 4 {
-                        let original_val = u32::from_le_bytes(data_buf);
-                        saved.insert(val_name.to_string(), original_val);
-                    }
-
-                    // Zero out the multi-finger gesture capability
-                    let zero_bytes = 0u32.to_le_bytes();
+                // Explicitly ensure standard gestures are enabled (1)
+                let enabled_bytes = 1u32.to_le_bytes();
+                for &val_name in &[
+                    "ThreeFingerSlideEnabled",
+                    "ThreeFingerTapEnabled",
+                    "FourFingerSlideEnabled",
+                    "FourFingerTapEnabled",
+                ] {
+                    let val_name_w = to_wide_str(val_name);
                     let _ = RegSetValueExW(
                         hkey,
                         PCWSTR(val_name_w.as_ptr()),
                         0,
                         REG_DWORD,
-                        Some(&zero_bytes),
+                        Some(&enabled_bytes),
                     );
                 }
+
                 let _ = RegCloseKey(hkey);
             }
         }
-
-        TouchpadLock { saved_values: saved }
     }
 }
 
 impl Drop for TouchpadLock {
     fn drop(&mut self) {
-        let subkey_w = to_wide_str(TOUCHPAD_REG_SUBKEY);
-        unsafe {
-            let mut hkey = HKEY::default();
-            if RegOpenKeyExW(
-                HKEY_CURRENT_USER,
-                PCWSTR(subkey_w.as_ptr()),
-                0,
-                KEY_WRITE,
-                &mut hkey,
-            ).is_ok() {
-                for (name, val) in &self.saved_values {
-                    let name_w = to_wide_str(name);
-                    let bytes = val.to_le_bytes();
-                    let _ = RegSetValueExW(
-                        hkey,
-                        PCWSTR(name_w.as_ptr()),
-                        0,
-                        REG_DWORD,
-                        Some(&bytes),
-                    );
-                }
-                let _ = RegCloseKey(hkey);
-            }
-        }
+        Self::restore_system_defaults();
     }
 }
 
