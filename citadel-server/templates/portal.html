@@ -217,13 +217,19 @@
     .q-tab-btn {
       background: transparent;
       border: none;
-      border-bottom: 1.5px solid var(--accent-lang);
-      color: var(--text-primary);
+      border-bottom: 1.5px solid transparent;
+      color: var(--text-dim);
       padding: 0 16px;
       font-size: 12px;
       font-weight: 600;
-      cursor: default;
+      cursor: pointer;
       letter-spacing: 0.02em;
+      transition: all 0.15s;
+    }
+    .q-tab-btn:hover { color: var(--text-secondary); }
+    .q-tab-btn.active {
+      color: var(--text-primary);
+      border-bottom-color: var(--accent-lang);
     }
 
     .problem-content {
