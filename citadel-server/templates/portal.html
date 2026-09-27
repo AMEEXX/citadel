@@ -217,32 +217,13 @@
     .q-tab-btn {
       background: transparent;
       border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--text-secondary);
-      padding: 0 16px;
-      height: 40px;
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      letter-spacing: 0.02em;
-      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      white-space: nowrap;
-      border-radius: 4px 4px 0 0;
-    }
-
-    .q-tab-btn:hover {
+      border-bottom: 1.5px solid var(--accent-lang);
       color: var(--text-primary);
-      background: rgba(255, 255, 255, 0.03);
-    }
-
-    .q-tab-btn.active {
-      color: #ffffff;
+      padding: 0 16px;
+      font-size: 12px;
       font-weight: 600;
-      border-bottom: 2px solid var(--accent-lang);
-      background: rgba(91, 143, 199, 0.08);
+      cursor: default;
+      letter-spacing: 0.02em;
     }
 
     .problem-content {
@@ -862,7 +843,7 @@
   <div class="workspace">
     <!-- LEFT: PROBLEM SPEC -->
     <div class="pane-problem" id="pane-problem">
-      <div class="problem-tabs" id="problem-tab-list" style="display: flex; gap: 4px; overflow-x: auto; padding: 0 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border-hair); align-items: stretch;">
+      <div class="problem-tabs" id="problem-tab-list" style="display: flex; gap: 4px; overflow-x: auto; padding: 6px 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border-hair);">
         <!-- DYNAMICALLY POPULATED QUESTION TABS -->
       </div>
       <div class="problem-content" id="problem-content-area" style="overflow-y: auto; padding: 20px 24px;">
