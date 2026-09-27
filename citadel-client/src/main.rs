@@ -15,7 +15,10 @@ use windows::Win32::Foundation::CloseHandle;
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
-use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+use windows::Win32::UI::WindowsAndMessaging::{
+    MessageBoxW, IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
+    MB_SETFOREGROUND, MB_TOPMOST,
+};
 
 fn show_error_message(title: &str, message: &str) {
     let wide_title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
@@ -28,6 +31,21 @@ fn show_error_message(title: &str, message: &str) {
             PCWSTR(wide_title.as_ptr()),
             MB_OK | MB_ICONERROR,
         );
+    }
+}
+
+fn prompt_elevation_retry_cancel(title: &str, message: &str) -> bool {
+    let wide_title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    let wide_msg: Vec<u16> = message.encode_utf16().chain(std::iter::once(0)).collect();
+
+    unsafe {
+        let result = MessageBoxW(
+            None,
+            PCWSTR(wide_msg.as_ptr()),
+            PCWSTR(wide_title.as_ptr()),
+            MB_RETRYCANCEL | MB_ICONWARNING | MB_TOPMOST | MB_SETFOREGROUND,
+        );
+        result == IDRETRY
     }
 }
 
@@ -94,6 +112,35 @@ fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16) -> Result<bool
     Ok(false)
 }
 
+fn probe_server_is_production(server_ip: Ipv4Addr, server_port: u16) -> Result<bool, std::io::Error> {
+    let addr = SocketAddr::from((server_ip, server_port));
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(300))?;
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
+
+    let req = format!(
+        "GET /api/v1/admin/mode?key=citadel-recruiter-key-2026 HTTP/1.1\r\nHost: {}:{}\r\nConnection: close\r\n\r\n",
+        server_ip, server_port
+    );
+    stream.write_all(req.as_bytes())?;
+
+    let mut resp = Vec::new();
+    let mut buf = [0u8; 1024];
+    while let Ok(n) = stream.read(&mut buf) {
+        if n == 0 {
+            break;
+        }
+        resp.extend_from_slice(&buf[..n]);
+    }
+
+    let resp_str = String::from_utf8_lossy(&resp);
+    if resp_str.contains("is_production") && resp_str.contains("true") {
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
 fn ensure_explorer_running() {
     let mut running = false;
     unsafe {
@@ -128,20 +175,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_event("[CITADEL CLIENT] Process started");
     let args: Vec<String> = std::env::args().collect();
 
-    // 1. Mandatory Administrator Privilege Check
-    if !is_elevated() {
+    // 1. Mandatory Administrator Privilege Check & Interactive UAC Auto-Escalation Loop
+    // The Citadel client MUST ONLY run with elevated Administrator privileges.
+    // If the process starts unprivileged, it automatically triggers UAC elevation.
+    // If the user declines UAC, the client repeatedly prompts with a mandatory elevation modal
+    // offering [Retry] (triggers UAC again) or [Cancel] (exits cleanly).
+    // The client strictly NEVER falls back to an unprivileged or degraded 'less control' mode.
+    while !is_elevated() {
+        log_event("[CITADEL CLIENT] Mandatory elevation check: process running without Administrator rights. Triggering UAC auto-escalation...");
         let forward_args: Vec<String> = args.iter().skip(1).cloned().collect();
         match elevate_self(&forward_args) {
-            Ok(()) => return Ok(()),
+            Ok(()) => {
+                log_event("[CITADEL CLIENT] Elevated child process launched successfully via UAC. Parent unprivileged process exiting cleanly.");
+                return Ok(());
+            }
             Err(e) => {
-                show_error_message(
-                    "Citadel Secure Exam Environment",
-                    "Administrator privileges are REQUIRED to launch the Citadel Lockdown Client.\n\n                     The secure exam environment cannot engage system-level protections without elevation.\n\n                     Please right-click 'citadel-client.exe' and choose 'Run as administrator'.",
+                log_event(&format!("[CITADEL CLIENT] UAC elevation denied or failed: {}", e));
+
+                let retry = prompt_elevation_retry_cancel(
+                    "CITADEL Assessment Security - Administrator Required",
+                    "MANDATORY SECURITY ENFORCEMENT:\n\n\
+Administrator privileges are strictly REQUIRED to launch Citadel Lockdown Client.\n\n\
+The secure exam environment cannot engage system-level protections\n\
+(hardware locks, keyboard hooks, network firewalls, and process watchdog)\n\
+without administrative elevation.\n\n\
+Running in an unprivileged or degraded 'less control' mode is strictly prohibited.\n\n\
+• Click [Retry] to trigger the Windows UAC elevation prompt again.\n\
+• Click [Cancel] to abort and exit.",
                 );
-                return Err(format!("Elevation required but failed: {}", e).into());
+
+                if !retry {
+                    log_event("[CITADEL CLIENT] User declined Administrator elevation retry. Aborting.");
+                    return Err(format!("Administrator elevation required but declined by user: {}", e).into());
+                }
+                log_event("[CITADEL CLIENT] User requested retry for Administrator elevation prompt. Re-triggering UAC...");
             }
         }
     }
+
+    log_event("[CITADEL CLIENT] Administrator privileges verified. Zero-fallback lockdown enforcement active.");
 
     let default_server_ip: Ipv4Addr = args
         .get(1)
@@ -178,8 +250,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let use_isolated_desktop = args.iter().any(|a| a == "--isolated-desktop")
         || std::env::var("CITADEL_ISOLATED_DESKTOP").map(|v| v == "1").unwrap_or(false);
 
-    let is_production = args.iter().any(|a| a == "--production")
+    let mut is_production = args.iter().any(|a| a == "--production")
         || std::env::var("CITADEL_PRODUCTION").map(|v| v == "1").unwrap_or(false);
+
+    if !is_production {
+        if let Ok(server_prod) = probe_server_is_production(server_ip, server_port) {
+            if server_prod {
+                log_event("[CITADEL CLIENT] Exam Server is in PRODUCTION MODE. Auto-promoting client to strict lockdown.");
+                is_production = true;
+            } else {
+                log_event("[CITADEL CLIENT] Exam Server is in TESTING MODE (Open Access). Developer tools preserved.");
+            }
+        }
+    }
 
     // 2. Pre-Launch Workstation Environment Scan & App Enforcement
     log_event("[CITADEL CLIENT] Pre-flight scan and app enforcement starting...");
@@ -188,6 +271,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     log_event("[CITADEL CLIENT] Workstation verified clean. Pre-flight complete.");
+
+    if args.iter().any(|a| a == "--scan-only") {
+        log_event("[CITADEL CLIENT] --scan-only mode completed successfully. Exiting cleanly.");
+        return Ok(());
+    }
 
     // 3. Start Local Control HTTP Server on 127.0.0.1:8444 for instant End Exam triggers
     let exit_signal = Arc::new(AtomicBool::new(false));

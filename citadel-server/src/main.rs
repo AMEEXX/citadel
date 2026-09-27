@@ -28,6 +28,14 @@ fn discover_lan_ips() -> Vec<IpAddr> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = std::env::args().collect();
+    let is_production = args.iter().any(|a| a == "--production")
+        || std::env::var("CITADEL_PRODUCTION").map(|v| v == "1" || v.eq_ignore_ascii_case("true")).unwrap_or(false);
+
+    if is_production {
+        std::env::set_var("CITADEL_PRODUCTION", "1");
+    }
+
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse::<u16>().ok())
@@ -56,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("     CITADEL CENTRAL EXAM SERVER APPLIANCE");
     println!("========================================================================");
     println!(" [MODE]      Zero-Internet Offline Campus Wi-Fi Only");
+    println!(" [SECURITY]  {}", if is_production { "PRODUCTION MODE (Direct Web Browsers Blocked. Citadel Client Required)" } else { "TESTING MODE (Open Network Access for Developer Testing & Evaluation)" });
     println!(" [SECURITY]  Host traffic isolated & air-gapped from public web");
     println!(" [BINDING]   0.0.0.0:{}", port);
     println!("");

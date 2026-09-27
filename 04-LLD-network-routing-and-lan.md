@@ -203,6 +203,18 @@ Three tiers, selectable per deployment:
 
 Default is **N2**. N3 is recommended for AL1 deployments and for any venue where the physical space is not fully controlled.
 
+### 3.6 Application-Layer Ingress Gating: Dual-Mode Network Admission (Testing vs. Production)
+
+Even if an unauthorized device (such as a student's personal smartphone or an unmanaged secondary laptop) joins the local Wi-Fi or wired network, CITADEL enforces application-layer admission control at the appliance HTTP boundary (:8443):
+
+| Operating Mode | Network Admission Policy | Device Experience |
+|---|---|---|
+| **Safe Testing Mode** (`CITADEL_PRODUCTION=0`) | **Permissive / Open LAN Evaluation** | Direct browser access to `/` and `/exam` renders the coding portal. API endpoints (`/api/v1/questions`) respond to all callers for rapid developer testing. |
+| **High-Assurance Production Mode** (`CITADEL_PRODUCTION=1`) | **Strict Cryptographic Handshake Gating** | <ul><li>**Unauthorized Browsers / Phones**: Navigating to `http://<LAN_IP>:8443/` renders the **Gatekeeper Download Page**, redirecting students to install `citadel-client.exe`.</li><li>**Direct API Queries**: Requests to `/api/v1/questions`, `/api/v1/questions/:id`, and `/api/v1/submissions` without an active session token return `403 Forbidden` (`CITADEL_LOCKDOWN_REQUIRED`).</li><li>**Managed Client Sessions**: `citadel-client.exe` completes a cryptographic handshake (`POST /api/v1/client/handshake`), acquires an ephemeral `session_token`, and passes it via cookie and `X-Citadel-Auth-Token` header.</li></ul> |
+
+Administrators can switch the appliance between Testing and Production modes live via the Recruiter Console header or by calling `POST /api/v1/admin/mode/toggle?key=<ADMIN_KEY>`.
+
+
 ---
 
 ## 4. Router and access-point capacity — the research findings

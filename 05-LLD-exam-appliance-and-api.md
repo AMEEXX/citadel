@@ -112,6 +112,10 @@ Base: `https://10.10.0.1:8443/v1`. All mutating requests carry `Idempotency-Key`
 | GET | `/` | Portal / Gatekeeper | Returns "Lockdown Required" screen with download link when visited by standard browser; returns Monaco coding portal when authenticated via `CitadelSecurityCore` UA or token |
 | GET | `/download/citadel-client.exe` | Over-the-air client fetch | Serves the signed client executable over campus Wi-Fi for zero-USB candidate onboarding |
 | GET | `/health` | Server health check | Returns service name, version, question count, and `offline_campus_wifi_zero_internet` mode |
+| POST | `/api/v1/client/handshake` | Client Attestation & Token Handshake | Called by `citadel-client.exe` post-preflight; issues ephemeral cryptographic session token |
+| GET | `/api/v1/admin/mode` | Query Security Mode | Returns current mode (`Testing (Open Access)` vs `Production (Lockdown Enforced)`) and active tokens |
+| POST | `/api/v1/admin/mode/toggle` | Toggle Security Mode | Live switch between Testing and Production mode |
+| POST | `/api/v1/admin/mode/set` | Set Security Mode Explicitly | Admin payload: `{"production": true|false}` |
 | GET | `/api/v1/exam/info` | Exam metadata | Returns duration, total points, instructions, and candidate exam rules |
 | GET | `/api/v1/questions` | Question summaries | Returns list of challenge IDs, titles, difficulty levels, and point weights |
 | GET | `/api/v1/questions/{id}` | Problem statement | Returns problem description, starter code templates (C++, Python, Java), constraints, sample cases |
@@ -423,6 +427,22 @@ A 2 TB NVMe holds several hundred exams. Storage is not a constraint; it is spec
 ---
 
 ## 6. Ingress and admission control
+
+### 6.1 Dual-Mode Admission Control (Testing vs. Production)
+
+To balance rapid developer iteration with foolproof exam-hall lockdown, the appliance ingress layer implements **Dual-Mode Admission Control**:
+
+1. **Testing Mode (`CITADEL_PRODUCTION=0`, Default)**:
+   - Permissive network access on all interfaces and IP addresses (`0.0.0.0:8443`).
+   - Direct web browsers (Chrome, Edge, Safari, curl) can freely view the portal, fetch problems (`/api/v1/questions`), and evaluate code submissions.
+   - Allows professors, recruiters, and developers to test coding challenges without booting kernel lockdowns.
+
+2. **Production Mode (`CITADEL_PRODUCTION=1` or `--production`)**:
+   - **Gatekeeper Enforcement**: Unauthenticated browsers browsing `http://<IP>:8443/` or `/exam` are served `gatekeeper.html`, instructing candidates to download and run `citadel-client.exe`.
+   - **API Protection**: Direct requests to `/api/v1/questions`, `/api/v1/questions/{id}`, and `/api/v1/submissions` without an authorized `citadel_auth_token` return `403 Forbidden` (`CITADEL_LOCKDOWN_REQUIRED`).
+   - **Handshake Verification**: Only `citadel-client.exe` completing `POST /api/v1/client/handshake` receives an authenticated session token (`citadel-sess-...`), which is injected into the kiosk Edge browser via query parameter, cookie, and `X-Citadel-Auth-Token` header.
+   - **Dynamic Toggling**: Proctors can switch modes on-the-fly from the Recruiter Console header or via `POST /api/v1/admin/mode/toggle`.
+
 
 ```
 Connection

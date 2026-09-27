@@ -1062,6 +1062,30 @@
 
   <script>
     // =========================================================================
+    // CITADEL CLIENT SESSION AUTHENTICATION (Bearer & Header Interceptor)
+    // =========================================================================
+    const urlParams = new URLSearchParams(window.location.search);
+    const AUTH_TOKEN = urlParams.get('auth_token') || urlParams.get('token') || '';
+    if (AUTH_TOKEN) {
+      sessionStorage.setItem('citadel_auth_token', AUTH_TOKEN);
+    }
+    const ACTIVE_AUTH_TOKEN = AUTH_TOKEN || sessionStorage.getItem('citadel_auth_token') || '';
+
+    const originalFetch = window.fetch;
+    window.fetch = function(url, options) {
+      options = options || {};
+      options.headers = options.headers || {};
+      if (ACTIVE_AUTH_TOKEN) {
+        if (options.headers instanceof Headers) {
+          options.headers.set('X-Citadel-Auth-Token', ACTIVE_AUTH_TOKEN);
+        } else {
+          options.headers['X-Citadel-Auth-Token'] = ACTIVE_AUTH_TOKEN;
+        }
+      }
+      return originalFetch.call(this, url, options);
+    };
+
+    // =========================================================================
     // PERSISTENT CANDIDATE IDENTITY (localStorage across sessions & reloads)
     // =========================================================================
     let CANDIDATE_ID = localStorage.getItem('citadel_candidate_id');

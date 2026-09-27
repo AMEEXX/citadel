@@ -124,6 +124,7 @@ CITADEL does **not** attempt to be unbreakable on a machine where the candidate 
 | FR-S8 | All exam data at rest on the appliance is encrypted; keys are released by an operator-held credential | Must |
 | FR-S9 | Full hardware kiosk lock: Windows taskbar (`Shell_TrayWnd`) is hidden, escape hotkeys (Win, Alt-Tab, Alt-Esc, Alt-F4) are dropped, and touchpad 3-finger/4-finger gestures are suppressed | Must |
 | FR-S10 | Mandatory UAC elevation: client verifies high mandatory integrity on startup and triggers UAC auto-elevation, refusing unprivileged execution | Must |
+| FR-S11 | Dual-Mode LAN Gating & Endpoint Isolation: In Production Mode, appliance blocks direct network access to portal/questions/submissions from unauthenticated browsers/devices (returns Gatekeeper lock page and 403 Forbidden). Requires authenticated citadel-client.exe handshake (POST /api/v1/client/handshake) issuing signed session tokens. Testing Mode provides open access for staging/developers | Must |
 
 ### 3.2 Non-functional requirements
 

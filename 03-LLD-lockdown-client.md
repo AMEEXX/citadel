@@ -258,6 +258,8 @@ Notably **DNS is not permitted at all**. The appliance address is delivered in t
 | Process Subsystem | Set to `#![windows_subsystem = "windows"]` to run as native Windows GUI application without popup console window. |
 | Foreground Dominance Enforcer | Background thread monitors the kiosk window HWND, enforces `HWND_TOPMOST` and fullscreen screen metrics every 150ms, and calls `SetForegroundWindow` + `BringWindowToTop` to immediately recover from any focus theft. |
 | System Clipboard Wiper | Dedicated `ClipboardGuard` flushes the Windows clipboard via `OpenClipboard(null)` + `EmptyClipboard()` every 400ms, preventing question exfiltration or external paste insertion. |
+| Pre-launch Application Termination & Strict Rescan | Dual-layer detection combining **Desktop Window Enumeration** (`EnumDesktopWindows` on `WinSta0\Default`) and **Deep Process Snapshot** (`CreateToolhelp32Snapshot`). Automatically suppresses Bluetooth (`net stop bthserv /y`), auto-terminates all external applications (Notepad, Snipping Tool, browsers, communications, AI runners), and presents an interactive modal warning listing still-open applications. Strictly loops and refuses to advance until the scan produces zero non-whitelisted applications. |
+| Bluetooth & Radio Suppression | Automatically stops Bluetooth services (`bthserv`) on startup and suppresses peripheral connections during the assessment. |
 | Active Process Watchdog | Scans system processes every 1s via `CreateToolhelp32Snapshot`; detects and immediately terminates blacklisted tools (`taskmgr.exe`, `cmd.exe`, `powershell.exe`, `pwsh.exe`, `ollama.exe`, `lmstudio.exe`, `discord.exe`, etc.) and logs security violation events to the proctor audit stream. |
 | Chromium process isolation | Spawns with isolated `--user-data-dir`, `--new-window`, `--kiosk`, `--edge-kiosk-type=fullscreen`, and Chromium security flags on the Secure Desktop plane. |
 | Mandatory UAC elevation | Client verifies `TokenElevation` via `OpenProcessToken` and invokes `ShellExecuteW(..., "runas", ...)` if unprivileged, refusing to run without system rights |
@@ -322,6 +324,55 @@ Exactly 24 commands. Anything not on this list is impossible from the Shell. Thi
 | `clock.now()` | Monotonic exam time; Shell never reads the system clock |
 
 Notice what is *absent*: no `exec`, no `read_file` with an arbitrary path, no `net.*`, no `policy.*`. The Shell cannot ask Guard to do anything a candidate could weaponise.
+
+### 4.4 Network Handshake & Session Gating Protocol
+
+To eliminate the vulnerability where candidates on the venue LAN connect secondary devices (smartphones, unmanaged laptops with DevTools, curl/Postman) directly to the appliance IP to exfiltrate questions or submit code, CITADEL couples the client startup sequence to an appliance-side cryptographic session gate:
+
+```
+  ┌───────────────────┐                  ┌────────────────────┐
+  │ citadel-client.exe│                  │  CITADEL Appliance │
+  └─────────┬─────────┘                  └──────────┬─────────┘
+            │                                       │
+      1. Preflight System Scans                     │
+         (kill blacklists, check display,           │
+          verify admin elevation)                   │
+            │                                       │
+            │  2. POST /api/v1/client/handshake     │
+            ├──────────────────────────────────────>│
+            │     { candidate_id, machine_name }    │  3. Verify Attestation &
+            │                                       │     Generate Cryptographic
+            │  4. 200 OK + Ephemeral Session Token  │     Session Token
+            │<──────────────────────────────────────┤
+            │     { status: "ok", auth_token }      │
+            │                                       │
+      5. Spawn Hardened Kiosk Browser               │
+         Target: /exam?auth_token={token}           │
+         (Edge/Chromium in app mode,                │
+          user-data-dir sandboxed, no chrome)       │
+            │                                       │
+            │  6. GET /exam?auth_token={token}      │
+            ├──────────────────────────────────────>│  7. Validate Session Token
+            │<──────────────────────────────────────┤     Set Cookie & Render
+            │     200 OK (Full Exam Portal)         │
+            │                                       │
+            │  8. GET /api/v1/questions             │
+            │     Header: X-Citadel-Auth-Token      │
+            ├──────────────────────────────────────>│  9. Verify Token
+            │<──────────────────────────────────────┤     200 OK (Questions)
+```
+
+#### Protocol Details
+
+1. **Pre-flight Enforcement**: Before initiating any network communication, `citadel-client.exe` terminates prohibited background applications (browsers, debuggers, communication tools, AI runners), validates single-display configuration, and confirms administrator privileges.
+2. **Attestation Handshake**: The client invokes `POST /api/v1/client/handshake` passing registration metadata. In Production Mode, the appliance registers the candidate's session in its active session map and issues an ephemeral, high-entropy cryptographic token (`citadel-sess-...`).
+3. **Kiosk Launch & Token Binding**:
+   - The token is passed as a URL query parameter `?auth_token=...` directly into the isolated WebView/Chromium kiosk instance.
+   - The client portal extracts this token into memory, sets an HTTP-only/SameSite cookie, and automatically attaches the `X-Citadel-Auth-Token` header to all outgoing API queries (`/api/v1/questions`, `/api/v1/submit`).
+4. **Enforcement Behavior**:
+   - **Production Mode**: Any unmanaged device or browser accessing the IP address without an authenticated token receives the **Gatekeeper Download Page** at `/` or `403 Forbidden` (`CITADEL_LOCKDOWN_REQUIRED`) on API endpoints.
+   - **Testing Mode**: Token authentication is optionally tracked for telemetry, but gating is relaxed to allow rapid developer iteration and direct browser inspection.
+5. **Teardown & Cleanup**: On exam submission, `citadel-client.exe` cleans up registry flags, terminates the kiosk instance, restores `explorer.exe`, and drops the session.
 
 ---
 
@@ -453,3 +504,21 @@ A design document that overclaims here will fail the first security review it me
 
 For the concrete Win32 production implementation, process delegation handling, GPU rendering parameters, keyboard hook health watchdog, and failsafe recovery specifications, see:
 ??? [CITADEL_SECURITY_ARCHITECTURE.md](file:///CITADEL_SECURITY_ARCHITECTURE.md) (Canonical Client Implementation & Troubleshooting Guide).
+
+---
+
+## 11. Mandatory UAC Elevation & Zero-Fallback Startup Architecture
+
+### 11.1 Threat: Degraded / "Less Control" Execution
+A dangerous design defect in kiosk/lockdown software is silently dropping to a degraded user-mode state when administrative permissions are missing. Without elevation:
+- Kernel Windows Filtering Platform (WFP) firewall filters cannot be registered.
+- Bluetooth hardware and services cannot be disabled.
+- System-level low-level keyboard hooks can be preempted.
+- Windows Explorer shell process termination fails.
+
+### 11.2 Inviolable Invariant: Zero Degraded Fallback
+CITADEL strictly prohibits running in an unprivileged or degraded state under any circumstances:
+1. **Application Manifest Level**: The binary PE header embeds `<requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>`. Direct execution attempts via standard `CreateProcess` are rejected by the Windows NT kernel with **Error 740: `The requested operation requires elevation`**.
+2. **Interactive Auto-Escalation & Persistent Retry Loop**: When launched, `main.rs` tests `TokenElevation`. If unprivileged, it triggers `ShellExecuteW(..., "runas", ...)`. If the user cancels the UAC consent modal, a high-priority `MB_RETRYCANCEL` dialog explains that administrator rights are mandatory for hardware and process isolation. Clicking **Retry** re-triggers the UAC consent prompt. The loop continues indefinitely until elevation is granted or the user explicitly cancels.
+3. **Internal Kernel Hard Failure**: `ClientLockdownGuard::new_with_mode` asserts `is_elevated()` at line 1. All permissive `if is_elevated() { ... } else { None }` fallbacks have been removed. Any unprivileged construction attempt aborts immediately with a fatal error.
+4. **Appliance Cryptographic Attestation**: The client sends `"is_elevated": true` in `POST /api/v1/client/handshake`. When the appliance is running in Production Mode, any client lacking elevation is rejected with `403 Forbidden` (`elevation_required`).

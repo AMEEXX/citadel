@@ -76,6 +76,7 @@ Written to be handed to a customer's security reviewer. It claims nothing the ar
 | Candidate reads another candidate's work | Local store encrypted with a session key; L2 port isolation; L3 deny | None meaningful |
 | Reconstructing tests from verdict feedback | `FIRST_FAILURE_ONLY` default; reported index is the *authored* index, not the execution position; submission rate limits | Slow leakage over many exams; managed by exposure tracking |
 | PII leaves the venue | All data stays on the customer's appliance; the vendor receives nothing | None |
+| Direct LAN extraction of exam questions via secondary browser/phone/curl | **Production Mode Security Gatekeeper**: Endpoint gating on `/api/v1/questions` requiring cryptographically signed session token issued only upon verified client handshake (`/api/v1/client/handshake`). Unauthorized callers receive `403 Forbidden` (`CITADEL_LOCKDOWN_REQUIRED`) or Gatekeeper installation screen | None in Production Mode. Testing Mode is strictly restricted to staging environments |
 
 ### Denial of service
 
@@ -98,6 +99,7 @@ Written to be handed to a customer's security reviewer. It claims nothing the ar
 | Candidate escalates on their own machine | AL2: non-admin, WDAC. AL1: immutable OS | AL3: candidate already has admin — this is why AL3 is not recommended for hiring |
 | Shell compromise → privileged action | 24-command IPC surface; no exec, no arbitrary file read, no keys cross the boundary | None meaningful |
 | Malicious checker (authored code) | Runs in its own isolate box with limits | Requires a compromised or malicious author, covered by A6 controls |
+| Bypass client lockdown using unmanaged browser on LAN to enable DevTools or clipboard | Mandatory client handshake with ephemeral session token injected into the dedicated isolated Chromium kiosk. No direct browser access to `/exam` without token | Token replay across devices prevented by IP/hostname/process attestation binding |
 
 ---
 
@@ -130,7 +132,12 @@ GOAL: obtain LLM assistance
 │       └── AL1/AL2: network config locked, adapter change violates ──▶ ✗
 │
 ├── 3. Use a second device (phone, tablet)
-│   └── ✗ NOT DETECTABLE BY SOFTWARE ──▶ physical invigilation only
+│   ├── 3.1 Directly browse exam questions on the appliance LAN from phone/laptop
+│   │   └── Production Mode Gatekeeper blocks direct HTTP access;
+│   │       only handshake-authenticated citadel-client kiosk receives
+│   │       session token (403 Forbidden / Gatekeeper lock page) ──▶ ✗
+│   └── 3.2 Physical glance/typing into phone without network connection
+│       └── ✗ NOT DETECTABLE BY SOFTWARE ──▶ physical invigilation only
 │
 └── 4. Remote human or AI assistance via screen sharing
     ├── 4.1 Remote desktop ──▶ ✗ A5 detection + no network route
@@ -214,6 +221,7 @@ GOAL: read hidden tests
 | FR-S7 similarity detection | Winnowing + AST + IR hashing, seat-adjacency correlation | 10 §2.3 |
 | FR-S8 encryption at rest | AES-256-GCM, TPM-sealed keys, 2-of-3 ceremony | 07 §6 |
 | FR-J2 hidden tests never leave | Sealed vault, stdin-only delivery, central judging | 06 §2 |
+| FR-S11 dual-mode client gating | Cryptographic client handshake, session token gatekeeper, dual testing/production modes | 03 §4.4, 04 §3.6, 05 §4.1 |
 
 ---
 

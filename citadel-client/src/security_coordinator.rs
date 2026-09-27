@@ -13,7 +13,8 @@
 //!    - Active anti-cheat sensors (M2 loopback, M4 capture-exclusion, M5 injection)
 //!    - Clipboard flusher and background process watchdog
 
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+use std::io::{Read, Write};
 use std::os::windows::ffi::OsStrExt;
 use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -152,8 +153,50 @@ pub struct ClientLockdownGuard {
     violations: Arc<Mutex<Vec<String>>>,
     server_ip: Ipv4Addr,
     server_port: u16,
+    pub auth_token: Option<String>,
     /// Tracks whether restore_all() has already been called to prevent double-restore
     restored: bool,
+}
+
+
+pub fn perform_client_handshake(server_ip: Ipv4Addr, server_port: u16, is_production: bool) -> Option<String> {
+    let addr = SocketAddr::from((server_ip, server_port));
+    let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(1500)).ok()?;
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(1500)));
+    let _ = stream.set_write_timeout(Some(Duration::from_millis(1500)));
+
+    let body = format!(
+        r#"{{"client_version":"0.2.0","machine_guid":null,"mode":"{}","is_elevated":{}}}"#,
+        if is_production { "production" } else { "testing" },
+        is_elevated()
+    );
+
+    let req = format!(
+        "POST /api/v1/client/handshake HTTP/1.1\r\nHost: {}:{}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+        server_ip, server_port, body.len(), body
+    );
+
+    let _ = stream.write_all(req.as_bytes());
+
+    let mut resp = Vec::new();
+    let mut buf = [0u8; 1024];
+    while let Ok(n) = stream.read(&mut buf) {
+        if n == 0 { break; }
+        resp.extend_from_slice(&buf[..n]);
+    }
+
+    let resp_str = String::from_utf8_lossy(&resp);
+    if let Some(pos) = resp_str.find("\"session_token\":\"") {
+        let after = &resp_str[pos + 17..];
+        if let Some(end) = after.find('"') {
+            let token = &after[..end];
+            eprintln!("[CITADEL CLIENT] Client handshake successful! Session token: {}", token);
+            return Some(token.to_string());
+        }
+    }
+
+    eprintln!("[CITADEL CLIENT] Handshake did not return session token.");
+    None
 }
 
 impl ClientLockdownGuard {
@@ -165,18 +208,25 @@ impl ClientLockdownGuard {
     pub fn new_with_mode(server_ip: Ipv4Addr, server_port: u16, use_isolated_desktop: bool, is_production: bool) -> Result<Self, String> {
         install_crash_safety();
 
+        // === ZERO-FALLBACK MANDATORY ELEVATION ENFORCEMENT ===
+        // The Citadel Client MUST ONLY run with elevated Administrator privileges.
+        // Degrading into an unprivileged "less control" mode is strictly prohibited.
+        if !is_elevated() {
+            let err_msg = "MANDATORY SECURITY ENFORCEMENT: Citadel Client requires Administrator privileges.                            Running in an unprivileged or degraded 'less control' mode is strictly prohibited by Citadel Security Policy.";
+            eprintln!("[CITADEL CLIENT FATAL] {}", err_msg);
+            return Err(err_msg.to_string());
+        }
+
+        let auth_token = perform_client_handshake(server_ip, server_port, is_production);
+
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
 
         // === 1. Host Desktop Protection: Host registry policies are strictly NEVER touched ===
         let registry_lock = None;
 
-        // Bluetooth hardware & service suppression
-        let bluetooth_lock = if is_elevated() {
-            Some(BluetoothLock::acquire())
-        } else {
-            None
-        };
+        // Bluetooth hardware & service suppression (guaranteed elevated)
+        let bluetooth_lock = Some(BluetoothLock::acquire());
         eprintln!("[CITADEL CLIENT] Host desktop protection active: Primary desktop registry policies preserved.");
 
         // === 2. ALWAYS install system-wide low-level keyboard hook immediately ===
@@ -205,7 +255,7 @@ impl ClientLockdownGuard {
         let enforce_network = is_production
             || std::env::var("CITADEL_ENFORCE_NETWORK").map(|v| v == "1").unwrap_or(false);
 
-        let wfp_engine = if is_elevated() && enforce_network && !is_local_test {
+        let wfp_engine = if enforce_network && !is_local_test {
             match WfpEngine::open_dynamic() {
                 Ok(mut engine) => {
                     if engine.install_college_lan_policy(server_ip, server_port).is_ok() {
@@ -227,27 +277,25 @@ impl ClientLockdownGuard {
         } else {
             if is_local_test {
                 eprintln!("[CITADEL CLIENT] Safe network mode: Public internet preserved during local test.");
-            } else if !enforce_network {
-                eprintln!("[CITADEL CLIENT] Network enforcement disabled.");
             } else {
-                eprintln!("[CITADEL CLIENT] Non-elevated: WFP kernel network firewall skipped.");
+                eprintln!("[CITADEL CLIENT] Network enforcement disabled.");
             }
             None
         };
 
-        // === 7. If elevated, suppress Windows Explorer shell ===
+        // === 7. Suppress Windows Explorer shell if in production ===
         let kill_explorer = is_production
             || std::env::var("CITADEL_KILL_EXPLORER").map(|v| v == "1").unwrap_or(false);
 
-        let explorer_lock = if is_elevated() && kill_explorer && !is_local_test {
+        let explorer_lock = if kill_explorer && !is_local_test {
             Some(ExplorerLock::acquire())
         } else {
             eprintln!("[CITADEL CLIENT] Safe desktop mode: Windows Explorer preserved. Taskbar suppression active.");
             None
         };
 
-        // === 8. Isolated secure desktop only if explicitly requested AND elevated ===
-        let secure_desktop = if use_isolated_desktop && is_elevated() {
+        // === 8. Isolated secure desktop only if explicitly requested ===
+        let secure_desktop = if use_isolated_desktop {
             match SecureDesktop::create() {
                 Ok(sd) => Some(sd),
                 Err(e) => {
@@ -276,12 +324,17 @@ impl ClientLockdownGuard {
             violations,
             server_ip,
             server_port,
+            auth_token,
             restored: false,
         })
     }
 
     pub fn server_endpoint(&self) -> String {
-        format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
+        if let Some(ref token) = self.auth_token {
+            format!("http://{}:{}/exam?auth_token={}", self.server_ip, self.server_port, token)
+        } else {
+            format!("http://{}:{}/?token=citadel-secured-session", self.server_ip, self.server_port)
+        }
     }
 
     pub fn secure_desktop_name(&self) -> Option<&str> {

@@ -22,8 +22,10 @@ To resolve this, CITADEL features a **dual-mode architecture**:
 
 | Feature / Security Layer | Testing Mode (Default) | Production Mode (--production) |
 |---|---|---|
-| **Exam Portal & Monaco Editor** | ? Active (Full IDE & Test Runner) | ? Active (Full IDE & Test Runner) |
-| **Kiosk Full-Screen Window** | ? Active (msedge.exe --kiosk) | ? Active (msedge.exe --kiosk) |
+| **Mandatory UAC Elevation** | 🔒 **Mandatory** (Interactive UAC prompt loop, zero degraded fallback) | 🔒 **Mandatory** (Appliance strictly rejects unprivileged clients with 403 Forbidden) |
+| **Network & API Gating** | 🔓 **Open Network Access** (Any browser on IP can test) | 🔒 **Locked to citadel-client.exe Only** (Direct web/curl 403 Blocked) |
+| **Exam Portal & Monaco Editor** | ✅ Active (Full IDE & Test Runner) | ✅ Active (Full IDE & Test Runner) |
+| **Kiosk Full-Screen Window** | ✅ Active (msedge.exe --kiosk) | ✅ Active (msedge.exe --kiosk) |
 | **Keyboard Shortcut Hook** | ? Blocks Alt+Tab, Win keys, DevTools | ? Blocks Alt+Tab, Win keys, DevTools |
 | **Taskbar Suppression** | ? Hidden via ShowWindow(SW_HIDE) | ? Hidden + Explorer process killed |
 | **Windows Explorer (explorer.exe)** | ??? **Preserved** (No blank screens) | ?? **Terminated** + respawn watchdog |
@@ -36,7 +38,66 @@ To resolve this, CITADEL features a **dual-mode architecture**:
 
 ---
 
-## 3. How the "End Exam" Session Conclusion Works
+
+---
+
+
+---
+
+## 3.1 Mandatory UAC Administrator Elevation & Zero-Fallback Enforcement
+
+A critical security vulnerability in legacy exam browsers is **silent degradation**: when administrator rights are denied, the application continues to run in a "less control" mode, skipping hardware locks, packet filters, and watchdog threads.
+
+CITADEL guarantees **Zero Degraded Fallback**:
+1. **Interactive UAC Escalation Loop**: If launched without administrator privileges, `citadel-client` enters a persistent loop attempting UAC auto-elevation. If canceled by the user, a modal dialogue (`MB_RETRYCANCEL`) clearly explains that Administrator rights are mandatory for hardware protection, keyboard hooks, and process isolation. Clicking **Retry** re-triggers the Windows UAC consent prompt.
+2. **Kernel Engine Hard Assertion**: Inside `ClientLockdownGuard::new_with_mode`, an immediate check asserts `is_elevated()`. Any non-elevated invocation aborts with a fatal security error; degraded fallback code paths have been completely eradicated.
+3. **Appliance Attestation**: During `POST /api/v1/client/handshake`, the client attests `is_elevated: true`. In Production Mode, `citadel-server` strictly validates this flag, returning `403 Forbidden` (`elevation_required`) if false.
+
+## 3. Network & API Access Control: Testing vs. Production Gating
+
+A major threat vector in campus Wi-Fi exams is students using secondary devices (smartphones, unauthorized laptops, Chrome with DevTools, Postman, Python scripts) to query exam questions directly across the local network without running the lockdown client.
+
+CITADEL solves this with **Server-Side Handshake Gating**:
+
+```
+[Regular Browser / Mobile Phone / curl] 
+         │
+         ▼
+  http://<IP>:8443
+         │
+         ├── In TESTING MODE:    ──▶ ✅ ALLOWED (Open UI & Questions for quick evaluation)
+         │
+         └── In PRODUCTION MODE: ──▶ 🛑 BLOCKED (Gatekeeper Page Only + 403 Forbidden APIs)
+
+[citadel-client.exe (Admin)]
+         │
+         ├── 1. Pre-flight scan clean
+         ├── 2. POST /api/v1/client/handshake (acquires ephemeral session token)
+         └── 3. Launches Edge Kiosk with session token injected
+                  │
+                  ▼
+         ✅ ALLOWED IN BOTH MODES (Full Exam Portal, Ace Editor & Submissions)
+```
+
+### In Safe Testing Mode (`CITADEL_PRODUCTION=0`, Default):
+- **Full Open Access on LAN**: Any browser (Chrome, Edge, Brave, Safari, Postman) on the host or local network IP (`http://172.60.5.98:8443`) can freely view the exam portal, Monaco/Ace code editor, and question bank.
+- **Zero Friction**: Perfect for recruiters, professors, and developers evaluating the UI, creating new coding problems, or testing the judge sandbox without engaging OS lockdowns.
+- **Client App Compatible**: Running `citadel-client.exe` in testing mode also works seamlessly.
+
+### In High-Assurance Production Mode (`CITADEL_PRODUCTION=1` or `--production`):
+- **Direct Web Access Blocked**: Anyone navigating to `http://<IP>:8443/` or `http://<IP>:8443/exam` in a standard browser is intercepted by the **Gatekeeper Page** (`gatekeeper.html`), which instructs them to download and run `citadel-client.exe`.
+- **Question & Submission APIs Locked**: Direct HTTP requests (`GET /api/v1/questions`, `POST /api/v1/submissions`) without a valid `citadel_auth_token` return:
+  ```json
+  {
+    "error": "unauthorized_client",
+    "code": "CITADEL_LOCKDOWN_REQUIRED",
+    "message": "Access restricted. Direct web access is blocked in Production Mode. Please open the assessment using the official Citadel Lockdown Client."
+  }
+  ```
+- **Cryptographic Handshake**: Only `citadel-client.exe` can obtain an authenticated session token via `POST /api/v1/client/handshake`, which is then securely injected into the isolated kiosk browser.
+- **Dynamic Mode Toggling**: Administrators can switch between Testing and Production modes live with one click in the **Recruiter Console** (`/admin` or `/proctor`) or via `POST /api/v1/admin/mode/toggle?key=<ADMIN_KEY>`.
+
+## 4. How the "End Exam" Session Conclusion Works
 
 In both modes, the primary exit vector for a candidate is the **?? End Exam** button located in the top-right header next to the timer.
 
@@ -62,14 +123,16 @@ In both modes, the primary exit vector for a candidate is the **?? End Exam** bu
 
 ---
 
-## 4. How to Run in Testing Mode (Safe for You)
+## 5. How to Run in Testing Mode (Safe for You)
 
 The server is already running on http://127.0.0.1:8443.
 
 ### Option A: Lockdown Client (Testing Mode)
-Double-click 	argetelease\citadel-client.exe or run:
+Double-click 	arget
+elease\citadel-client.exe or run:
 `powershell
-.	argetelease\citadel-client.exe
+.	arget
+elease\citadel-client.exe
 `
 - Your internet will stay ON.
 - Explorer will not be killed.
@@ -87,19 +150,21 @@ http://127.0.0.1:8443/admin
 
 ---
 
-## 5. How to Engage Production Mode (Exam Day)
+## 6. How to Engage Production Mode (Exam Day)
 
 When deploying to student laptops in an examination hall:
 
 ### Via Command-Line:
 `powershell
-.	argetelease\citadel-client.exe --production
+.	arget
+elease\citadel-client.exe --production
 `
 
 ### Via Environment Variable:
 `powershell
  = "1"
-.	argetelease\citadel-client.exe
+.	arget
+elease\citadel-client.exe
 `
 
 In Production Mode, all maximum security measures are engaged automatically:
@@ -111,7 +176,7 @@ In Production Mode, all maximum security measures are engaged automatically:
 
 ---
 
-## 6. Emergency Recovery Tools
+## 7. Emergency Recovery Tools
 
 If a machine is ever abruptly powered off or interrupted during testing:
 1. Run **citadel-recovery.exe** (located at the root of the project).

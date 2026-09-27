@@ -18,6 +18,25 @@ fn test_elevation_check_safe() {
 }
 
 #[test]
+fn test_mandatory_elevation_zero_fallback() {
+    // If running in an unprivileged test context, verify that ClientLockdownGuard
+    // refuses to construct and rejects immediately with a fatal security error,
+    // guaranteeing that the client NEVER runs in a degraded 'less control' mode.
+    if !is_elevated() {
+        let server_ip = Ipv4Addr::new(127, 0, 0, 1);
+        let server_port = 8443;
+        let res = citadel_client::ClientLockdownGuard::new(server_ip, server_port);
+        assert!(res.is_err(), "ClientLockdownGuard MUST fail immediately if not elevated!");
+        let err_msg = res.err().unwrap();
+        assert!(
+            err_msg.contains("MANDATORY SECURITY ENFORCEMENT"),
+            "Error message must enforce mandatory administrator privileges, got: {}",
+            err_msg
+        );
+    }
+}
+
+#[test]
 fn test_destructive_lifecycle_opt_in_only() {
     // This test performs real OS-level operations (killing Explorer, switching desktops).
     // It is strictly gated behind an explicit environment variable so that 'cargo test'

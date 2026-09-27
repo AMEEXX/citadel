@@ -1033,3 +1033,97 @@ async fn test_client_session_control_and_end_exam_lifecycle() {
     assert_eq!(val2["should_exit"], true);
     assert_eq!(val2["status"], "Logged Out");
 }
+
+#[tokio::test]
+async fn test_mandatory_elevation_handshake_enforcement() {
+    let app = citadel_server::api::build_app();
+
+    // 1. In Testing Mode (default), unprivileged handshake is allowed for local test harnesses
+    let test_handshake_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/client/handshake")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "client_version": "0.2.0",
+                    "machine_guid": null,
+                    "mode": "testing",
+                    "is_elevated": false
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(test_handshake_res.status(), StatusCode::OK);
+    let body = test_handshake_res.into_body().collect().await.unwrap().to_bytes();
+    let val: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(val["status"], "authorized");
+    assert!(!val["session_token"].as_str().unwrap().is_empty());
+
+    // 2. Switch server to Production Mode via Admin Mode endpoint
+    let mode_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/mode/set?key=citadel-recruiter-key-2026")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "production": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(mode_res.status(), StatusCode::OK);
+
+    // 3. In Production Mode, an unprivileged client (is_elevated: false) MUST be rejected with 403 Forbidden
+    let rejected_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/client/handshake")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "client_version": "0.2.0",
+                    "machine_guid": null,
+                    "mode": "production",
+                    "is_elevated": false
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rejected_res.status(), StatusCode::FORBIDDEN);
+    let body_rej = rejected_res.into_body().collect().await.unwrap().to_bytes();
+    let val_rej: serde_json::Value = serde_json::from_slice(&body_rej).unwrap();
+    assert_eq!(val_rej["status"], "elevation_required");
+    assert_eq!(val_rej["session_token"], "");
+
+    // 4. In Production Mode, a verified elevated client (is_elevated: true) MUST be granted a session token
+    let accepted_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/client/handshake")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "client_version": "0.2.0",
+                    "machine_guid": null,
+                    "mode": "production",
+                    "is_elevated": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(accepted_res.status(), StatusCode::OK);
+    let body_acc = accepted_res.into_body().collect().await.unwrap().to_bytes();
+    let val_acc: serde_json::Value = serde_json::from_slice(&body_acc).unwrap();
+    assert_eq!(val_acc["status"], "authorized");
+    assert!(!val_acc["session_token"].as_str().unwrap().is_empty());
+}

@@ -468,6 +468,8 @@
       <span>Recruiter Console & LMS Command</span>
     </div>
     <div class="header-actions">
+      <div id="security-mode-badge" class="exam-badge" style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);">MODE: TESTING (OPEN ACCESS)</div>
+      <button id="btn-toggle-mode" class="btn-sm" style="background: #1e293b; color: #f8fafc; border: 1px solid #334155; cursor: pointer;" onclick="toggleSecurityMode()">Switch to Production</button>
       <div id="exam-status-badge" class="exam-badge badge-not-live">EXAM NOT STARTED</div>
       <button id="btn-toggle-live" class="btn-live btn-go-live" onclick="toggleExamLive()">▶ GO LIVE</button>
       <div class="sync-indicator">
@@ -642,6 +644,25 @@
 
         // 4. Candidate Table
         renderCandidateTable(data.candidates);
+
+        // 5. Security Mode UI
+        const modeBadge = document.getElementById('security-mode-badge');
+        const modeBtn = document.getElementById('btn-toggle-mode');
+        if (modeBadge && modeBtn && data.is_production !== undefined) {
+          if (data.is_production) {
+            modeBadge.innerText = 'MODE: PRODUCTION (LOCKDOWN ENFORCED)';
+            modeBadge.style.background = 'rgba(52, 211, 153, 0.12)';
+            modeBadge.style.color = '#34d399';
+            modeBadge.style.border = '1px solid rgba(52, 211, 153, 0.35)';
+            modeBtn.innerText = 'Switch to Testing Mode';
+          } else {
+            modeBadge.innerText = 'MODE: TESTING (OPEN ACCESS)';
+            modeBadge.style.background = 'rgba(251, 191, 36, 0.12)';
+            modeBadge.style.color = '#fbbf24';
+            modeBadge.style.border = '1px solid rgba(251, 191, 36, 0.3)';
+            modeBtn.innerText = 'Switch to Production Mode';
+          }
+        }
       } catch (e) {
         console.error("fetchMetrics error:", e);
       }
@@ -667,6 +688,17 @@
         badge.innerText = "EXAM NOT STARTED";
         btn.className = "btn-live btn-go-live";
         btn.innerText = "▶ GO LIVE";
+      }
+    }
+
+    async function toggleSecurityMode() {
+      try {
+        const res = await fetch(`/api/v1/admin/mode/toggle?key=${AUTH_KEY}`, { method: 'POST' });
+        if (res.ok) {
+          await fetchMetrics();
+        }
+      } catch (e) {
+        console.error("toggleSecurityMode error:", e);
       }
     }
 

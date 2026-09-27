@@ -58,6 +58,22 @@ The single screen an administrator watches for 90 minutes. Every element earns i
 
 **The Problem Health panel is the most valuable widget in the product.** It surfaces risk R4 (a broken problem) within minutes of the exam starting, while there is still time to act. In the example above, a 46–50% compilation-error rate on the last two problems almost certainly means a language the statement assumed is not in the allowed list, or a toolchain mismatch — something fixable in two minutes that would otherwise ruin the exam for everyone.
 
+### 2.1 Live Console Controls & Security Mode Gating
+
+The Recruiter & Operations console provides real-time control switches for the venue:
+
+#### 1. Security Lockdown Mode Switch
+- **Testing Mode (Open Access)**: Allows developers, administrators, and QA staff to open the candidate portal (`/` and `/exam`) directly in standard desktop browsers (Chrome, Edge, Firefox) across the LAN for UI verification and question review.
+- **Production Mode (Lockdown Enforced)**: Automatically engages the appliance-side gatekeeper. All unauthenticated HTTP requests to `/` receive the Gatekeeper installer download screen; direct API requests (`/api/v1/questions`, `/api/v1/submit`) return `403 Forbidden` (`CITADEL_LOCKDOWN_REQUIRED`). Only candidates running `citadel-client.exe` who complete the attestation handshake (`POST /api/v1/client/handshake`) can access exam problems.
+- **Dynamic Toggle API**:
+  - `GET /api/v1/admin/mode?key=<ADMIN_KEY>`: Returns current boolean state.
+  - `POST /api/v1/admin/mode/toggle?key=<ADMIN_KEY>`: Toggles mode atomically across the cluster.
+  - `POST /api/v1/admin/mode/set?key=<ADMIN_KEY>`: Explicitly sets `is_production` to `true` or `false`.
+
+#### 2. Real-Time Exam Live State Switch
+- Unlike monolithic platforms where stopping an exam is an irreversible termination, CITADEL implements a dynamic exam state toggle.
+- If an administrator accidentally pauses or unpublishes the exam mid-session, toggling it back to **Live** immediately re-enables portal accessibility and candidate submission endpoints without terminating active candidate processes or dropping local WAL states.
+
 ---
 
 ## 3. Exam lifecycle runbook

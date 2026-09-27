@@ -156,6 +156,17 @@ The critical structural point: **Forge does not spawn the compiler.** Forge asks
 └──────────────────────────────────────────────────────────────┘
 ```
 
+### 2.2.1 Ingress Admission Control & Dual-Mode Endpoint Gating
+
+To protect the exam content when hosted on open venue local networks (Wi-Fi or lab Ethernet), the Ingress layer operates under a dual-mode admission control policy:
+
+| Mode | Endpoint Behavior | Client Admission |
+|---|---|---|
+| **Testing Mode** (`CITADEL_PRODUCTION=0`) | Open LAN access to `/`, `/exam`, and `/api/v1/questions`. | Permissive: Any browser or test script can query APIs directly for developer iteration. |
+| **Production Mode** (`CITADEL_PRODUCTION=1`) | Unauthenticated traffic redirected to Gatekeeper download page at `/`. API endpoints require verified session token. | Strict: Only `citadel-client.exe` executing verified preflight checks can complete the handshake (`POST /api/v1/client/handshake`) to obtain an ephemeral session token. Direct curl, mobile browsers, and unmanaged devices are blocked with `403 Forbidden` (`CITADEL_LOCKDOWN_REQUIRED`). |
+
+Administrators can switch modes dynamically via the Recruiter Admin Console or via authenticated API (`POST /api/v1/admin/mode/toggle?key=<KEY>`).
+
 ### 2.3 Edge node — the same binary, a different role
 
 An edge node runs the identical appliance binary with `--role=edge`. It enables only:
@@ -216,6 +227,39 @@ Each venue runs T2 independently. Results are exported as signed packs and merge
 ---
 
 ## 4. End-to-end flows
+
+### 4.0 Candidate Onboarding and Client Gating Flow (Pre-T=0)
+
+```
+  Candidate Machine (Unmanaged)            CITADEL Appliance (:8443)
+  ─────────────────────────────            ─────────────────────────
+  1. Connects to exam venue Wi-Fi/LAN
+  2. Opens regular browser to venue IP
+     GET http://<appliance_ip>:8443/
+     ─────────────────────────────────────> In Production Mode:
+                                            Intercepts unauthenticated request
+                                            Returns Gatekeeper Page (HTML)
+     <───────────────────────────────────── (Prompts download of citadel-client)
+  3. Candidate downloads & runs
+     citadel-client.exe (auto-UAC elevated)
+  4. Client runs Pre-flight Scan:
+     - Terminates blacklisted tools
+       (browsers, Ollama, Discord, etc.)
+     - Validates single display & HW
+  5. Client performs Network Handshake:
+     POST /api/v1/client/handshake
+     { candidate_id, machine_name }
+     ─────────────────────────────────────> Validates attestation
+                                            Issues session token (citadel-sess-uuid)
+     <───────────────────────────────────── Returns 200 OK + auth_token
+  6. Client spawns isolated Kiosk Browser
+     targeting: /exam?auth_token={token}
+  7. Kiosk renders Exam Portal & injects
+     X-Citadel-Auth-Token header on all API calls
+  8. API verifies session token on every call:
+     GET /api/v1/questions ───────────────> 200 OK (Questions unlocked)
+     POST /api/v1/submit ─────────────────> 200 OK (Submission accepted)
+```
 
 ### 4.1 Exam start — the T=0 flow (the flow that decides whether the product works)
 

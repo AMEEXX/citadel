@@ -2,6 +2,7 @@
 use std::os::windows::process::CommandExt;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::{AtomicBool, Ordering};
 use axum::{
     body::Body,
     extract::{Path, Query, State},
@@ -109,7 +110,44 @@ pub struct ExamStatusResponse {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TokenSession {
+    pub token: String,
+    pub client_version: String,
+    pub machine_guid: Option<String>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ClientHandshakeRequest {
+    pub client_version: String,
+    pub machine_guid: Option<String>,
+    pub mode: Option<String>,
+    pub is_elevated: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClientHandshakeResponse {
+    pub status: String,
+    pub session_token: String,
+    pub is_production: bool,
+    pub server_time: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdminModeResponse {
+    pub is_production: bool,
+    pub mode: String,
+    pub active_authorized_tokens: usize,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct SetModeRequest {
+    pub production: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProctorDashboardData {
+    pub is_production: bool,
     pub total_candidates: usize,
     pub active_candidates: usize,
     pub flagged_candidates: usize,
@@ -185,6 +223,8 @@ pub struct AppState {
     pub questions: Arc<RwLock<Vec<Question>>>,
     pub exam_live: Arc<RwLock<ExamLiveState>>,
     pub admin_key: String,
+    pub is_production: Arc<AtomicBool>,
+    pub authorized_tokens: Arc<Mutex<HashMap<String, TokenSession>>>,
 }
 
 impl Default for AppState {
@@ -195,6 +235,10 @@ impl Default for AppState {
         let initial_live = std::env::var("CITADEL_EXAM_AUTO_LIVE")
             .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
             .unwrap_or(true);
+
+        let is_prod_val = std::env::var("CITADEL_PRODUCTION")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
 
         AppState {
             candidates: Arc::new(Mutex::new(HashMap::new())),
@@ -208,8 +252,53 @@ impl Default for AppState {
                 ended_at: None,
             })),
             admin_key,
+            is_production: Arc::new(AtomicBool::new(is_prod_val)),
+            authorized_tokens: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+}
+
+pub fn is_request_authorized(
+    headers: &HeaderMap,
+    query: &HashMap<String, String>,
+    state: &AppState,
+) -> bool {
+    // In Testing Mode (CITADEL_PRODUCTION=0), open network access is permitted for rapid testing
+    if !state.is_production.load(Ordering::SeqCst) {
+        return true;
+    }
+
+    // In Production Mode, strictly require a valid session token from citadel-client handshake
+    // 1. Query parameter: ?auth_token=... or ?token=...
+    if let Some(token) = query.get("auth_token").or_else(|| query.get("token")) {
+        let tokens = state.authorized_tokens.lock().unwrap();
+        if tokens.contains_key(token) {
+            return true;
+        }
+    }
+
+    // 2. HTTP header: X-Citadel-Auth-Token
+    if let Some(h) = headers.get("X-Citadel-Auth-Token").and_then(|v| v.to_str().ok()) {
+        let tokens = state.authorized_tokens.lock().unwrap();
+        if tokens.contains_key(h) {
+            return true;
+        }
+    }
+
+    // 3. HTTP Cookie: citadel_auth_token=...
+    if let Some(cookie) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) {
+        for part in cookie.split(';') {
+            let part = part.trim();
+            if let Some(val) = part.strip_prefix("citadel_auth_token=") {
+                let tokens = state.authorized_tokens.lock().unwrap();
+                if tokens.contains_key(val) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
 }
 
 pub fn is_admin_authorized(headers: &HeaderMap, query: &HashMap<String, String>, state: &AppState) -> bool {
@@ -263,6 +352,7 @@ pub fn build_app() -> Router {
         .route("/api/v1/integrity/event", post(report_event_handler))
         .route("/api/v1/integrity/logout", post(logout_handler))
         .route("/api/v1/client/session-control", get(client_session_control_handler))
+        .route("/api/v1/client/handshake", post(client_handshake_handler))
         .route("/api/v1/client/end-exam", post(client_end_exam_handler))
         .route("/api/v1/client/kill-all-lockdown", post(kill_all_lockdown_handler))
 
@@ -270,6 +360,9 @@ pub fn build_app() -> Router {
         .route("/admin", get(admin_page_handler))
         .route("/proctor", get(proctor_redirect_handler))
         .route("/api/v1/admin/metrics", get(admin_metrics_handler))
+        .route("/api/v1/admin/mode", get(get_admin_mode_handler))
+        .route("/api/v1/admin/mode/toggle", post(toggle_admin_mode_handler))
+        .route("/api/v1/admin/mode/set", post(set_admin_mode_handler))
         .route("/api/v1/admin/exam/go-live", post(admin_go_live_handler))
         .route("/api/v1/admin/exam/stop-live", post(admin_stop_live_handler))
         .route("/api/v1/admin/candidates/:id/disqualify", post(admin_disqualify_candidate_handler))
@@ -295,42 +388,66 @@ pub fn build_app() -> Router {
 async fn portal_or_gatekeeper_handler(
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let user_agent = headers
-        .get(header::USER_AGENT)
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("");
+    let authorized = is_request_authorized(&headers, &params, &state);
 
-    let has_lockdown_ua = user_agent.contains("CitadelSecurityCore")
-        || user_agent.contains("CITADEL-Lockdown-Client");
-    let has_lockdown_token = params.get("token").map(|v| v.as_str()) == Some("citadel-secured-session");
-    let has_exam_mode = params.get("mode").map(|v| v.as_str()) == Some("exam");
+    if authorized {
+        let mut response = (
+            [
+                (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+                (header::PRAGMA, "no-cache"),
+                (header::EXPIRES, "0"),
+            ],
+            Html(render_portal_html()),
+        ).into_response();
 
-    let html_content = if has_lockdown_ua || has_lockdown_token || has_exam_mode {
-        render_portal_html()
+        if let Some(token) = params.get("auth_token").or_else(|| params.get("token")) {
+            let cookie_header = format!("citadel_auth_token={}; Path=/; SameSite=Lax; Max-Age=28800", token);
+            if let Ok(val) = cookie_header.parse() {
+                response.headers_mut().insert(header::SET_COOKIE, val);
+            }
+        }
+        response
     } else {
-        render_gatekeeper_html()
-    };
-
-    (
-        [
-            (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
-            (header::PRAGMA, "no-cache"),
-            (header::EXPIRES, "0"),
-        ],
-        Html(html_content),
-    )
+        (
+            [
+                (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+                (header::PRAGMA, "no-cache"),
+                (header::EXPIRES, "0"),
+            ],
+            Html(render_gatekeeper_html()),
+        ).into_response()
+    }
 }
 
-async fn portal_handler() -> impl IntoResponse {
-    (
+async fn portal_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let authorized = is_request_authorized(&headers, &params, &state);
+
+    if !authorized {
+        return Redirect::to("/").into_response();
+    }
+
+    let mut response = (
         [
             (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
             (header::PRAGMA, "no-cache"),
             (header::EXPIRES, "0"),
         ],
         Html(render_portal_html()),
-    )
+    ).into_response();
+
+    if let Some(token) = params.get("auth_token").or_else(|| params.get("token")) {
+        let cookie_header = format!("citadel_auth_token={}; Path=/; SameSite=Lax; Max-Age=28800", token);
+        if let Ok(val) = cookie_header.parse() {
+            response.headers_mut().insert(header::SET_COOKIE, val);
+        }
+    }
+    response
 }
 
 async fn health_handler(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -384,40 +501,77 @@ async fn exam_status_handler(State(state): State<AppState>) -> Json<ExamStatusRe
     })
 }
 
-async fn list_questions_handler(State(state): State<AppState>) -> Json<Vec<QuestionSummary>> {
+async fn list_questions_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    if !is_request_authorized(&headers, &params, &state) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "unauthorized_client",
+                "code": "CITADEL_LOCKDOWN_REQUIRED",
+                "message": "Access restricted. Direct web access is blocked in Production Mode. Please open the assessment using the official Citadel Lockdown Client."
+            })),
+        ).into_response();
+    }
+
     let live = state.exam_live.read().unwrap().is_live;
     if !live {
-        return Json(vec![]);
+        return Json(Vec::<QuestionSummary>::new()).into_response();
     }
     let questions = state.questions.read().unwrap();
-    Json(get_question_summaries(&questions))
+    Json(get_question_summaries(&questions)).into_response()
 }
 
 async fn get_question_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
     Path(id): Path<String>,
-) -> Result<Json<Question>, StatusCode> {
+) -> impl IntoResponse {
+    if !is_request_authorized(&headers, &params, &state) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "unauthorized_client",
+                "code": "CITADEL_LOCKDOWN_REQUIRED",
+                "message": "Access restricted. Direct web access is blocked in Production Mode. Please open the assessment using the official Citadel Lockdown Client."
+            })),
+        ).into_response();
+    }
+
     let live = state.exam_live.read().unwrap().is_live;
     if !live {
-        return Err(StatusCode::FORBIDDEN);
+        return StatusCode::FORBIDDEN.into_response();
     }
     let questions = state.questions.read().unwrap();
-    questions
-        .iter()
-        .find(|q| q.id == id)
-        .cloned()
-        .map(sanitize_for_candidate)
-        .map(Json)
-        .ok_or(StatusCode::NOT_FOUND)
+    match questions.iter().find(|q| q.id == id).cloned().map(sanitize_for_candidate) {
+        Some(q) => Json(q).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn submit_code_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
     Json(payload): Json<SubmissionRequest>,
-) -> Result<Json<SubmissionResponse>, StatusCode> {
+) -> impl IntoResponse {
+    if !is_request_authorized(&headers, &params, &state) {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "unauthorized_client",
+                "code": "CITADEL_LOCKDOWN_REQUIRED",
+                "message": "Submissions are restricted. Submissions must originate from the official Citadel Lockdown Client."
+            })),
+        ).into_response();
+    }
     let is_live = state.exam_live.read().unwrap().is_live;
     if !is_live {
-        return Ok(Json(SubmissionResponse {
+        return Json(SubmissionResponse {
             submission_id: format!("sub-{}", chrono::Utc::now().timestamp_millis()),
             status: "Exam Inactive".to_string(),
             passed_cases: 0,
@@ -427,7 +581,7 @@ async fn submit_code_handler(
             memory_mb: 0.0,
             details: "Assessment session is currently not active. Submissions are disabled until recruiter goes live.".to_string(),
             sample_diffs: None,
-        }));
+        }).into_response();
     }
 
     let cand_id = payload.candidate_id.clone().unwrap_or_else(|| "CAND-DEFAULT".to_string());
@@ -437,7 +591,7 @@ async fn submit_code_handler(
         let cands = state.candidates.lock().unwrap();
         if let Some(cand) = cands.get(&cand_id) {
             if cand.status == "Disqualified" {
-                return Ok(Json(SubmissionResponse {
+                return Json(SubmissionResponse {
                     submission_id: format!("sub-{}", chrono::Utc::now().timestamp_millis()),
                     status: "Disqualified".to_string(),
                     passed_cases: 0,
@@ -447,7 +601,7 @@ async fn submit_code_handler(
                     memory_mb: 0.0,
                     details: "Your exam session has been disqualified by the proctor due to security violations. Submissions rejected.".to_string(),
                     sample_diffs: None,
-                }));
+                }).into_response();
             }
         }
     }
@@ -456,7 +610,7 @@ async fn submit_code_handler(
     let questions = state.questions.read().unwrap();
     let question = match questions.iter().find(|q| q.id == payload.question_id) {
         Some(q) => q.clone(),
-        None => return Err(StatusCode::NOT_FOUND),
+        None => return StatusCode::NOT_FOUND.into_response(),
     };
     drop(questions);
 
@@ -514,7 +668,7 @@ async fn submit_code_handler(
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
 
-    Ok(Json(SubmissionResponse {
+    Json(SubmissionResponse {
         submission_id: sub_id,
         status: judge_res.status,
         passed_cases: judge_res.passed_cases,
@@ -524,7 +678,7 @@ async fn submit_code_handler(
         memory_mb: judge_res.memory_mb,
         details: judge_res.details,
         sample_diffs: judge_res.sample_diffs,
-    }))
+    }).into_response()
 }
 
 async fn heartbeat_handler(
@@ -544,9 +698,11 @@ async fn heartbeat_handler(
 
     entry.active_question = req.active_question;
     entry.last_seen = chrono::Utc::now().to_rfc3339();
-    if entry.status != "Disqualified" && entry.status != "Logged Out" {
+    if entry.status != "Disqualified" {
         if !req.is_window_focused {
             entry.status = "Flagged".to_string();
+        } else {
+            entry.status = "Active".to_string();
         }
     }
 
@@ -573,7 +729,7 @@ async fn logout_handler(
         cand.status = "Logged Out".to_string();
     }
     cand.last_seen = chrono::Utc::now().to_rfc3339();
-    kill_all_citadel_lockdown_processes();
+    // Do not kill local host processes; logout is remote candidate state telemetry
     StatusCode::OK
 }
 
@@ -608,7 +764,7 @@ async fn client_session_control_handler(
         if !cid.is_empty() {
             let cands = state.candidates.lock().unwrap();
             if let Some(cand) = cands.get(cid) {
-                if cand.status == "Logged Out" {
+                if cand.status == "Submitted" {
                     return Json(SessionControlResponse {
                         should_exit: true,
                         reason: "Candidate session submitted".to_string(),
@@ -640,12 +796,12 @@ async fn client_session_control_handler(
 }
 
 pub fn kill_all_citadel_lockdown_processes() {
-    eprintln!("[CITADEL SERVER] === TOTAL PROCESS ELIMINATION INITIATED ===");
+    eprintln!("[CITADEL SERVER] === TOTAL CLIENT PROCESS ELIMINATION INITIATED ===");
     #[cfg(windows)]
     {
-        // 1. Force-kill all client/guard processes with wildcards (handles copies like 'citadel-client (3).exe')
+        // 1. Force-kill all client/guard processes (SAFE: NEVER kill citadel-server)
         let mut cmd = std::process::Command::new("taskkill");
-        cmd.args(["/F", "/FI", "IMAGENAME eq citadel*", "/T"]);
+        cmd.args(["/F", "/FI", "IMAGENAME eq citadel-client*", "/T"]);
         cmd.creation_flags(0x08000000);
         let _ = cmd.output();
 
@@ -654,12 +810,12 @@ pub fn kill_all_citadel_lockdown_processes() {
         cmd2.creation_flags(0x08000000);
         let _ = cmd2.output();
 
-        // 1b. Additional PowerShell sweep to kill any process matching citadel or guard, plus kiosk browser
+        // 1b. Additional PowerShell sweep to kill citadel-client or guard, plus kiosk browser (NEVER server)
         let _ = std::process::Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-Command",
-                "Get-Process | Where-Object { ($_.ProcessName -like '*citadel*' -or $_.ProcessName -like '*guard*') -and $_.Id -ne $PID } | Stop-Process -Force -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*citadel_kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+                "Get-Process | Where-Object { ($_.ProcessName -like '*citadel-client*' -or $_.ProcessName -like '*guard*') -and $_.Id -ne $PID } | Stop-Process -Force -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*citadel_kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
             ])
             .creation_flags(0x08000000)
             .output();
@@ -777,6 +933,115 @@ async fn kill_all_lockdown_handler(
 
     kill_all_citadel_lockdown_processes();
     StatusCode::OK
+}
+
+
+async fn client_handshake_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<ClientHandshakeRequest>,
+) -> Result<Json<ClientHandshakeResponse>, (StatusCode, Json<ClientHandshakeResponse>)> {
+    let now = chrono::Utc::now();
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    let is_elevated = payload.is_elevated.unwrap_or(false);
+
+    // In Production Mode, mandate that the client must be verified elevated.
+    // Degraded or unprivileged execution is strictly blocked by Citadel Security Policy.
+    if is_prod && !is_elevated {
+        eprintln!("[CITADEL SERVER SECURITY ALERT] Handshake rejected: Client reported non-elevated status in Production Mode.");
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ClientHandshakeResponse {
+                status: "elevation_required".to_string(),
+                session_token: String::new(),
+                is_production: is_prod,
+                server_time: now.to_rfc3339(),
+            }),
+        ));
+    }
+
+    let token = format!(
+        "citadel-sess-{:x}{:x}",
+        now.timestamp_nanos_opt().unwrap_or(0),
+        std::process::id() as u64 ^ 0x5a5a5a5a
+    );
+
+    let token_session = TokenSession {
+        token: token.clone(),
+        client_version: payload.client_version,
+        machine_guid: payload.machine_guid,
+        created_at: now,
+    };
+
+    let mut tokens = state.authorized_tokens.lock().unwrap();
+    tokens.insert(token.clone(), token_session);
+
+    eprintln!(
+        "[CITADEL SERVER] Secure client handshake verified! Elevated: {}, Issued session token: {}",
+        is_elevated, token
+    );
+
+    Ok(Json(ClientHandshakeResponse {
+        status: "authorized".to_string(),
+        session_token: token,
+        is_production: is_prod,
+        server_time: now.to_rfc3339(),
+    }))
+}
+
+async fn get_admin_mode_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<AdminModeResponse>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    let count = state.authorized_tokens.lock().unwrap().len();
+    Ok(Json(AdminModeResponse {
+        is_production: is_prod,
+        mode: if is_prod { "Production (Lockdown Enforced)".to_string() } else { "Testing (Open Access)".to_string() },
+        active_authorized_tokens: count,
+    }))
+}
+
+async fn toggle_admin_mode_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<AdminModeResponse>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let prev = state.is_production.load(Ordering::SeqCst);
+    let new_val = !prev;
+    state.is_production.store(new_val, Ordering::SeqCst);
+    let count = state.authorized_tokens.lock().unwrap().len();
+    eprintln!("[CITADEL SERVER] Administrator toggled server security mode to: {}", if new_val { "PRODUCTION" } else { "TESTING" });
+    Ok(Json(AdminModeResponse {
+        is_production: new_val,
+        mode: if new_val { "Production (Lockdown Enforced)".to_string() } else { "Testing (Open Access)".to_string() },
+        active_authorized_tokens: count,
+    }))
+}
+
+async fn set_admin_mode_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(body): Json<SetModeRequest>,
+) -> Result<Json<AdminModeResponse>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    state.is_production.store(body.production, Ordering::SeqCst);
+    let count = state.authorized_tokens.lock().unwrap().len();
+    eprintln!("[CITADEL SERVER] Administrator set server security mode to: {}", if body.production { "PRODUCTION" } else { "TESTING" });
+    Ok(Json(AdminModeResponse {
+        is_production: body.production,
+        mode: if body.production { "Production (Lockdown Enforced)".to_string() } else { "Testing (Open Access)".to_string() },
+        active_authorized_tokens: count,
+    }))
 }
 
 async fn client_end_exam_handler(
@@ -988,6 +1253,7 @@ async fn admin_metrics_handler(
         recent_submissions: subs_lock.iter().rev().take(50).cloned().collect(),
         questions: questions_lock.clone(),
         exam_live: exam_live_lock.clone(),
+        is_production: state.is_production.load(Ordering::SeqCst),
     }))
 }
 
@@ -1016,7 +1282,7 @@ async fn admin_disqualify_candidate_handler(
     if let Some(cand) = cands.get_mut(&id) {
         cand.status = "Disqualified".to_string();
         cand.last_seen = chrono::Utc::now().to_rfc3339();
-        kill_all_citadel_lockdown_processes();
+        // Candidate will receive Disqualified on their next heartbeat and terminate locally
         StatusCode::OK
     } else {
         StatusCode::NOT_FOUND

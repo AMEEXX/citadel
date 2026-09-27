@@ -432,3 +432,211 @@ If any lock or browser behavior ever behaves unexpectedly:
 equireAdministrator manifest.
    - Automatically prompts for Windows UAC on double-click.
    - Kills any stuck client processes, restores all registry policies, restarts Explorer, and shows a confirmation dialog.
+
+---
+
+## 11. Network Security Architecture & Cryptographic Client Handshake
+
+### 11.1 The Threat: Unauthorized LAN Queries & Device Bypass
+In an offline campus Wi-Fi environment, candidates are connected to the same local subnet as the Citadel Exam Server (`http://<LAN_IP>:8443`). Without application-layer admission control:
+- A candidate could connect their personal smartphone or an unmanaged secondary laptop to the campus Wi-Fi.
+- Using standard Google Chrome, Safari, or `curl`, the student could directly browse `/exam` or query `/api/v1/questions`, completely bypassing OS-level lockdown hooks, keyboard restrictions, and anti-cheat watchdogs.
+
+### 11.2 Dual-Mode Security Architecture
+
+CITADEL enforces a **Dual-Mode Security Gating Boundary**:
+
+```
+                         CAMPUS LOCAL AREA NETWORK (Wi-Fi)
+                                        │
+           ┌────────────────────────────┴────────────────────────────┐
+           ▼                                                         ▼
+   [Unrestricted Client]                                    [Managed Candidate Laptop]
+ (Phone / Regular Chrome / curl)                             (citadel-client.exe)
+           │                                                         │
+           │ (GET / or GET /api/v1/questions)                        │ 1. Pre-flight scan
+           │                                                         │ 2. POST /api/v1/client/handshake
+           │                                                         │    (Acquires session token)
+           │                                                         │ 3. Launches Edge Kiosk with
+           │                                                         │    auth_token injected
+           ▼                                                         ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       CITADEL CENTRAL SERVER (:8443)                        │
+│                                                                             │
+│  [TESTING MODE (CITADEL_PRODUCTION=0)]                                      │
+│  ▶ All endpoints open to all network callers for developer testing.        │
+│                                                                             │
+│  [PRODUCTION MODE (CITADEL_PRODUCTION=1)]                                   │
+│  ▶ Unauthorized callers:                                                    │
+│     * GET /               ──▶ Serves Gatekeeper Page (Download Client)     │
+│     * GET /exam           ──▶ Redirects to / (Gatekeeper)                   │
+│     * GET /api/v1/questions ─▶ 403 Forbidden (CITADEL_LOCKDOWN_REQUIRED)    │
+│     * POST /submissions   ──▶ 403 Forbidden (CITADEL_LOCKDOWN_REQUIRED)    │
+│  ▶ Authorized Handshake Sessions:                                           │
+│     * Set-Cookie: citadel_auth_token=<token>                                │
+│     * Full access granted to Coding Portal, Ace Editor & Sandbox Judge.     │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 11.3 Handshake Protocol Specification
+
+1. **Client Initiation**:
+   Prior to launching the kiosk browser, `citadel-client.exe` issues an HTTP request to the appliance:
+   ```http
+   POST /api/v1/client/handshake HTTP/1.1
+   Host: 172.60.5.98:8443
+   Content-Type: application/json
+
+   {
+     "client_version": "0.2.0",
+     "machine_guid": "GUID-...",
+     "mode": "production"
+   }
+   ```
+2. **Server Attestation & Token Generation**:
+   The server generates an ephemeral 128-bit cryptographic session token (`citadel-sess-<hex>`), registers it in `state.authorized_tokens`, and returns:
+   ```json
+   {
+     "status": "authorized",
+     "session_token": "citadel-sess-18d92477c82bce8c5a58ff4e",
+     "is_production": true,
+     "server_time": "2026-09-27T09:46:00Z"
+   }
+   ```
+3. **Kiosk Launch with Token Injection**:
+   `citadel-client.exe` launches Edge with:
+   `http://<SERVER_IP>:<PORT>/exam?auth_token=citadel-sess-...`
+4. **Session Cookie & Header Interceptor**:
+   - The server inspects the query parameter, verifies the token in memory, and responds with `Set-Cookie: citadel_auth_token=<token>; Path=/; SameSite=Lax; Max-Age=28800`.
+   - The in-portal frontend JavaScript intercepts all subsequent `fetch` calls, automatically attaching the `X-Citadel-Auth-Token` header.
+
+### 11.4 Live Mode Toggling via Recruiter Console
+Recruiters and proctors can dynamically switch between Safe Testing Mode and High-Assurance Production Mode directly from the Recruiter Console header or via the REST API:
+- `POST /api/v1/admin/mode/toggle?key=<ADMIN_KEY>`
+- `POST /api/v1/admin/mode/set?key=<ADMIN_KEY>` with payload `{"production": true|false}`
+
+
+---
+
+## 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
+
+### 12.1 The Failure Mode of Static Process Blacklists
+
+Previous pre-flight scanning implementations relied on a static array of process names (e.g., `brave.exe`, `chrome.exe`). In field deployments, this approach fails because:
+1. **Unlisted Standard Utilities**: Native applications like `Notepad.exe`, `wordpad.exe`, or `mspaint.exe` were omitted from the blacklist and remained fully operational.
+2. **UWP and Modern Packaged Applications**: Windows 10/11 Store apps (such as the modern Snipping Tool `SnippingTool.exe`, `ScreenClippingHost.exe`, and WhatsApp `WhatsApp.Root.exe`) use non-traditional process naming or host windows under `ApplicationFrameHost.exe`.
+3. **Renamed or Obfuscated Binaries**: A candidate can easily evade a process name check by renaming `cheatengine.exe` to `notes.exe`.
+
+### 12.2 The Citadel Dual-Layer Detection Architecture
+
+CITADEL replaces static process matching with a hybrid **window enumeration + deep process snapshot** engine:
+
+```
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │                    CITADEL PRE-FLIGHT SCANNER                          │
+  ├───────────────────────────────────┬────────────────────────────────────┤
+  │ Layer 1: Desktop Window Scanner   │ Layer 2: Deep Process Snapshot     │
+  │ (EnumDesktopWindows on WinSta0)   │ (CreateToolhelp32Snapshot)         │
+  ├───────────────────────────────────┼────────────────────────────────────┤
+  │ · Attaches to user desktop        │ · Scans all system PIDs            │
+  │ · Finds all visible GUI windows   │ · Matches expanded database        │
+  │ · Identifies PID + Exe + Title    │ · Catches background/tray tools    │
+  │ · Catches unlisted & renamed apps │ · Catches headless AI / remote svc │
+  └─────────────────┬─────────────────┴──────────────────┬─────────────────┘
+                    │                                    │
+                    └─────────────────┬──────────────────┘
+                                      ▼
+                      Unified Detected Application Set
+                                      │
+                                      ▼
+                      1. Automated Termination Pass
+                         (taskkill /F /T + TerminateProcess)
+                      2. Bluetooth Hardware Suppression
+                         (net stop bthserv /y)
+                                      │
+                                      ▼
+                        Strict Verification Rescan
+                                      │
+               ┌──────────────────────┴──────────────────────┐
+               ▼                                             ▼
+        [ Clean: 0 Apps ]                          [ Apps Still Open ]
+               │                                             │
+               ▼                                             ▼
+       Launch Exam Kiosk                            Prompt Candidate Modal
+                                                    (Lists specific app names)
+                                                             │
+                                                             ▼
+                                                    Candidate Closes Apps &
+                                                    Clicks OK -> Strict Rescan
+                                                    (NEVER advances until 0)
+```
+
+### 12.3 Automated Termination and Interactive Rescan Pipeline
+
+1. **Bluetooth Suppression**: Invokes `net stop bthserv /y` immediately to kill Bluetooth pairing and audio services.
+2. **Automated Tree Termination**: Runs `taskkill /F /T /PID <pid>` and `taskkill /F /T /IM <exe>` to eliminate the entire process hierarchy of detected tools, backed by direct Win32 `TerminateProcess` handles.
+3. **Strict Verification Loop**:
+   - After automated termination, the engine executes a full rescan of both Layer 1 and Layer 2.
+   - If any application remains open (due to unsaved files, background persistence, or permissions), the client renders a modal warning displaying the exact executable names and window titles.
+   - When the user clicks **OK**, the engine re-attempts termination and rescans.
+   - **Guaranteed Invariant**: The client will **never** spawn the kiosk or transition to the exam desktop until the scan returns **zero** non-whitelisted applications.
+
+---
+
+## 13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture
+
+### 13.1 Threat & Architectural Audit
+Operating an exam security client in an unprivileged or degraded mode ("less control") introduces fatal vulnerabilities:
+- **Unhindered Network Evasion**: Without elevation, Windows Filtering Platform (WFP) callout drivers and kernel packet filtering cannot be opened or bound. A non-elevated client cannot block outgoing traffic to cheat servers or local proxies.
+- **Bypassed Hardware Controls**: Bluetooth radio disablement (`net stop bthserv`) requires administrative privileges; unprivileged processes fail silently.
+- **Incomplete Hooking**: Low-level global keyboard hooks (`WH_KEYBOARD_LL`) can be bypassed or preempted by elevated administrative applications on the same desktop.
+- **Absence of Shell Isolation**: Explorer shell kill/restart and station security descriptors require full integrity levels.
+
+Prior to this architectural hardening, the client's internal `ClientLockdownGuard::new_with_mode` contained fallback branches (`if is_elevated() { ... } else { None }`) that allowed unprivileged execution in a degraded state. Furthermore, if a user clicked "No" on the initial UAC prompt, the application terminated without giving the candidate the opportunity to retry.
+
+### 13.2 The 4-Layer Zero-Fallback Elevation Architecture
+
+To completely eliminate the possibility of unprivileged or degraded execution, CITADEL enforces a 4-layer defensive hierarchy:
+
+```
+  ┌────────────────────────────────────────────────────────────────────────┐
+  │         CITADEL 4-LAYER ZERO-FALLBACK ELEVATION ARCHITECTURE           │
+  ├────────────────────────────────────────────────────────────────────────┤
+  │ Layer 1: PE Application Manifest                                       │
+  │ · <requestedExecutionLevel level="requireAdministrator" />             │
+  │ · Windows NT kernel AppInfo blocks unprivileged CreateProcess (Err 740)│
+  ├────────────────────────────────────────────────────────────────────────┤
+  │ Layer 2: Startup Auto-Escalation & Persistent Interactive Retry Loop   │
+  │ · while !is_elevated(): ShellExecuteW(runas) -> UAC prompt             │
+  │ · If declined: MB_RETRYCANCEL topmost modal repeatedly demands admin   │
+  │ · [Retry] re-triggers UAC; [Cancel] aborts cleanly. NEVER falls back   │
+  ├────────────────────────────────────────────────────────────────────────┤
+  │ Layer 3: Kernel Engine Zero-Fallback Guard                             │
+  │ · ClientLockdownGuard::new_with_mode asserts is_elevated() at entry    │
+  │ · Hard Err() returned if unprivileged; all degraded fallbacks purged   │
+  │ · Bluetooth, WFP Firewall, and Explorer suppression guaranteed active  │
+  ├────────────────────────────────────────────────────────────────────────┤
+  │ Layer 4: Server Appliance Cryptographic Handshake Attestation          │
+  │ · POST /api/v1/client/handshake attests { is_elevated: true }          │
+  │ · Production Mode server rejects unprivileged clients (403 Forbidden)   │
+  │ · Exam session token (citadel-sess-*) only granted to verified admins  │
+  └────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Layer 1: PE Application Manifest (`requireAdministrator`)**:
+   - Manifest embedded into `citadel-client.exe` PE header via `winresource`.
+   - Direct invocation by unprivileged processes is stopped by the Windows NT kernel with **Error 740: `The requested operation requires elevation`**.
+2. **Layer 2: Interactive UAC Auto-Escalation & Persistent Retry Loop**:
+   - `main.rs` contains an interactive `while !is_elevated()` loop.
+   - It triggers automatic UAC elevation using `ShellExecuteW(..., "runas", ...)`.
+   - If the user clicks "No", the client displays a high-priority modal (`MB_RETRYCANCEL | MB_TOPMOST`) stating that Administrator privileges are mandatory for exam security.
+   - Clicking **[Retry]** loops and triggers UAC again. The prompt repeats until the user grants elevation or explicitly cancels.
+3. **Layer 3: Kernel Engine Zero-Fallback Guard**:
+   - `ClientLockdownGuard::new_with_mode` checks `is_elevated()` immediately.
+   - If not elevated, it aborts initialization with a fatal error: `"MANDATORY SECURITY ENFORCEMENT: Citadel Client requires Administrator privileges..."`.
+   - Degraded fallback branches (`else { None }`) have been completely purged from the codebase.
+4. **Layer 4: Server Appliance Cryptographic Handshake Attestation**:
+   - The client transmits its elevation status during the preflight handshake:
+     `{"client_version": "0.2.0", "mode": "production", "is_elevated": true}`.
+   - In Production Mode, `citadel-server` strictly validates `is_elevated == true`. If missing or false, it rejects with `403 Forbidden` (`elevation_required`).
+   - Ephemeral session tokens (`citadel-sess-*`) and exam access cookies are cryptographically denied to any non-elevated client.

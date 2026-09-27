@@ -95,8 +95,9 @@ impl Drop for LocalControlServer {
 
 fn handle_request(req: &str, stream: &mut TcpStream, exit_signal: &Arc<AtomicBool>) {
     let first_line = req.lines().next().unwrap_or("");
+    eprintln!("[CITADEL CLIENT] Local control request: {}", first_line);
     let is_options = first_line.starts_with("OPTIONS");
-    let is_end_exam = first_line.contains("/end-exam") || first_line.contains("/restore");
+    let is_end_exam = first_line.starts_with("POST") && (first_line.contains("/end-exam") || first_line.contains("/restore"));
     let is_health = first_line.contains("/health") || first_line.contains("/status");
 
     let cors_headers = "Access-Control-Allow-Origin: *\r\nAccess-Control-Allow-Methods: GET, POST, OPTIONS\r\nAccess-Control-Allow-Headers: *\r\nConnection: close\r\n";
