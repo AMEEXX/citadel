@@ -76,6 +76,43 @@ pub struct CandidateSession {
     pub last_seen: String,
     pub status: String, // "Active", "Flagged", "Disqualified", "Logged Out"
     pub total_score: u32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateSubmissionDetail {
+    pub submission_id: String,
+    pub candidate_id: String,
+    pub question_id: String,
+    pub question_title: String,
+    pub language: String,
+    pub passed_cases: u32,
+    pub total_cases: u32,
+    pub score: u32,
+    pub status: String,
+    pub runtime_ms: u64,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateProfileResponse {
+    pub candidate_id: String,
+    pub ip_address: String,
+    pub status: String,
+    pub total_score: u32,
+    pub active_question: u32,
+    pub violations_count: u32,
+    pub started_at: Option<String>,
+    pub completed_at: Option<String>,
+    pub last_seen: String,
+    pub total_submissions: usize,
+    pub passed_submissions: usize,
+    pub total_violations: usize,
+    pub submissions: Vec<CandidateSubmissionDetail>,
+    pub integrity_events: Vec<IntegrityEvent>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -368,7 +405,8 @@ pub fn build_app() -> Router {
         .route("/api/v1/admin/candidates/:id/disqualify", post(admin_disqualify_candidate_handler))
         .route("/api/v1/admin/candidates/:id/clear-flag", post(admin_clear_flag_candidate_handler))
         .route("/api/v1/admin/questions", post(admin_create_question_handler))
-        .route("/api/v1/admin/questions/:id", post(admin_update_question_handler))
+        .route("/api/v1/admin/candidates/:id/profile", get(admin_candidate_profile_handler))
+        .route("/api/v1/admin/questions/:id", post(admin_update_question_handler).delete(admin_delete_question_handler))
         .route("/api/v1/admin/questions/:id/sample-cases", post(admin_add_sample_case_handler))
         .route("/api/v1/admin/questions/:id/sample-cases/:idx", delete(admin_delete_sample_case_handler))
         .route("/api/v1/admin/questions/:id/hidden-cases", post(admin_add_hidden_case_handler))
@@ -660,6 +698,8 @@ async fn submit_code_handler(
             last_seen: chrono::Utc::now().to_rfc3339(),
             status: "Active".to_string(),
             total_score: 0,
+            started_at: Some(chrono::Utc::now().to_rfc3339()),
+            completed_at: None,
         });
 
         if !payload.is_sample_run && judge_res.score > cand.total_score {
@@ -694,6 +734,8 @@ async fn heartbeat_handler(
         last_seen: chrono::Utc::now().to_rfc3339(),
         status: "Active".to_string(),
         total_score: 0,
+        started_at: Some(chrono::Utc::now().to_rfc3339()),
+        completed_at: None,
     });
 
     entry.active_question = req.active_question;
@@ -724,10 +766,13 @@ async fn logout_handler(
         last_seen: chrono::Utc::now().to_rfc3339(),
         status: "Logged Out".to_string(),
         total_score: 0,
+        started_at: Some(chrono::Utc::now().to_rfc3339()),
+        completed_at: Some(chrono::Utc::now().to_rfc3339()),
     });
     if cand.status != "Disqualified" {
         cand.status = "Logged Out".to_string();
     }
+    cand.completed_at = Some(chrono::Utc::now().to_rfc3339());
     cand.last_seen = chrono::Utc::now().to_rfc3339();
     // Do not kill local host processes; logout is remote candidate state telemetry
     StatusCode::OK
@@ -926,8 +971,11 @@ async fn kill_all_lockdown_handler(
             last_seen: chrono::Utc::now().to_rfc3339(),
             status: "Logged Out".to_string(),
             total_score: 0,
+            started_at: Some(chrono::Utc::now().to_rfc3339()),
+            completed_at: Some(chrono::Utc::now().to_rfc3339()),
         });
         cand.status = "Logged Out".to_string();
+        cand.completed_at = Some(chrono::Utc::now().to_rfc3339());
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
 
@@ -1077,6 +1125,8 @@ async fn report_event_handler(
             last_seen: chrono::Utc::now().to_rfc3339(),
             status: "Active".to_string(),
             total_score: 0,
+            started_at: Some(chrono::Utc::now().to_rfc3339()),
+            completed_at: None,
         });
 
         cand.violations_count += 1;
@@ -1458,6 +1508,109 @@ async fn admin_delete_hidden_case_handler(
         } else {
             StatusCode::BAD_REQUEST
         }
+    } else {
+        StatusCode::NOT_FOUND
+    }
+}
+
+
+async fn admin_candidate_profile_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<CandidateProfileResponse>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let cand = {
+        let cands = state.candidates.lock().unwrap();
+        match cands.get(&id) {
+            Some(c) => c.clone(),
+            None => return Err(StatusCode::NOT_FOUND),
+        }
+    };
+
+    let questions_map: HashMap<String, String> = {
+        let questions = state.questions.read().unwrap();
+        questions.iter().map(|q| (q.id.clone(), q.title.clone())).collect()
+    };
+
+    let candidate_subs: Vec<CandidateSubmissionDetail> = {
+        let subs = state.submissions.lock().unwrap();
+        subs.iter()
+            .filter(|s| s.candidate_id == id)
+            .map(|s| {
+                let q_title = questions_map
+                    .get(&s.question_id)
+                    .cloned()
+                    .unwrap_or_else(|| format!("Problem {}", s.question_id));
+                CandidateSubmissionDetail {
+                    submission_id: s.submission_id.clone(),
+                    candidate_id: s.candidate_id.clone(),
+                    question_id: s.question_id.clone(),
+                    question_title: q_title,
+                    language: s.language.clone(),
+                    passed_cases: s.passed_cases,
+                    total_cases: s.total_cases,
+                    score: s.score,
+                    status: s.status.clone(),
+                    runtime_ms: s.runtime_ms,
+                    timestamp: s.timestamp.clone(),
+                }
+            })
+            .collect()
+    };
+
+    let candidate_viols: Vec<IntegrityEvent> = {
+        let viols = state.violations.lock().unwrap();
+        viols.iter()
+            .filter(|v| v.candidate_id == id)
+            .cloned()
+            .collect()
+    };
+
+    let passed_subs = candidate_subs
+        .iter()
+        .filter(|s| s.status == "Accepted" || (s.passed_cases == s.total_cases && s.total_cases > 0))
+        .count();
+
+    Ok(Json(CandidateProfileResponse {
+        candidate_id: cand.candidate_id,
+        ip_address: cand.ip_address,
+        status: cand.status,
+        total_score: cand.total_score,
+        active_question: cand.active_question,
+        violations_count: cand.violations_count,
+        started_at: cand.started_at,
+        completed_at: cand.completed_at,
+        last_seen: cand.last_seen,
+        total_submissions: candidate_subs.len(),
+        passed_submissions: passed_subs,
+        total_violations: candidate_viols.len(),
+        submissions: candidate_subs,
+        integrity_events: candidate_viols,
+    }))
+}
+
+async fn admin_delete_question_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return StatusCode::FORBIDDEN;
+    }
+
+    let mut questions = state.questions.write().unwrap();
+    if let Some(pos) = questions.iter().position(|q| q.id == id) {
+        questions.remove(pos);
+        for (idx, q) in questions.iter_mut().enumerate() {
+            q.number = (idx + 1) as u32;
+        }
+        StatusCode::OK
     } else {
         StatusCode::NOT_FOUND
     }
