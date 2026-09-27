@@ -959,3 +959,77 @@ async fn test_portal_and_recruiter_ui_rendering_complete() {
     assert!(recruiter_html.contains("status-logged-out"));
     assert!(recruiter_html.contains("fetchMetrics"));
 }
+
+#[tokio::test]
+async fn test_client_session_control_and_end_exam_lifecycle() {
+    let app = citadel_server::api::build_app();
+
+    // 1. Initial state: should_exit should be false
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/client/session-control")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let body = res.into_body().collect().await.unwrap().to_bytes();
+    let val: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(val["should_exit"], false);
+
+    // 2. Candidate registers heartbeat
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrity/heartbeat")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "candidate_id": "CAND-RESTORE-TEST",
+                    "active_question": 1,
+                    "is_window_focused": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // 3. Candidate clicks End Exam -> calls /api/v1/client/end-exam
+    let end_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/client/end-exam")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "candidate_id": "CAND-RESTORE-TEST",
+                    "reason": "Candidate ended exam"
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(end_res.status(), StatusCode::OK);
+
+    // 4. Client session-control query now returns should_exit = true
+    let res2 = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/v1/client/session-control?candidate_id=CAND-RESTORE-TEST")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res2.status(), StatusCode::OK);
+    let body2 = res2.into_body().collect().await.unwrap().to_bytes();
+    let val2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
+    assert_eq!(val2["should_exit"], true);
+    assert_eq!(val2["status"], "Logged Out");
+}

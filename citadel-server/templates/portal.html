@@ -982,14 +982,35 @@
 
   <!-- CONCLUSION OVERLAY -->
   <div id="conclusion-screen" class="conclusion-overlay" style="display: none;">
-    <div class="conclusion-card">
-      <div style="font-size: 32px; color: #6aaa7a; margin-bottom: 14px;">✓</div>
-      <h2 style="font-size: 17px; font-weight: 600; color: #c8cede; margin-bottom: 10px;">Assessment Submitted Successfully</h2>
-      <p style="color: #7a8494; font-size: 13px; line-height: 1.65; margin-bottom: 18px;">Your session has concluded and your final submission has been recorded.</p>
-      <div style="display: inline-block; background: #0f1a0f; border: 1px solid #1c2a1c; color: #6aaa7a; font-size: 11px; font-weight: 600; padding: 3px 12px; border-radius: 3px; margin-bottom: 14px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;">
-        Session closed
+    <div class="conclusion-card" style="text-align: center; max-width: 520px; padding: 40px 32px; border-radius: 8px; border: 1px solid #059669; background: #0f172a; box-shadow: 0 20px 50px rgba(0,0,0,0.6);">
+      <div style="font-size: 44px; color: #34d399; margin-bottom: 14px;">✓</div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #f8fafc; margin-bottom: 10px;">Assessment Submitted Successfully</h2>
+      <p style="color: #94a3b8; font-size: 13.5px; line-height: 1.65; margin-bottom: 20px;">
+        Your examination session has concluded. All Citadel lockdown processes have been terminated with zero pending restrictions.
+      </p>
+      <div style="display: inline-block; background: #064e3b; border: 1px solid #059669; color: #6ee7b7; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: 'JetBrains Mono', monospace;">
+        User, you can now successfully close the window.
       </div>
-      <p style="color: #3a4252; font-size: 11px; font-family: 'JetBrains Mono', 'Fira Code', Consolas, monospace;">This window may now be closed.</p>
+      <p style="color: #64748b; font-size: 12px; font-family: 'JetBrains Mono', monospace; margin-bottom: 20px;">
+        All shortcuts (Win+R, Win+Shift+S, Alt+Tab, PrtScn) and system shell are restored.
+      </p>
+      <button onclick="try{window.close();}catch(e){} try{window.open('','_self').close();}catch(e){}" style="background: #2563eb; color: #ffffff; border: none; padding: 10px 26px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">
+        Close Window
+      </button>
+    </div>
+  </div>
+
+  <!-- DISQUALIFIED OVERLAY -->
+  <div id="disqualified-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 7000;">
+    <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid #dc2626; background: var(--bg-panel); text-align: center;">
+      <div style="font-size: 38px; color: #ef4444; margin-bottom: 16px;">⚠️</div>
+      <h2 style="font-size: 20px; font-weight: 700; color: #f87171; margin-bottom: 12px;">Session Terminated / Disqualified</h2>
+      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+        Your examination session has been terminated by the proctor. All lockdown restrictions are now being completely removed from your laptop.
+      </p>
+      <div style="display: inline-block; background: #450a0a; border: 1px solid #b91c1c; color: #fca5a5; font-size: 12px; font-weight: 600; padding: 6px 18px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;">
+        Workstation Restoration Active...
+      </div>
     </div>
   </div>
 
@@ -1012,6 +1033,19 @@
     </div>
   </div>
 
+  
+  <!-- CANDIDATE ID MODAL -->
+  <div id="candidate-id-modal" class="modal-overlay" style="display: flex; background: #000000; z-index: 6000;">
+    <div class="conclusion-card" style="max-width: 400px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel); text-align: center;">
+      <h2 style="font-size: 20px; font-weight: 700; color: #fff; margin-bottom: 12px;">Candidate Registration</h2>
+      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+        Please enter your Candidate ID or Roll Number to begin your assessment session.
+      </p>
+      <input type="text" id="candidate-id-input" placeholder="e.g. 2026-CS-042 or College ID" onkeydown="if(event.key==='Enter') saveCandidateId()" style="width: 100%; padding: 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); color: #fff; font-size: 14px; border-radius: 4px; margin-bottom: 20px; text-align: center;">
+      <button id="btn-register-join" onclick="saveCandidateId()" style="width: 100%; background: #2563eb; color: #fff; padding: 12px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer;">Register & Join</button>
+    </div>
+  </div>
+
   <!-- EXAM CONCLUDED OVERLAY -->
   <div id="exam-concluded-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
     <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel);">
@@ -1030,15 +1064,51 @@
     // =========================================================================
     // PERSISTENT CANDIDATE IDENTITY (localStorage across sessions & reloads)
     // =========================================================================
-    let candidateId = localStorage.getItem('citadel_candidate_id');
-    if (!candidateId) {
-      const randNum = Math.floor(100000 + Math.random() * 900000);
-      candidateId = `CAND-${randNum}`;
-      localStorage.setItem('citadel_candidate_id', candidateId);
-    }
-    const CANDIDATE_ID = candidateId;
+    let CANDIDATE_ID = localStorage.getItem('citadel_candidate_id');
     const overlayCandIdEl = document.getElementById('overlay-cand-id');
-    if (overlayCandIdEl) overlayCandIdEl.innerText = CANDIDATE_ID;
+    
+    function initCandidateId() {
+      const input = document.getElementById('candidate-id-input');
+      const modal = document.getElementById('candidate-id-modal');
+      if (!CANDIDATE_ID) {
+        if (modal) modal.style.display = 'flex';
+        if (input) setTimeout(() => input.focus(), 150);
+      } else {
+        if (modal) modal.style.display = 'none';
+        if (overlayCandIdEl) overlayCandIdEl.innerText = CANDIDATE_ID;
+        checkExamStatus();
+        if (questionsList.length === 0) {
+          fetchQuestions();
+        }
+      }
+    }
+
+    window.saveCandidateId = function() {
+      const input = document.getElementById('candidate-id-input');
+      const val = input ? input.value.trim() : '';
+      if (!val || val.length === 0) {
+        alert("Please enter your College ID or Roll Number to begin.");
+        if (input) input.focus();
+        return;
+      }
+      CANDIDATE_ID = val;
+      localStorage.setItem('citadel_candidate_id', CANDIDATE_ID);
+
+      const modal = document.getElementById('candidate-id-modal');
+      if (modal) modal.style.display = 'none';
+
+      const notStarted = document.getElementById('exam-not-started-overlay');
+      if (notStarted) notStarted.style.display = 'none';
+
+      if (overlayCandIdEl) overlayCandIdEl.innerText = CANDIDATE_ID;
+
+      // Immediately register session, check status, and load questions
+      sendHeartbeat();
+      checkExamStatus();
+      if (questionsList.length === 0) {
+        fetchQuestions();
+      }
+    };
 
     // =========================================================================
     // STATE & PROBLEM BANK
@@ -1345,8 +1415,7 @@ ${data.details}`;
           }
         }
       } catch (err) {
-        consoleOut.innerText = "Network / System Error during execution:
-" + err.message;
+        consoleOut.innerText = "Network / System Error during execution:\n" + err.message;
         switchDrawerTab('console');
       } finally {
         runBtn.disabled = false;
@@ -1654,9 +1723,30 @@ Score Awarded: ${data.score} pts`);
       const confirmBtn = document.getElementById('btn-confirm-end');
       if (confirmBtn) {
         confirmBtn.disabled = true;
-        confirmBtn.innerText = "Ending Session...";
+        confirmBtn.innerText = "Ending Exam & Eliminating All Processes...";
       }
 
+      // 1. Total process elimination trigger on server
+      try {
+        await fetch('/api/v1/client/kill-all-lockdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            reason: 'Candidate clicked Confirm & End Exam'
+          })
+        });
+      } catch (e) {}
+
+      // 2. Direct loopback notification to local citadel-client
+      try {
+        await fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
+          method: 'POST',
+          mode: 'no-cors'
+        });
+      } catch (e) {}
+
+      // 3. Notify exam server of submission / logout
       try {
         await fetch('/api/v1/integrity/logout', {
           method: 'POST',
@@ -1671,22 +1761,59 @@ Score Awarded: ${data.score} pts`);
       document.getElementById('modal-end-exam').style.display = 'none';
       document.getElementById('conclusion-screen').style.display = 'flex';
 
+      // 4. Attempt window close
       setTimeout(() => {
-        window.close();
-      }, 1500);
+        try { window.close(); } catch(e) {}
+        try { window.open('', '_self').close(); } catch(e) {}
+      }, 500);
     }
 
-    function sendHeartbeat() {
+    async function sendHeartbeat() {
       const activeQNum = activeQuestion ? activeQuestion.number : 1;
-      fetch('/api/v1/integrity/heartbeat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          candidate_id: CANDIDATE_ID,
-          active_question: activeQNum,
-          is_window_focused: document.hasFocus(),
-        })
-      }).catch(() => {});
+      try {
+        const res = await fetch('/api/v1/integrity/heartbeat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            active_question: activeQNum,
+            is_window_focused: document.hasFocus(),
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.status === 'Disqualified') {
+            triggerDisqualification();
+          }
+        }
+      } catch (e) {}
+    }
+
+    function triggerDisqualification() {
+      const overlay = document.getElementById('disqualified-overlay');
+      if (overlay) {
+        overlay.style.display = 'flex';
+      }
+      try {
+        fetch('/api/v1/client/kill-all-lockdown', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            reason: 'Candidate Disqualified by Proctor'
+          })
+        }).catch(() => {});
+      } catch (e) {}
+      try {
+        fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
+          method: 'POST',
+          mode: 'no-cors'
+        }).catch(() => {});
+      } catch (e) {}
+      setTimeout(() => {
+        try { window.close(); } catch(e) {}
+        try { window.open('', '_self').close(); } catch(e) {}
+      }, 1000);
     }
 
     function escapeHtml(str) {
@@ -1723,6 +1850,7 @@ Score Awarded: ${data.score} pts`);
 
     // Page initialization
     window.addEventListener('DOMContentLoaded', () => {
+      initCandidateId();
       initAceEditor();
       initResizers();
       checkExamStatus();

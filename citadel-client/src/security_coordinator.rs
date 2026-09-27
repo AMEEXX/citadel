@@ -97,7 +97,7 @@ pub struct BluetoothLock {
 
 impl BluetoothLock {
     pub fn acquire() -> Self {
-        eprintln!("[CITADEL CLIENT] Disabling Bluetooth service & wireless interfaces for exam security...");
+        eprintln!("[CITADEL CLIENT] Disabling Bluetooth service for exam security...");
         let _ = std::process::Command::new("net")
             .args(["stop", "bthserv", "/y"])
             .creation_flags(0x08000000) // CREATE_NO_WINDOW
@@ -105,17 +105,25 @@ impl BluetoothLock {
 
         BluetoothLock { was_active: true }
     }
+
+    pub fn restore(&self) {
+        if self.was_active {
+            eprintln!("[CITADEL CLIENT] Restoring Bluetooth service...");
+            let _ = std::process::Command::new("sc")
+                .args(["config", "bthserv", "start=", "auto"])
+                .creation_flags(0x08000000)
+                .output();
+            let _ = std::process::Command::new("net")
+                .args(["start", "bthserv"])
+                .creation_flags(0x08000000)
+                .output();
+        }
+    }
 }
 
 impl Drop for BluetoothLock {
     fn drop(&mut self) {
-        if self.was_active {
-            eprintln!("[CITADEL CLIENT] Restoring Bluetooth service...");
-            let _ = std::process::Command::new("net")
-                .args(["start", "bthserv"])
-                .creation_flags(0x08000000) // CREATE_NO_WINDOW
-                .output();
-        }
+        self.restore();
     }
 }
 
@@ -144,6 +152,8 @@ pub struct ClientLockdownGuard {
     violations: Arc<Mutex<Vec<String>>>,
     server_ip: Ipv4Addr,
     server_port: u16,
+    /// Tracks whether restore_all() has already been called to prevent double-restore
+    restored: bool,
 }
 
 impl ClientLockdownGuard {
@@ -200,7 +210,7 @@ impl ClientLockdownGuard {
                 Ok(mut engine) => {
                     if engine.install_college_lan_policy(server_ip, server_port).is_ok() {
                         eprintln!(
-                            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: All public internet dropped. Permitted server: {}:{}",
+                            "[CITADEL CLIENT] HARDWARE NETWORK LOCK ACTIVE: Permitted server: {}:{}",
                             server_ip, server_port
                         );
                         Some(engine)
@@ -218,7 +228,7 @@ impl ClientLockdownGuard {
             if is_local_test {
                 eprintln!("[CITADEL CLIENT] Safe network mode: Public internet preserved during local test.");
             } else if !enforce_network {
-                eprintln!("[CITADEL CLIENT] Network enforcement disabled (pass --production or set CITADEL_ENFORCE_NETWORK=1 to engage).");
+                eprintln!("[CITADEL CLIENT] Network enforcement disabled.");
             } else {
                 eprintln!("[CITADEL CLIENT] Non-elevated: WFP kernel network firewall skipped.");
             }
@@ -266,6 +276,7 @@ impl ClientLockdownGuard {
             violations,
             server_ip,
             server_port,
+            restored: false,
         })
     }
 
@@ -296,7 +307,7 @@ impl ClientLockdownGuard {
         self._foreground_lock = Some(ForegroundLock::start());
 
         // Start process watchdog for forbidden cheat tools
-        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone()));
+        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone()));
 
         // Start background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
         let stop_clone = self.stop_signal.clone();
@@ -348,14 +359,117 @@ impl ClientLockdownGuard {
     pub fn get_violations(&self) -> Vec<String> {
         self.violations.lock().unwrap().clone()
     }
+
+    /// Explicitly tear down ALL lockdown components in guaranteed order.
+    /// Called by both Drop and End Exam to ensure full restoration.
+    /// This is idempotent — calling it multiple times is safe.
+    pub fn restore_all(&mut self) {
+        if self.restored {
+            eprintln!("[CITADEL CLIENT] restore_all() already executed, skipping.");
+            return;
+        }
+        self.restored = true;
+
+        eprintln!("[CITADEL CLIENT] === FULL SYSTEM RESTORATION INITIATED ===");
+
+        // 1. Signal all background threads to stop FIRST
+        self.stop_signal.store(true, Ordering::SeqCst);
+
+        // 2. Stop sensor thread
+        if let Some(thread) = self.sensor_thread.take() {
+            let _ = thread.join();
+            eprintln!("[CITADEL CLIENT] [RESTORE] Sensor thread stopped.");
+        }
+
+        // 3. Stop process watchdog
+        if let Some(wd) = self._process_watchdog.take() {
+            drop(wd);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Process watchdog stopped.");
+        }
+
+        // 4. Stop foreground lock
+        if let Some(fl) = self._foreground_lock.take() {
+            drop(fl);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Foreground lock released.");
+        }
+
+        // 5. Stop clipboard guard
+        if let Some(cg) = self._clipboard_guard.take() {
+            drop(cg);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Clipboard guard stopped.");
+        }
+
+        // 6. Release touchpad lock
+        if let Some(tp) = self._touchpad_lock.take() {
+            drop(tp);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Touchpad lock released.");
+        }
+
+        // 7. Release taskbar lock (restore taskbars)
+        if let Some(tb) = self._taskbar_lock.take() {
+            drop(tb);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Taskbar restored.");
+        }
+
+        // 8. CRITICAL: Unhook keyboard hook — this is what restores Win key, Alt+Tab
+        if let Some(hk) = self._hotkey_handle.take() {
+            hk.stop();
+            eprintln!("[CITADEL CLIENT] [RESTORE] Keyboard hook uninstalled - Win key, Alt+Tab RESTORED.");
+        }
+
+        // 9. Release WFP engine (remove kernel firewall rules)
+        if let Some(wfp) = self._wfp_engine.take() {
+            drop(wfp);
+            eprintln!("[CITADEL CLIENT] [RESTORE] WFP kernel firewall rules removed - Internet RESTORED.");
+        }
+
+        // 10. Restore explorer lock
+        if let Some(el) = self._explorer_lock.take() {
+            drop(el);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Explorer shell relaunched.");
+        }
+
+        // 11. Switch back from secure desktop
+        if let Some(sd) = self._secure_desktop.take() {
+            drop(sd);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Switched back to Default desktop.");
+        }
+
+        // 12. Restore registry policies
+        if let Some(mut rl) = self._registry_lock.take() {
+            rl.restore();
+            eprintln!("[CITADEL CLIENT] [RESTORE] Registry policies restored.");
+        }
+
+        // 13. Restore Bluetooth — call restore() then forget to avoid double-drop
+        if let Some(bl) = self._bluetooth_lock.take() {
+            bl.restore();
+            std::mem::forget(bl);
+            eprintln!("[CITADEL CLIENT] [RESTORE] Bluetooth service restored.");
+        }
+
+        // 14. Restore WLAN service (always attempt)
+        let _ = std::process::Command::new("sc")
+            .args(["config", "WlanSvc", "start=", "auto"])
+            .creation_flags(0x08000000)
+            .output();
+        let _ = std::process::Command::new("net")
+            .args(["start", "WlanSvc"])
+            .creation_flags(0x08000000)
+            .output();
+        eprintln!("[CITADEL CLIENT] [RESTORE] WLAN service restored.");
+
+        // 15. Run emergency_restore_system as final safety net (cleans registry, restores desktop)
+        crate::crash_handler::emergency_restore_system();
+
+        eprintln!("[CITADEL CLIENT] === FULL SYSTEM RESTORATION COMPLETE ===");
+        eprintln!("[CITADEL CLIENT] All restrictions removed. System returned to normal state.");
+    }
 }
 
 impl Drop for ClientLockdownGuard {
     fn drop(&mut self) {
-        eprintln!("[CITADEL CLIENT] Releasing client lockdown and restoring normal desktop & network...");
-        self.stop_signal.store(true, Ordering::Relaxed);
-        if let Some(thread) = self.sensor_thread.take() {
-            let _ = thread.join();
-        }
+        eprintln!("[CITADEL CLIENT] Guard dropping — initiating full system restoration...");
+        self.restore_all();
     }
 }

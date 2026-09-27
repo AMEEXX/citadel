@@ -5,10 +5,12 @@
 //! 1. Registry escape locks (DisableTaskMgr, NoWinKeys, etc.) are erased/restored.
 //! 2. Display plane is switched back to the default desktop.
 //! 3. Windows Explorer shell (explorer.exe) is restarted.
+//! 4. Bluetooth and WLAN services are restored.
 
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::process::Command;
+use std::os::windows::process::CommandExt;
 
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::BOOL;
@@ -57,6 +59,14 @@ pub fn emergency_restore_system() {
             r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
             "EnableSnapAssistFlyout",
         ),
+        (
+            r"Software\Microsoft\Windows\CurrentVersion\Policies\System",
+            "DisableAltTab",
+        ),
+        (
+            r"Software\Policies\Microsoft\Windows\TabletPC",
+            "DisableSnippingTool",
+        ),
     ];
 
     for (subkey, val_name) in keys {
@@ -93,6 +103,25 @@ pub fn emergency_restore_system() {
 
     // 3. Restart explorer.exe
     let _ = Command::new("explorer.exe").spawn();
+
+    // 4. Restore Bluetooth and WLAN
+    let _ = Command::new("sc")
+        .args(["config", "bthserv", "start=", "auto"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("net")
+        .args(["start", "bthserv"])
+        .creation_flags(0x08000000)
+        .output();
+
+    let _ = Command::new("sc")
+        .args(["config", "WlanSvc", "start=", "auto"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("net")
+        .args(["start", "WlanSvc"])
+        .creation_flags(0x08000000)
+        .output();
 
     eprintln!("[CITADEL EMERGENCY] Failsafe restoration executed.");
 }

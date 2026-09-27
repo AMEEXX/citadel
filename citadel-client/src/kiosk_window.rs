@@ -34,7 +34,7 @@ use windows::Win32::System::Threading::{
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics, GetWindowThreadProcessId,
+    BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics,
     SetForegroundWindow, SetWindowPos, ShowWindow, HWND_BOTTOM, HWND_TOPMOST, SM_CXSCREEN,
     SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, SW_MAXIMIZE,
     SW_SHOW,
@@ -341,14 +341,18 @@ pub struct ProcessWatchdog {
 }
 
 impl ProcessWatchdog {
-    pub fn start(violations: Arc<Mutex<Vec<String>>>) -> Self {
+    pub fn start(
+        violations: Arc<Mutex<Vec<String>>>,
+        kiosk_pids: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+    ) -> Self {
         let stop_signal = Arc::new(AtomicBool::new(false));
         let stop_clone = stop_signal.clone();
         let viol_clone = violations.clone();
+        let pids_clone = kiosk_pids.clone();
 
         let thread_handle = thread::spawn(move || {
             while !stop_clone.load(Ordering::Relaxed) {
-                Self::scan_and_terminate(&viol_clone);
+                Self::scan_and_terminate(&viol_clone, &pids_clone);
                 thread::sleep(Duration::from_millis(1000));
             }
         });
@@ -360,9 +364,20 @@ impl ProcessWatchdog {
         }
     }
 
-    fn scan_and_terminate(violations: &Arc<Mutex<Vec<String>>>) {
+    fn scan_and_terminate(
+        violations: &Arc<Mutex<Vec<String>>>,
+        kiosk_pids: &Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+    ) {
         let own_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
-        let _dev_mode = std::env::var("CITADEL_DEV_MODE").is_ok() || std::env::var("CARGO").is_ok();
+        let protected_pids: std::collections::HashSet<u32> = {
+            let p = match kiosk_pids.lock() {
+                Ok(guard) => guard.clone(),
+                Err(e) => e.into_inner().clone(),
+            };
+            let seeds: Vec<u32> = p.into_iter().collect();
+            find_all_descendants(&seeds).into_iter().collect()
+        };
+
         unsafe {
             let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
                 Ok(h) => h,
@@ -374,21 +389,40 @@ impl ProcessWatchdog {
 
             if Process32FirstW(snapshot, &mut entry).is_ok() {
                 loop {
+                    let pid = entry.th32ProcessID;
+
+                    // CRITICAL: NEVER terminate own process or ANY process belonging to the Citadel kiosk browser
+                    if pid == own_pid || protected_pids.contains(&pid) {
+                        if Process32NextW(snapshot, &mut entry).is_err() {
+                            break;
+                        }
+                        continue;
+                    }
+
                     let exe_name = String::from_utf16_lossy(&entry.szExeFile)
                         .trim_matches(char::from(0))
                         .to_lowercase();
 
-                    // Whitelist: never terminate recovery utilities or citadel tools
-                    if exe_name.contains("recovery") || exe_name.contains("citadel") {
+                    // Whitelist: never terminate recovery utilities, citadel tools, or webview2
+                    if exe_name.contains("recovery")
+                        || exe_name.contains("citadel")
+                        || exe_name.contains("msedgewebview2")
+                        || exe_name.contains("wsl")
+                        || exe_name.contains("antigravity")
+                    {
+                        if Process32NextW(snapshot, &mut entry).is_err() {
+                            break;
+                        }
                         continue;
                     }
 
                     for &banned in BLACKLISTED_PROCESSES {
-                        if exe_name.contains(banned) {
-                            let pid = entry.th32ProcessID;
-                            if pid == own_pid {
-                                continue;
-                            }
+                        // Never kill msedge if it belongs to protected kiosk processes (already checked above, but extra safeguard)
+                        if (banned == "msedge.exe" || banned == "edge.exe") && protected_pids.contains(&pid) {
+                            continue;
+                        }
+
+                        if exe_name == banned || (exe_name.contains(banned) && !exe_name.contains("msedgewebview2")) {
                             eprintln!("[SECURITY VIOLATION] Unauthorized cheat tool detected: {} (PID: {})", exe_name, pid);
 
                             if let Ok(mut v_lock) = violations.lock() {
@@ -426,6 +460,58 @@ impl Drop for ProcessWatchdog {
 // 6. Kiosk Browser Launcher & Process Manager
 // ============================================================================
 
+pub fn is_pid_active(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    unsafe {
+        if let Ok(h) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {
+            let mut exit_code = 0u32;
+            let ok = GetExitCodeProcess(h, &mut exit_code).is_ok();
+            let _ = CloseHandle(h);
+            ok && exit_code == 259
+        } else {
+            false
+        }
+    }
+}
+
+pub fn find_all_descendants(root_pids: &[u32]) -> Vec<u32> {
+    let mut all_pids: std::collections::HashSet<u32> = root_pids.iter().copied().filter(|&p| p != 0).collect();
+    unsafe {
+        let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            Ok(h) => h,
+            Err(_) => return all_pids.into_iter().collect(),
+        };
+
+        let mut entry = PROCESSENTRY32W::default();
+        entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+        // Multi-pass transitive closure to capture all child and grandchild processes
+        for _ in 0..5 {
+            let mut added_any = false;
+            if Process32FirstW(snapshot, &mut entry).is_ok() {
+                loop {
+                    let pid = entry.th32ProcessID;
+                    let ppid = entry.th32ParentProcessID;
+                    if all_pids.contains(&ppid) && !all_pids.contains(&pid) {
+                        all_pids.insert(pid);
+                        added_any = true;
+                    }
+                    if Process32NextW(snapshot, &mut entry).is_err() {
+                        break;
+                    }
+                }
+            }
+            if !added_any {
+                break;
+            }
+        }
+        let _ = CloseHandle(snapshot);
+    }
+    all_pids.into_iter().collect()
+}
+
 pub struct KioskProcess {
     pub h_process: HANDLE,
     pub h_launcher: HANDLE,
@@ -433,37 +519,27 @@ pub struct KioskProcess {
     pub pid: u32,
     pub launcher_pid: u32,
     pub profile_dir: PathBuf,
+    pub known_pids: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
 }
 
 impl KioskProcess {
     pub fn is_alive(&self) -> bool {
-        // 1. Check if the process handle is still reporting active
-        if !self.h_process.is_invalid() {
-            unsafe {
-                let mut exit_code = 0u32;
-                if GetExitCodeProcess(self.h_process, &mut exit_code).is_ok() && exit_code == 259 {
-                    return true;
-                }
-            }
+        let mut pids = match self.known_pids.lock() {
+            Ok(p) => p,
+            Err(e) => e.into_inner(),
+        };
+
+        // Collect all multi-tier descendants spawned by known processes
+        let seeds: Vec<u32> = pids.iter().copied().collect();
+        let all_descendants = find_all_descendants(&seeds);
+        for d in all_descendants {
+            pids.insert(d);
         }
 
-        // 2. Check if the browser window is still present on screen
-        unsafe {
-            if let Ok(wnd) = FindWindowW(w!("Chrome_WidgetWin_1"), None) {
-                if !wnd.is_invalid() {
-                    return true;
-                }
-            }
-        }
+        // Retain only currently active processes
+        pids.retain(|&pid| is_pid_active(pid));
 
-        // 3. Check if any process with launcher as parent is alive
-        if let Some(child_pid) = find_child_process(self.launcher_pid) {
-            if child_pid != 0 {
-                return true;
-            }
-        }
-
-        false
+        !pids.is_empty()
     }
 
     pub fn try_wait(&mut self) -> Result<Option<u32>, std::io::Error> {
@@ -481,6 +557,22 @@ impl KioskProcess {
     }
 
     pub fn terminate(&self) {
+        let pids = match self.known_pids.lock() {
+            Ok(p) => p,
+            Err(e) => e.into_inner(),
+        };
+        let seeds: Vec<u32> = pids.iter().copied().collect();
+        let all_pids = find_all_descendants(&seeds);
+
+        for pid in all_pids {
+            unsafe {
+                if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+                    let _ = TerminateProcess(hproc, 1);
+                    let _ = CloseHandle(hproc);
+                }
+            }
+        }
+
         unsafe {
             if !self.h_process.is_invalid() {
                 let _ = TerminateProcess(self.h_process, 1);
@@ -671,30 +763,7 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
     for _ in 0..50 {
         thread::sleep(Duration::from_millis(100));
 
-        // 1. Check for Chromium top-level window
-        unsafe {
-            if let Ok(wnd) = FindWindowW(w!("Chrome_WidgetWin_1"), None) {
-                if !wnd.is_invalid() {
-                    let mut win_pid = 0u32;
-                    GetWindowThreadProcessId(wnd, Some(&mut win_pid));
-                    if win_pid != 0 {
-                        real_browser_pid = win_pid;
-                        if let Ok(hproc) = OpenProcess(
-                            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-                            false,
-                            win_pid,
-                        ) {
-                            h_browser_process = hproc;
-                        }
-                    }
-                    confirmed_alive = true;
-                    eprintln!("[CITADEL CLIENT] Browser window verified (HWND: {:?}, PID: {})", wnd.0, real_browser_pid);
-                    break;
-                }
-            }
-        }
-
-        // 2. Check for child process of the launcher
+        // 1. Check for child process of the launcher
         if let Some(child_pid) = find_child_process(launcher_pid) {
             real_browser_pid = child_pid;
             if let Ok(hproc) = unsafe {
@@ -710,10 +779,38 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
             eprintln!("[CITADEL CLIENT] Browser child process verified (PID: {})", child_pid);
             break;
         }
+
+        // 2. Check for Edge/Chrome top-level kiosk window
+        unsafe {
+            let hwnd = FindWindowW(w!("Chrome_WidgetWin_1"), None);
+            if let Ok(wnd) = hwnd {
+                if !wnd.is_invalid() {
+                    let mut wnd_pid = 0u32;
+                    windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(wnd, Some(&mut wnd_pid));
+                    if wnd_pid != 0 {
+                        real_browser_pid = wnd_pid;
+                        if let Ok(hproc) = OpenProcess(
+                            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+                            false,
+                            wnd_pid,
+                        ) {
+                            h_browser_process = hproc;
+                        }
+                        confirmed_alive = true;
+                        eprintln!("[CITADEL CLIENT] Browser kiosk window verified via Win32 (PID: {})", wnd_pid);
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 3. Check if launcher process itself is active
+        if is_pid_active(launcher_pid) {
+            confirmed_alive = true;
+        }
     }
 
-    if !confirmed_alive {
-        // Check if launcher encountered a true crash (non-zero, non-259 exit code)
+    if !confirmed_alive && !is_pid_active(launcher_pid) {
         let mut exit_code = 0u32;
         let query_ok = unsafe { GetExitCodeProcess(h_launcher, &mut exit_code).is_ok() };
         if query_ok && exit_code != 259 && exit_code != 0 {
@@ -722,12 +819,15 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
                 exit_code
             ));
         }
+        return Err("Exam browser process failed to initialize within timeout.".into());
+    }
 
-        // Final check: did window appear right at deadline?
-        let window_check = unsafe { FindWindowW(w!("Chrome_WidgetWin_1"), None) };
-        if window_check.is_err() || window_check.unwrap().is_invalid() {
-            return Err("Exam browser window failed to initialize within timeout.".into());
-        }
+    let mut initial_pids = std::collections::HashSet::new();
+    if launcher_pid != 0 {
+        initial_pids.insert(launcher_pid);
+    }
+    if real_browser_pid != 0 {
+        initial_pids.insert(real_browser_pid);
     }
 
     Ok(KioskProcess {
@@ -737,6 +837,7 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         pid: real_browser_pid,
         launcher_pid,
         profile_dir: temp_profile,
+        known_pids: Arc::new(std::sync::Mutex::new(initial_pids)),
     })
 }
 

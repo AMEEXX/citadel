@@ -34,7 +34,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or(8443);
 
     let bind_addr = SocketAddr::from(([0, 0, 0, 0], port));
-    let listener = tokio::net::TcpListener::bind(bind_addr).await?;
+    let listener = match tokio::net::TcpListener::bind(bind_addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("========================================================================");
+            eprintln!(" [CITADEL SERVER NOTICE] Cannot bind to port {}: {}", port, e);
+            eprintln!(" An existing Citadel Exam Server process is already running on this port.");
+            eprintln!("========================================================================");
+            eprintln!(" You can access the running exam server in your browser at:");
+            eprintln!("   -> http://127.0.0.1:{}", port);
+            eprintln!("");
+            eprintln!(" Press Enter to exit this window (the active server will continue running)...");
+            let mut buf = String::new();
+            let _ = std::io::stdin().read_line(&mut buf);
+            return Err(e.into());
+        }
+    };
     let lan_ips = discover_lan_ips();
 
     println!("========================================================================");

@@ -1,3 +1,5 @@
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use axum::{
@@ -129,6 +131,12 @@ pub struct LogoutRequest {
     pub reason: Option<String>,
 }
 
+
+#[derive(Debug, Clone, Serialize)]
+pub struct HeartbeatResponse {
+    pub status: String,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct HeartbeatRequest {
     pub candidate_id: String,
@@ -185,8 +193,8 @@ impl Default for AppState {
             .unwrap_or_else(|_| "citadel-recruiter-key-2026".to_string());
 
         let initial_live = std::env::var("CITADEL_EXAM_AUTO_LIVE")
-            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-            .unwrap_or(false);
+            .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+            .unwrap_or(true);
 
         AppState {
             candidates: Arc::new(Mutex::new(HashMap::new())),
@@ -254,6 +262,9 @@ pub fn build_app() -> Router {
         .route("/api/v1/integrity/heartbeat", post(heartbeat_handler))
         .route("/api/v1/integrity/event", post(report_event_handler))
         .route("/api/v1/integrity/logout", post(logout_handler))
+        .route("/api/v1/client/session-control", get(client_session_control_handler))
+        .route("/api/v1/client/end-exam", post(client_end_exam_handler))
+        .route("/api/v1/client/kill-all-lockdown", post(kill_all_lockdown_handler))
 
         // Protected Recruiter & Administrator Routes
         .route("/admin", get(admin_page_handler))
@@ -519,7 +530,7 @@ async fn submit_code_handler(
 async fn heartbeat_handler(
     State(state): State<AppState>,
     Json(req): Json<HeartbeatRequest>,
-) -> StatusCode {
+) -> Json<HeartbeatResponse> {
     let mut cands = state.candidates.lock().unwrap();
     let entry = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
         candidate_id: req.candidate_id.clone(),
@@ -533,15 +544,15 @@ async fn heartbeat_handler(
 
     entry.active_question = req.active_question;
     entry.last_seen = chrono::Utc::now().to_rfc3339();
-    if entry.status != "Disqualified" {
+    if entry.status != "Disqualified" && entry.status != "Logged Out" {
         if !req.is_window_focused {
             entry.status = "Flagged".to_string();
-        } else if entry.status == "Logged Out" {
-            entry.status = "Active".to_string();
         }
     }
 
-    StatusCode::OK
+    Json(HeartbeatResponse {
+        status: entry.status.clone(),
+    })
 }
 
 async fn logout_handler(
@@ -549,15 +560,230 @@ async fn logout_handler(
     Json(req): Json<LogoutRequest>,
 ) -> StatusCode {
     let mut cands = state.candidates.lock().unwrap();
-    if let Some(cand) = cands.get_mut(&req.candidate_id) {
-        if cand.status != "Disqualified" {
-            cand.status = "Logged Out".to_string();
-        }
-        cand.last_seen = chrono::Utc::now().to_rfc3339();
-        StatusCode::OK
-    } else {
-        StatusCode::NOT_FOUND
+    let cand = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
+        candidate_id: req.candidate_id.clone(),
+        ip_address: "127.0.0.1".to_string(),
+        active_question: 1,
+        violations_count: 0,
+        last_seen: chrono::Utc::now().to_rfc3339(),
+        status: "Logged Out".to_string(),
+        total_score: 0,
+    });
+    if cand.status != "Disqualified" {
+        cand.status = "Logged Out".to_string();
     }
+    cand.last_seen = chrono::Utc::now().to_rfc3339();
+    kill_all_citadel_lockdown_processes();
+    StatusCode::OK
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct SessionControlResponse {
+    pub should_exit: bool,
+    pub reason: String,
+    pub status: String,
+}
+
+#[derive(Deserialize)]
+pub struct SessionControlQuery {
+    pub candidate_id: Option<String>,
+}
+
+async fn client_session_control_handler(
+    State(state): State<AppState>,
+    Query(q): Query<SessionControlQuery>,
+) -> Json<SessionControlResponse> {
+    // 1. Check if proctor concluded the whole exam for everyone
+    let live = state.exam_live.read().unwrap();
+    if !live.is_live && live.ended_at.is_some() {
+        return Json(SessionControlResponse {
+            should_exit: true,
+            reason: "Exam concluded by proctor".to_string(),
+            status: "Concluded".to_string(),
+        });
+    }
+
+    // 2. Check specific candidate_id if provided
+    if let Some(ref cid) = q.candidate_id {
+        if !cid.is_empty() {
+            let cands = state.candidates.lock().unwrap();
+            if let Some(cand) = cands.get(cid) {
+                if cand.status == "Logged Out" {
+                    return Json(SessionControlResponse {
+                        should_exit: true,
+                        reason: "Candidate session submitted".to_string(),
+                        status: cand.status.clone(),
+                    });
+                }
+                if cand.status == "Disqualified" {
+                    return Json(SessionControlResponse {
+                        should_exit: true,
+                        reason: "Candidate disqualified by proctor".to_string(),
+                        status: cand.status.clone(),
+                    });
+                }
+                return Json(SessionControlResponse {
+                    should_exit: false,
+                    reason: "".to_string(),
+                    status: cand.status.clone(),
+                });
+            }
+        }
+    }
+
+    // 3. General workstation status (e.g. pre-registration client poll)
+    Json(SessionControlResponse {
+        should_exit: false,
+        reason: "".to_string(),
+        status: "Active".to_string(),
+    })
+}
+
+pub fn kill_all_citadel_lockdown_processes() {
+    eprintln!("[CITADEL SERVER] === TOTAL PROCESS ELIMINATION INITIATED ===");
+    #[cfg(windows)]
+    {
+        // 1. Force-kill all client/guard processes with wildcards (handles copies like 'citadel-client (3).exe')
+        let mut cmd = std::process::Command::new("taskkill");
+        cmd.args(["/F", "/FI", "IMAGENAME eq citadel*", "/T"]);
+        cmd.creation_flags(0x08000000);
+        let _ = cmd.output();
+
+        let mut cmd2 = std::process::Command::new("taskkill");
+        cmd2.args(["/F", "/FI", "IMAGENAME eq guard*", "/T"]);
+        cmd2.creation_flags(0x08000000);
+        let _ = cmd2.output();
+
+        // 1b. Additional PowerShell sweep to kill any process matching citadel or guard, plus kiosk browser
+        let _ = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                "Get-Process | Where-Object { ($_.ProcessName -like '*citadel*' -or $_.ProcessName -like '*guard*') -and $_.Id -ne $PID } | Stop-Process -Force -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*citadel_kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
+            ])
+            .creation_flags(0x08000000)
+            .output();
+
+        // 2. Remove all restrictive policies from HKCU, HKLM, and User SID hives
+        let keys = [
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableLockWorkstation"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableChangePassword"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableAltTab"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoWinKeys"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoClose"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoLogoff"),
+            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "EnableSnapAssistFlyout"),
+            ("HKCU\\Software\\Policies\\Microsoft\\Windows\\TabletPC", "DisableSnippingTool"),
+            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr"),
+            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableLockWorkstation"),
+            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableChangePassword"),
+            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoWinKeys"),
+            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoClose"),
+            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoLogoff"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableLockWorkstation"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableChangePassword"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableAltTab"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoWinKeys"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoClose"),
+            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoLogoff"),
+        ];
+
+        for (p, val) in keys {
+            let mut reg_cmd = std::process::Command::new("reg");
+            reg_cmd.args(["delete", p, "/v", val, "/f"]);
+            reg_cmd.creation_flags(0x08000000);
+            let _ = reg_cmd.output();
+        }
+
+        // 3. Restore ACL permissions on registry policies
+        let _ = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                r"$paths = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer', 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System', 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies'); foreach ($p in $paths) { if (Test-Path $p) { try { $acl = Get-Acl $p; $user = [System.Security.Principal.NTAccount]'AmitX\amitk'; $acl.SetOwner($user); $rule = New-Object System.Security.AccessControl.RegistryAccessRule($user, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'); $acl.ResetAccessRule($rule); Set-Acl $p $acl } catch {} } }",
+            ])
+            .creation_flags(0x08000000)
+            .output();
+
+        // 4. Restore Bluetooth & WLAN
+        let mut bth_cfg = std::process::Command::new("sc");
+        bth_cfg.args(["config", "bthserv", "start=", "auto"]).creation_flags(0x08000000);
+        let _ = bth_cfg.output();
+
+        let mut bth_start = std::process::Command::new("net");
+        bth_start.args(["start", "bthserv"]).creation_flags(0x08000000);
+        let _ = bth_start.output();
+
+        let mut wlan_cfg = std::process::Command::new("sc");
+        wlan_cfg.args(["config", "WlanSvc", "start=", "auto"]).creation_flags(0x08000000);
+        let _ = wlan_cfg.output();
+
+        let mut wlan_start = std::process::Command::new("net");
+        wlan_start.args(["start", "WlanSvc"]).creation_flags(0x08000000);
+        let _ = wlan_start.output();
+
+        // 5. Ensure Explorer shell is active
+        let mut exp = std::process::Command::new("explorer.exe");
+        exp.creation_flags(0x08000000);
+        let _ = exp.spawn();
+
+        // 5b. Directly trigger RESTORE_MY_LAPTOP.bat for 100% parity and 3-pass verification
+        let bat_candidates = [
+            "RESTORE_MY_LAPTOP.bat",
+            r".\RESTORE_MY_LAPTOP.bat",
+            r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\RESTORE_MY_LAPTOP.bat",
+        ];
+        for bat in bat_candidates {
+            if std::path::Path::new(bat).exists() {
+                eprintln!("[CITADEL SERVER] Directly invoking RESTORE_MY_LAPTOP.bat from End Exam handler...");
+                let _ = std::process::Command::new("cmd.exe")
+                    .args(["/c", "start", "", bat])
+                    .spawn();
+                break;
+            }
+        }
+
+        eprintln!("[CITADEL SERVER] === TOTAL PROCESS ELIMINATION COMPLETED ===");
+
+        // 6. Schedule server self-termination in 1000ms so HTTP response completes cleanly
+        std::thread::spawn(|| {
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+            eprintln!("[CITADEL SERVER] Clean exit: all Citadel processes terminated.");
+            std::process::exit(0);
+        });
+    }
+}
+
+async fn kill_all_lockdown_handler(
+    State(state): State<AppState>,
+    Json(req): Json<LogoutRequest>,
+) -> StatusCode {
+    {
+        let mut cands = state.candidates.lock().unwrap();
+        let cand = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
+            candidate_id: req.candidate_id.clone(),
+            ip_address: "127.0.0.1".to_string(),
+            active_question: 1,
+            violations_count: 0,
+            last_seen: chrono::Utc::now().to_rfc3339(),
+            status: "Logged Out".to_string(),
+            total_score: 0,
+        });
+        cand.status = "Logged Out".to_string();
+        cand.last_seen = chrono::Utc::now().to_rfc3339();
+    }
+
+    kill_all_citadel_lockdown_processes();
+    StatusCode::OK
+}
+
+async fn client_end_exam_handler(
+    State(state): State<AppState>,
+    Json(req): Json<LogoutRequest>,
+) -> StatusCode {
+    kill_all_lockdown_handler(State(state), Json(req)).await
 }
 
 async fn report_event_handler(
@@ -789,6 +1015,8 @@ async fn admin_disqualify_candidate_handler(
     let mut cands = state.candidates.lock().unwrap();
     if let Some(cand) = cands.get_mut(&id) {
         cand.status = "Disqualified".to_string();
+        cand.last_seen = chrono::Utc::now().to_rfc3339();
+        kill_all_citadel_lockdown_processes();
         StatusCode::OK
     } else {
         StatusCode::NOT_FOUND

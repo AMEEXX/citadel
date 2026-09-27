@@ -6,6 +6,7 @@
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::process::Command;
+use std::os::windows::process::CommandExt;
 
 use windows::core::{w, PCWSTR};
 use windows::Win32::Foundation::{BOOL, CloseHandle, HWND};
@@ -62,7 +63,7 @@ fn restore_registry_policies() {
     let keys = [
         (
             r"Software\Microsoft\Windows\CurrentVersion\Policies\System",
-            &["DisableTaskMgr", "DisableLockWorkstation", "DisableChangePassword"][..],
+            &["DisableTaskMgr", "DisableLockWorkstation", "DisableChangePassword", "DisableAltTab"][..],
         ),
         (
             r"Software\Microsoft\Windows\CurrentVersion\Policies\Explorer",
@@ -71,6 +72,10 @@ fn restore_registry_policies() {
         (
             r"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced",
             &["EnableSnapAssistFlyout"][..],
+        ),
+        (
+            r"Software\Policies\Microsoft\Windows\TabletPC",
+            &["DisableSnippingTool"][..],
         ),
     ];
 
@@ -149,6 +154,26 @@ fn is_process_running(target_name: &str) -> bool {
     }
 }
 
+fn restore_services() {
+    let _ = Command::new("sc")
+        .args(["config", "bthserv", "start=", "auto"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("net")
+        .args(["start", "bthserv"])
+        .creation_flags(0x08000000)
+        .output();
+
+    let _ = Command::new("sc")
+        .args(["config", "WlanSvc", "start=", "auto"])
+        .creation_flags(0x08000000)
+        .output();
+    let _ = Command::new("net")
+        .args(["start", "WlanSvc"])
+        .creation_flags(0x08000000)
+        .output();
+}
+
 fn main() {
     // 1. Terminate any running citadel client or guard service
     kill_processes_by_name("citadel-client.exe");
@@ -164,10 +189,13 @@ fn main() {
     if !is_process_running("explorer.exe") {
         let _ = Command::new("explorer.exe").spawn();
     }
+    
+    // 5. Restore services
+    restore_services();
 
-    // 5. Display success dialog
+    // 6. Display success dialog
     let msg = to_wide(
-        "Citadel Emergency Recovery Completed Successfully!\n\n         ??? Task Manager restored\n         ??? Windows key and lock policies restored\n         ??? Taskbar and Explorer restored\n         ??? Lockdown client processes terminated\n\n         Your system is back to normal.",
+        "Citadel Emergency Recovery Completed Successfully!\n\n         ✅ Task Manager restored\n         ✅ Windows key and lock policies restored\n         ✅ Taskbar and Explorer restored\n         ✅ Lockdown client processes terminated\n         ✅ Bluetooth & WLAN restored\n\n         Your system is back to normal.",
     );
     let title = to_wide("Citadel Recovery Utility");
 

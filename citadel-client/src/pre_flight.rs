@@ -1,15 +1,17 @@
-//! CITADEL Pre-Launch Environment Scanner & Enforcement
+//! CITADEL Pre-Flight Workstation Hardening & Process Enforcement
 //!
 //! Scans running workstation processes, forcefully terminates prohibited applications
 //! (browsers, chat, screen recorders, cheat tools), and strictly verifies the environment
 //! is 100% clean before the exam kiosk opens.
 //!
-//! Zero tolerance: The candidate CANNOT bypass or cancel this check. The verification
-//! loop repeats indefinitely until ALL prohibited processes are eliminated.
+//! Zero tolerance: Automatically terminates detected apps and their full process trees.
+//! If any survive, prompts candidate to close them manually and re-scans until clean.
 
 use std::collections::HashSet;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
+use std::os::windows::process::CommandExt;
+use std::process::Command;
 use std::time::Duration;
 
 use windows::core::PCWSTR;
@@ -25,7 +27,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 pub const PROHIBITED_PROCESSES: &[&str] = &[
-    // Web Browsers
+    // Web Browsers (foreign instances to be terminated prior to kiosk launch)
     "chrome.exe",
     "firefox.exe",
     "brave.exe",
@@ -110,12 +112,13 @@ pub fn scan_prohibited_processes(own_pid: u32, is_production: bool) -> Vec<(Stri
                     || exe_name.contains("msedgewebview2");
 
                 if !is_citadel_internal {
-                    // In testing mode, preserve developer environment (antigravity, rustc, cargo, vscode)
+                    // In testing mode, preserve developer environment (antigravity, rustc, cargo, wsl, vscode)
                     let is_dev_tool = exe_name.contains("antigravity")
                         || exe_name.contains("cargo")
                         || exe_name.contains("rustc")
                         || exe_name.contains("powershell")
-                        || exe_name.contains("cmd.exe");
+                        || exe_name.contains("cmd.exe")
+                        || exe_name.contains("wsl");
 
                     if !is_production && is_dev_tool {
                         // Skip dev tool in non-production testing
@@ -142,69 +145,95 @@ pub fn scan_prohibited_processes(own_pid: u32, is_production: bool) -> Vec<(Stri
 }
 
 pub fn terminate_prohibited_processes(processes: &[(String, u32)]) {
-    for (name, pid) in processes {
+    // 1. Group unique executable names for full tree termination via taskkill (/F /T)
+    let mut unique_exes: HashSet<String> = HashSet::new();
+    for (name, _) in processes {
+        unique_exes.insert(name.clone());
+    }
+
+    for exe in &unique_exes {
+        let _ = Command::new("taskkill")
+            .args(&["/F", "/T", "/IM", exe])
+            .creation_flags(0x08000000) // CREATE_NO_WINDOW
+            .output();
+        eprintln!("[PRE-FLIGHT] Auto-terminated process tree for: {}", exe);
+    }
+
+    // 2. Direct Win32 TerminateProcess fallback on any specific PIDs
+    for (_name, pid) in processes {
         unsafe {
             if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, *pid) {
                 let _ = TerminateProcess(hproc, 1);
                 let _ = CloseHandle(hproc);
-                eprintln!("[PRE-FLIGHT] Auto-terminated prohibited process: {} (PID: {})", name, pid);
             }
         }
     }
 }
 
 /// Runs the complete strict pre-flight scan & clean cycle.
-/// Zero tolerance: Automatically terminates detected apps first. If any survive, prompts candidate
-/// to close them manually and will NEVER proceed until 100% of prohibited processes are closed.
+/// Auto-terminates detected applications and their process trees first.
+/// If any application remains open, prompts candidate to close them and re-scans until clean.
 pub fn enforce_clean_environment(is_production: bool) -> bool {
     let own_pid = unsafe { GetCurrentProcessId() };
 
-    // Step 1: Initial auto-kill scan
+    // Step 1: Initial automated kill pass
     let detected = scan_prohibited_processes(own_pid, is_production);
     if !detected.is_empty() {
-        eprintln!("[PRE-FLIGHT] Detected {} prohibited application(s). Initiating auto-termination...", detected.len());
+        eprintln!("[PRE-FLIGHT] Detected {} prohibited application(s). Terminating process trees...", detected.len());
         terminate_prohibited_processes(&detected);
-        std::thread::sleep(Duration::from_millis(800));
+        std::thread::sleep(Duration::from_millis(600));
     }
 
-    // Step 2: Strict, infinite verification loop — NO ESCAPE until workstation is clean
+    // Step 2: Secondary automated kill pass (catches any lingering child processes)
+    let remaining = scan_prohibited_processes(own_pid, is_production);
+    if !remaining.is_empty() {
+        terminate_prohibited_processes(&remaining);
+        std::thread::sleep(Duration::from_millis(500));
+    }
+
+    // Step 3: Verification loop  prompt candidate only if apps persist
     loop {
-        let remaining = scan_prohibited_processes(own_pid, is_production);
-        if remaining.is_empty() {
+        let still_running = scan_prohibited_processes(own_pid, is_production);
+        if still_running.is_empty() {
             eprintln!("[PRE-FLIGHT] Workstation verified 100% clean. Ready for exam launch.");
             break;
         }
 
-        // Secondary automatic kill attempt
-        terminate_prohibited_processes(&remaining);
-        std::thread::sleep(Duration::from_millis(600));
+        // Try another auto-kill pass
+        terminate_prohibited_processes(&still_running);
+        std::thread::sleep(Duration::from_millis(500));
 
-        let still_running = scan_prohibited_processes(own_pid, is_production);
-        if still_running.is_empty() {
-            eprintln!("[PRE-FLIGHT] Workstation clean after secondary kill pass.");
+        let unkillable = scan_prohibited_processes(own_pid, is_production);
+        if unkillable.is_empty() {
+            eprintln!("[PRE-FLIGHT] Workstation clean after auto-kill pass.");
             break;
         }
 
-        // Still running: Candidate MUST close them manually. Dialog has NO Cancel button.
-        let mut remaining_names: Vec<String> = still_running
+        // Candidate must close them manually if Windows permissions prevent auto-kill
+        let mut app_names: Vec<String> = unkillable
             .iter()
-            .map(|(name, pid)| format!("  • {} (PID: {})", name, pid))
+            .map(|(name, pid)| format!("  * {} (PID: {})", name, pid))
             .collect::<HashSet<_>>()
             .into_iter()
             .collect();
-        remaining_names.sort();
+        app_names.sort();
 
-        let list_str = remaining_names.join("\n");
+        let list_str = app_names.join("\n");
         let warn_msg = format!(
-            "CITADEL Security Boundary: Prohibited Applications Running\n\n            The following applications are running and could not be terminated automatically:\n\n            {}\n\n            CITADEL policy requires that ALL external applications, browsers, communication tools,\n            and screen sharing software MUST be closed before the assessment environment can open.\n\n            Please manually close these applications from your taskbar or Task Manager.\n\n            Click 'OK' after closing them to re-scan and verify.",
+            "CITADEL Security Boundary: Prohibited Applications Running\n\n\
+The following applications are open and could not be terminated automatically:\n\n\
+{}\n\n\
+CITADEL policy requires that ALL external applications, browsers, communication tools,\n\
+and screen sharing software MUST be closed before the assessment environment can open.\n\n\
+Please manually close these applications from your taskbar or Task Manager.\n\n\
+Click 'OK' after closing them to re-scan and launch your exam.",
             list_str
         );
 
-        // MB_OK with MB_ICONWARNING: Candidate cannot click Cancel. They must click OK to re-scan.
         let _ = show_dialog("CITADEL Security Verification Required", &warn_msg, MB_OK | MB_ICONWARNING);
 
         // Immediately try auto-terminating again after dialog dismiss
-        terminate_prohibited_processes(&still_running);
+        terminate_prohibited_processes(&unkillable);
         std::thread::sleep(Duration::from_millis(500));
     }
 
