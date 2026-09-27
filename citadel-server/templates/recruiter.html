@@ -8,22 +8,39 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-base: #050508;
-      --bg-void: #020204;
-      --bg-surface: #0b0d13;
-      --bg-surface-elevated: #11141c;
-      --bg-panel: #0e1118;
-      --border-subtle: #1c2333;
-      --border-medium: #2a344a;
-      --border-hairline: #161a24;
-      --text-main: #f1f5f9;
-      --text-muted: #8b9bb4;
-      --text-dim: #4c5b73;
-      --accent-blue: #5b8fc7;
-      --accent-green: #34d399;
-      --accent-red: #f87171;
-      --accent-yellow: #fbbf24;
-    }
+  /* ─── Surfaces ─── */
+  --bg-base:             #0b0a09;   /* Onyx          */
+  --bg-void:             #040403;   /* Abyss         */
+  --bg-surface:          #0f0e0d;   /* Jet Deep      */
+  --bg-surface-elevated: #1a1918;   /* Graphite      */
+  --bg-panel:            #151412;   /* Command Onyx  */
+
+  /* ─── Borders ─── */
+  --border-hairline:     #1d1c1a;   /* Hairline      */
+  --border-subtle:       #262524;   /* Seam          */
+  --border-medium:       #393836;   /* Pewter        */
+
+  /* ─── Typography ─── */
+  --text-main:           #f2f0ec;   /* Pearl         */
+  --text-muted:          #aaa7a3;   /* Ash           */
+  --text-dim:            #82807d;   /* Stone         */
+
+  /* ─── Status / telemetry ─── */
+  --accent-blue:         #dad0bf;   /* Champagne     */
+  --accent-info:         #9dc1ee;   /* Moonstone     */
+  --accent-info-solid:   #48658b;   /* Moonstone Solid */
+  --accent-green:        #6fdea7;   /* Mint Jade     */
+  --accent-yellow:       #f7c15f;   /* Saffron Bright */
+  --accent-red:          #f47a79;   /* Garnet Bright */
+  --accent-neutral:      #a6a4a0;   /* Ash Neutral   */
+
+  /* ─── Solid action buttons ─── */
+  --btn-live-bg:         #2b7351;   /* Jade Solid    */
+  --btn-live-border:     #3f9a6f;   /* Jade Solid Light */
+  --btn-stop-bg:         #af3c40;   /* Garnet Solid  */
+  --btn-stop-border:     #c4474b;   /* Garnet Solid Light */
+  --btn-solid-text:      #f2f0ec;   /* Pearl         */
+}
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -53,8 +70,8 @@
       gap: 12px;
     }
     .brand-logo {
-      color: #fff;
-      background: #1e2433;
+      color: var(--accent-blue);
+      background: var(--bg-surface-elevated);
       padding: 4px 8px;
       border-radius: 4px;
       border: 1px solid var(--border-medium);
@@ -76,26 +93,26 @@
       letter-spacing: 0.05em;
     }
     .badge-not-live {
-      background: rgba(248, 113, 113, 0.12);
-      border: 1px solid rgba(248, 113, 113, 0.3);
-      color: #f87171;
+      background: rgba(244, 122, 121, 0.12);
+      border: 1px solid rgba(244, 122, 121, 0.3);
+      color: #f47a79;
     }
     .badge-live {
-      background: rgba(52, 211, 153, 0.15);
-      border: 1px solid rgba(52, 211, 153, 0.4);
-      color: #34d399;
+      background: rgba(111, 222, 167, 0.15);
+      border: 1px solid rgba(111, 222, 167, 0.4);
+      color: #6fdea7;
       animation: pulse-green 2s infinite;
     }
     .badge-ended {
-      background: rgba(148, 163, 184, 0.15);
-      border: 1px solid rgba(148, 163, 184, 0.3);
-      color: #94a3b8;
+      background: rgba(166, 164, 160, 0.15);
+      border: 1px solid rgba(166, 164, 160, 0.3);
+      color: #a6a4a0;
     }
 
     @keyframes pulse-green {
-      0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4); }
-      70% { box-shadow: 0 0 0 6px rgba(52, 211, 153, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+      0% { box-shadow: 0 0 0 0 rgba(111, 222, 167, 0.4); }
+      70% { box-shadow: 0 0 0 6px rgba(111, 222, 167, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(111, 222, 167, 0); }
     }
 
     .btn-live {
@@ -111,17 +128,21 @@
       font-family: 'Inter', sans-serif;
     }
     .btn-go-live {
-      background: #059669;
-      border: 1px solid #10b981;
-      color: #fff;
+      background: var(--btn-live-bg);
+      border: 1px solid var(--btn-live-border);
+      color: var(--btn-solid-text);
+      font-weight: 700;
+      letter-spacing: 0.05em;
     }
-    .btn-go-live:hover { background: #10b981; }
+    .btn-go-live:hover { background: var(--btn-live-border); }
     .btn-stop-live {
-      background: #dc2626;
-      border: 1px solid #ef4444;
-      color: #fff;
+      background: var(--btn-stop-bg);
+      border: 1px solid var(--btn-stop-border);
+      color: var(--btn-solid-text);
+      font-weight: 700;
+      letter-spacing: 0.05em;
     }
-    .btn-stop-live:hover { background: #ef4444; }
+    .btn-stop-live:hover { background: var(--btn-stop-border); }
 
     .sync-indicator {
       display: flex;
@@ -158,9 +179,9 @@
       cursor: pointer;
       transition: all 0.15s ease;
     }
-    .nav-tab:hover { color: #fff; }
+    .nav-tab:hover { color: #f2f0ec; }
     .nav-tab.active {
-      color: #fff;
+      color: #f2f0ec;
       border-bottom-color: var(--accent-blue);
     }
 
@@ -190,7 +211,7 @@
     .stat-val {
       font-size: 24px;
       font-weight: 700;
-      color: #fff;
+      color: #f2f0ec;
       font-family: 'JetBrains Mono', monospace;
     }
 
@@ -212,7 +233,7 @@
     .card-title {
       font-weight: 600;
       font-size: 14px;
-      color: #fff;
+      color: #f2f0ec;
     }
 
     /* TABLE */
@@ -238,7 +259,7 @@
       transition: background 0.15s;
     }
     .candidate-row:hover td {
-      background: rgba(91, 143, 199, 0.08) !important;
+      background: rgba(242, 240, 236, 0.035) !important;
     }
 
     /* STATUS BADGES */
@@ -251,15 +272,15 @@
       border-radius: 4px;
       font-family: 'JetBrains Mono', monospace;
     }
-    .status-active { background: rgba(52, 211, 153, 0.15); color: #34d399; border: 1px solid rgba(52, 211, 153, 0.3); }
-    .status-flagged { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
-    .status-logged-out { background: rgba(148, 163, 184, 0.1); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.2); }
-    .status-disqualified { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+    .status-active { background: rgba(111, 222, 167, 0.15); color: #6fdea7; border: 1px solid rgba(111, 222, 167, 0.3); }
+    .status-flagged { background: rgba(247, 193, 95, 0.15); color: #f7c15f; border: 1px solid rgba(247, 193, 95, 0.3); }
+    .status-logged-out { background: rgba(166, 164, 160, 0.1); color: #a6a4a0; border: 1px solid rgba(166, 164, 160, 0.2); }
+    .status-disqualified { background: rgba(244, 122, 121, 0.15); color: #f47a79; border: 1px solid rgba(244, 122, 121, 0.3); }
 
     .btn-sm {
       background: var(--bg-surface-elevated);
       border: 1px solid var(--border-subtle);
-      color: #fff;
+      color: #f2f0ec;
       padding: 5px 12px;
       border-radius: 4px;
       font-size: 12px;
@@ -271,34 +292,34 @@
       gap: 4px;
       transition: all 0.15s;
     }
-    .btn-sm:hover { background: #1e2433; border-color: var(--border-medium); }
+    .btn-sm:hover { background: var(--bg-surface-elevated); border-color: var(--border-medium); }
 
     .btn-danger {
-      background: rgba(239, 68, 68, 0.12);
-      border-color: rgba(239, 68, 68, 0.3);
-      color: #f87171;
+      background: rgba(241, 112, 112, 0.12);
+      border-color: rgba(241, 112, 112, 0.3);
+      color: #f47a79;
     }
     .btn-danger:hover {
-      background: #ef4444;
-      color: #fff;
+      background: #c4474b;
+      color: #f2f0ec;
     }
 
     .btn-clear {
-      background: rgba(52, 211, 153, 0.12);
-      border-color: rgba(52, 211, 153, 0.3);
-      color: #34d399;
+      background: rgba(111, 222, 167, 0.12);
+      border-color: rgba(111, 222, 167, 0.3);
+      color: #6fdea7;
     }
     .btn-clear:hover {
-      background: #10b981;
-      color: #fff;
+      background: #3f9a6f;
+      color: #f2f0ec;
     }
 
     .btn-primary {
-      background: #2563eb;
-      border-color: #3b82f6;
-      color: #fff;
+      background: var(--accent-info-solid);
+      border-color: #5f82b0;
+      color: var(--btn-solid-text);
     }
-    .btn-primary:hover { background: #3b82f6; }
+    .btn-primary:hover { background: #5f82b0; }
 
     /* QUESTION BANK STYLES */
     .q-card {
@@ -319,7 +340,7 @@
     .q-title {
       font-size: 15px;
       font-weight: 700;
-      color: #fff;
+      color: #f2f0ec;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -337,9 +358,9 @@
       font-family: 'JetBrains Mono', monospace;
       text-transform: uppercase;
     }
-    .diff-easy { background: rgba(52, 211, 153, 0.15); color: #34d399; }
-    .diff-medium { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
-    .diff-hard { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+    .diff-easy { background: rgba(111, 222, 167, 0.15); color: #6fdea7; }
+    .diff-medium { background: rgba(247, 193, 95, 0.15); color: #f7c15f; }
+    .diff-hard { background: rgba(244, 122, 121, 0.15); color: #f47a79; }
 
     .q-desc {
       color: var(--text-muted);
@@ -352,8 +373,8 @@
       cursor: pointer;
       font-size: 12px;
       font-weight: 600;
-      background: rgba(91, 143, 199, 0.1);
-      border: 1px solid rgba(91, 143, 199, 0.3);
+      background: rgba(218, 208, 191, 0.1);
+      border: 1px solid rgba(218, 208, 191, 0.3);
       padding: 5px 10px;
       border-radius: 4px;
       display: inline-flex;
@@ -362,8 +383,8 @@
       transition: all 0.15s;
     }
     .q-cases-toggle:hover {
-      background: rgba(91, 143, 199, 0.2);
-      color: #fff;
+      background: rgba(218, 208, 191, 0.2);
+      color: #f2f0ec;
     }
 
     .cases-panel {
@@ -375,7 +396,7 @@
     .cases-subhead {
       font-size: 12px;
       font-weight: 700;
-      color: #fff;
+      color: #f2f0ec;
       margin: 12px 0 8px 0;
       display: flex;
       justify-content: space-between;
@@ -394,8 +415,8 @@
       font-size: 11.5px;
     }
     .case-data { display: flex; gap: 16px; align-items: center; }
-    .case-in { color: #60a5fa; }
-    .case-out { color: #34d399; }
+    .case-in { color: var(--accent-info); }
+    .case-out { color: #6fdea7; }
 
     .add-case-row {
       display: flex;
@@ -409,7 +430,7 @@
     .input-case {
       background: var(--bg-void);
       border: 1px solid var(--border-subtle);
-      color: #fff;
+      color: #f2f0ec;
       padding: 6px 10px;
       border-radius: 4px;
       font-family: 'JetBrains Mono', monospace;
@@ -454,7 +475,7 @@
       align-items: center;
       margin-bottom: 18px;
     }
-    .modal-title { font-size: 16px; font-weight: 700; color: #fff; }
+    .modal-title { font-size: 16px; font-weight: 700; color: #f2f0ec; }
     .form-group { margin-bottom: 14px; }
     .form-label {
       display: block;
@@ -469,7 +490,7 @@
       width: 100%;
       background: var(--bg-surface);
       border: 1px solid var(--border-subtle);
-      color: #fff;
+      color: #f2f0ec;
       padding: 8px 12px;
       border-radius: 4px;
       font-size: 13px;
@@ -508,13 +529,13 @@
     .profile-card-val {
       font-size: 14px;
       font-weight: 700;
-      color: #fff;
+      color: #f2f0ec;
       font-family: 'JetBrains Mono', monospace;
     }
     .section-title {
       font-size: 12.5px;
       font-weight: 700;
-      color: #fff;
+      color: #f2f0ec;
       margin: 20px 0 10px 0;
       display: flex;
       justify-content: space-between;
@@ -523,15 +544,15 @@
       padding-bottom: 6px;
     }
     .violation-card {
-      background: rgba(239, 68, 68, 0.08);
-      border: 1px solid rgba(239, 68, 68, 0.25);
+      background: rgba(241, 112, 112, 0.08);
+      border: 1px solid rgba(241, 112, 112, 0.25);
       border-radius: 6px;
       padding: 12px 14px;
       margin-bottom: 8px;
     }
     .violation-card.warning {
-      background: rgba(251, 191, 36, 0.08);
-      border-color: rgba(251, 191, 36, 0.25);
+      background: rgba(247, 193, 95, 0.08);
+      border-color: rgba(247, 193, 95, 0.25);
     }
     .violation-head {
       display: flex;
@@ -542,7 +563,7 @@
     .violation-type {
       font-weight: 700;
       font-size: 12px;
-      color: #f87171;
+      color: #f47a79;
       font-family: 'JetBrains Mono', monospace;
     }
     .violation-time {
@@ -552,7 +573,7 @@
     }
     .violation-details {
       font-size: 12.5px;
-      color: #e2e8f0;
+      color: var(--text-main);
       line-height: 1.5;
     }
     .submission-item {
@@ -573,7 +594,7 @@
     .sub-title {
       font-size: 13px;
       font-weight: 700;
-      color: #fff;
+      color: #f2f0ec;
     }
     .sub-meta {
       font-size: 11px;
@@ -599,8 +620,8 @@
       <span>Recruiter Console & LMS Command</span>
     </div>
     <div class="header-actions">
-      <div id="security-mode-badge" class="exam-badge" style="background: rgba(251, 191, 36, 0.12); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3);">MODE: TESTING (OPEN ACCESS)</div>
-      <button id="btn-toggle-mode" class="btn-sm" style="background: #1e293b; color: #f8fafc; border: 1px solid #334155; cursor: pointer;" onclick="toggleSecurityMode()">Switch to Production</button>
+      <div id="security-mode-badge" class="exam-badge" style="background: rgba(247, 193, 95, 0.12); color: #f7c15f; border: 1px solid rgba(247, 193, 95, 0.3);">MODE: TESTING (OPEN ACCESS)</div>
+      <button id="btn-toggle-mode" class="btn-sm" style="background: #1a1918; color: #f2f0ec; border: 1px solid #393836; cursor: pointer;" onclick="toggleSecurityMode()">Switch to Production</button>
       <div id="exam-status-badge" class="exam-badge badge-not-live">EXAM NOT STARTED</div>
       <button id="btn-toggle-live" class="btn-live btn-go-live" onclick="toggleExamLive()">▶ GO LIVE</button>
       <div class="sync-indicator">
@@ -626,19 +647,19 @@
       </div>
       <div class="stat-card">
         <div class="stat-label">Active (Live)</div>
-        <div class="stat-val" id="stat-active" style="color: #34d399;">0</div>
+        <div class="stat-val" id="stat-active" style="color: #6fdea7;">0</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Flagged Anomaly</div>
-        <div class="stat-val" id="stat-flagged" style="color: #fbbf24;">0</div>
+        <div class="stat-val" id="stat-flagged" style="color: #f7c15f;">0</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Logged Out</div>
-        <div class="stat-val" id="stat-logged-out" style="color: #94a3b8;">0</div>
+        <div class="stat-val" id="stat-logged-out" style="color: #a6a4a0;">0</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Disqualified</div>
-        <div class="stat-val" id="stat-disqualified" style="color: #f87171;">0</div>
+        <div class="stat-val" id="stat-disqualified" style="color: #f47a79;">0</div>
       </div>
       <div class="stat-card">
         <div class="stat-label">Submissions</div>
@@ -690,8 +711,8 @@
             <span id="prof-cand-status" class="status-badge">--</span>
           </div>
           <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-            Workstation IP: <span id="prof-cand-ip" style="font-family: 'JetBrains Mono', monospace; color: #fff;">--</span> &bull;
-            Last Heartbeat: <span id="prof-last-seen" style="font-family: 'JetBrains Mono', monospace; color: #fff;">--</span>
+            Workstation IP: <span id="prof-cand-ip" style="font-family: 'JetBrains Mono', monospace; color: #f2f0ec;">--</span> &bull;
+            Last Heartbeat: <span id="prof-last-seen" style="font-family: 'JetBrains Mono', monospace; color: #f2f0ec;">--</span>
           </div>
         </div>
         <button class="btn-sm" onclick="closeCandidateProfile()">✕ Close</button>
@@ -701,7 +722,7 @@
       <div class="profile-meta-grid">
         <div class="profile-card">
           <div class="profile-card-label">Total Score</div>
-          <div class="profile-card-val" id="prof-score" style="color: #34d399;">0 pts</div>
+          <div class="profile-card-val" id="prof-score" style="color: #6fdea7;">0 pts</div>
         </div>
         <div class="profile-card">
           <div class="profile-card-label">Exam Started</div>
@@ -717,7 +738,7 @@
         </div>
         <div class="profile-card">
           <div class="profile-card-label">Security Flags</div>
-          <div class="profile-card-val" id="prof-flags-stat" style="color: #f87171;">0</div>
+          <div class="profile-card-val" id="prof-flags-stat" style="color: #f47a79;">0</div>
         </div>
       </div>
 
@@ -867,7 +888,7 @@
           console.error("Failed to fetch metrics: " + res.status);
           const tbody = document.getElementById('candidate-table-body');
           if (tbody && tbody.innerHTML.includes("Loading candidates...")) {
-            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: #f87171; padding: 28px;">API Error: ${res.status}. Check API Key or Server Logs.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color: #f47a79; padding: 28px;">API Error: ${res.status}. Check API Key or Server Logs.</td></tr>`;
           }
           return;
         }
@@ -911,15 +932,15 @@
         if (modeBadge && modeBtn && data.is_production !== undefined) {
           if (data.is_production) {
             modeBadge.innerText = 'MODE: PRODUCTION (LOCKDOWN ENFORCED)';
-            modeBadge.style.background = 'rgba(52, 211, 153, 0.12)';
-            modeBadge.style.color = '#34d399';
-            modeBadge.style.border = '1px solid rgba(52, 211, 153, 0.35)';
+            modeBadge.style.background = 'rgba(111, 222, 167, 0.12)';
+            modeBadge.style.color = '#6fdea7';
+            modeBadge.style.border = '1px solid rgba(111, 222, 167, 0.35)';
             modeBtn.innerText = 'Switch to Testing Mode';
           } else {
             modeBadge.innerText = 'MODE: TESTING (OPEN ACCESS)';
-            modeBadge.style.background = 'rgba(251, 191, 36, 0.12)';
-            modeBadge.style.color = '#fbbf24';
-            modeBadge.style.border = '1px solid rgba(251, 191, 36, 0.3)';
+            modeBadge.style.background = 'rgba(247, 193, 95, 0.12)';
+            modeBadge.style.color = '#f7c15f';
+            modeBadge.style.border = '1px solid rgba(247, 193, 95, 0.3)';
             modeBtn.innerText = 'Switch to Production Mode';
           }
         }
@@ -998,10 +1019,10 @@
 
         return `
           <tr class="candidate-row" onclick="openCandidateProfile('${c.candidate_id}')">
-            <td style="font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace;">${escapeHtml(c.candidate_id)}</td>
+            <td style="font-weight: 700; color: #f2f0ec; font-family: 'JetBrains Mono', monospace;">${escapeHtml(c.candidate_id)}</td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>Problem #${c.active_question}</td>
-            <td style="font-weight: 600; color: #34d399; font-family: 'JetBrains Mono', monospace;">${c.total_score} pts</td>
+            <td style="font-weight: 600; color: #6fdea7; font-family: 'JetBrains Mono', monospace;">${c.total_score} pts</td>
             <td style="color: var(--text-muted); font-size: 12px;">${lastSeen}</td>
             <td onclick="event.stopPropagation();">
               <button class="btn-sm" onclick="openCandidateProfile('${c.candidate_id}')">Inspect Profile</button>
@@ -1046,7 +1067,7 @@
       try {
         const res = await fetch(`/api/v1/admin/candidates/${candId}/profile?key=${AUTH_KEY}`);
         if (!res.ok) {
-          document.getElementById('prof-violations-list').innerHTML = `<div style="color: #f87171; padding: 12px;">Failed to load candidate telemetry (${res.status})</div>`;
+          document.getElementById('prof-violations-list').innerHTML = `<div style="color: #f47a79; padding: 12px;">Failed to load candidate telemetry (${res.status})</div>`;
           return;
         }
         const p = await res.json();
@@ -1070,7 +1091,7 @@
         document.getElementById('prof-completed-at').innerText = p.completed_at ? new Date(p.completed_at).toLocaleTimeString() : (p.status === 'Logged Out' ? 'Logged Out' : 'In Progress');
         document.getElementById('prof-subs-stat').innerText = `${p.total_submissions} (${p.passed_submissions} passed)`;
         document.getElementById('prof-flags-stat').innerText = p.total_violations > 0 ? `${p.total_violations} flags` : '0 (Clean)';
-        document.getElementById('prof-flags-stat').style.color = p.total_violations > 0 ? '#f87171' : '#34d399';
+        document.getElementById('prof-flags-stat').style.color = p.total_violations > 0 ? '#f47a79' : '#6fdea7';
 
         // 3. Clear Flag button inside modal
         const flagActionContainer = document.getElementById('prof-flag-actions');
@@ -1084,7 +1105,7 @@
         const violsContainer = document.getElementById('prof-violations-list');
         if (!p.integrity_events || p.integrity_events.length === 0) {
           violsContainer.innerHTML = `
-            <div style="background: rgba(52, 211, 153, 0.08); border: 1px solid rgba(52, 211, 153, 0.25); border-radius: 6px; padding: 14px 16px; color: #34d399; font-size: 13px; display: flex; align-items: center; gap: 8px;">
+            <div style="background: rgba(111, 222, 167, 0.08); border: 1px solid rgba(111, 222, 167, 0.25); border-radius: 6px; padding: 14px 16px; color: #6fdea7; font-size: 13px; display: flex; align-items: center; gap: 8px;">
               <span>✓ Clean Integrity Record: No security anomalies or policy violations detected for this candidate.</span>
             </div>
           `;
@@ -1121,7 +1142,7 @@
           subsContainer.innerHTML = p.submissions.map((sub, idx) => {
             const subTime = sub.timestamp ? new Date(sub.timestamp).toLocaleTimeString() : '--';
             const isPass = sub.status === 'Accepted' || (sub.passed_cases === sub.total_cases && sub.total_cases > 0);
-            const statusColor = isPass ? '#34d399' : (sub.status === 'Wrong Answer' ? '#fbbf24' : '#f87171');
+            const statusColor = isPass ? '#6fdea7' : (sub.status === 'Wrong Answer' ? '#f7c15f' : '#f47a79');
             const passPct = sub.total_cases > 0 ? Math.round((sub.passed_cases / sub.total_cases) * 100) : 0;
 
             return `
@@ -1132,18 +1153,18 @@
                     <span>${escapeHtml(sub.question_title || 'Problem ' + sub.question_id)}</span>
                   </div>
                   <div class="sub-meta">
-                    <span>Submitted: <strong style="color: #fff;">${subTime}</strong></span>
-                    <span>Lang: <strong style="color: #fff; text-transform: uppercase;">${escapeHtml(sub.language)}</strong></span>
-                    <span>Runtime: <strong style="color: #fff;">${sub.runtime_ms} ms</strong></span>
+                    <span>Submitted: <strong style="color: #f2f0ec;">${subTime}</strong></span>
+                    <span>Lang: <strong style="color: #f2f0ec; text-transform: uppercase;">${escapeHtml(sub.language)}</strong></span>
+                    <span>Runtime: <strong style="color: #f2f0ec;">${sub.runtime_ms} ms</strong></span>
                   </div>
                 </div>
                 <div class="sub-right">
                   <div style="display: flex; align-items: center; gap: 8px;">
                     <span style="font-weight: 700; color: ${statusColor}; font-family: 'JetBrains Mono', monospace; font-size: 13px;">${sub.status}</span>
-                    <span style="color: #34d399; font-weight: 700; font-family: 'JetBrains Mono', monospace;">+${sub.score} pts</span>
+                    <span style="color: #6fdea7; font-weight: 700; font-family: 'JetBrains Mono', monospace;">+${sub.score} pts</span>
                   </div>
                   <div style="font-size: 11.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">
-                    Test Cases Passed: <strong style="color: ${isPass ? '#34d399' : '#f87171'};">${sub.passed_cases} / ${sub.total_cases}</strong> (${passPct}%)
+                    Test Cases Passed: <strong style="color: ${isPass ? '#6fdea7' : '#f47a79'};">${sub.passed_cases} / ${sub.total_cases}</strong> (${passPct}%)
                   </div>
                 </div>
               </div>
