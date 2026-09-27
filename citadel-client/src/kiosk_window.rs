@@ -32,11 +32,13 @@ use windows::Win32::System::Threading::{
     PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE, STARTF_USESHOWWINDOW, STARTUPINFOW,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
+use std::collections::HashSet;
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics,
-    SetForegroundWindow, SetWindowPos, ShowWindow, HWND_BOTTOM, HWND_TOPMOST, SM_CXSCREEN,
-    SM_CYSCREEN, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_HIDE, SW_MAXIMIZE,
-    SW_SHOW,
+    GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos, ShowWindow,
+    HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+    SW_HIDE, SW_MAXIMIZE, SW_SHOW,
 };
 
 // ============================================================================
@@ -212,12 +214,15 @@ impl Drop for TouchpadLock {
 pub struct ForegroundLock {
     stop_signal: Arc<AtomicBool>,
     thread_handle: Option<JoinHandle<()>>,
+    target_window: Arc<Mutex<Option<isize>>>,
 }
 
 impl ForegroundLock {
-    pub fn start() -> Self {
+    pub fn start(target_pids: Arc<Mutex<HashSet<u32>>>) -> Self {
         let stop_signal = Arc::new(AtomicBool::new(false));
         let stop_clone = stop_signal.clone();
+        let target_window = Arc::new(Mutex::new(None));
+        let window_clone = target_window.clone();
 
         let thread_handle = thread::spawn(move || {
             while !stop_clone.load(Ordering::Relaxed) {
@@ -225,29 +230,46 @@ impl ForegroundLock {
                     let hwnd = FindWindowW(w!("Chrome_WidgetWin_1"), None);
                     if let Ok(wnd) = hwnd {
                         if !wnd.is_invalid() {
-                            let fg = GetForegroundWindow();
-                            if fg != wnd {
-                                let _ = SetForegroundWindow(wnd);
-                                let _ = BringWindowToTop(wnd);
+                            let mut wnd_pid = 0u32;
+                            GetWindowThreadProcessId(wnd, Some(&mut wnd_pid));
+
+                            // Strict verification: ONLY manage windows that belong to our spawned kiosk process!
+                            // NEVER hijack Antigravity IDE, VS Code, or user applications!
+                            let is_our_kiosk = if let Ok(pids) = target_pids.lock() {
+                                pids.contains(&wnd_pid)
+                            } else {
+                                false
+                            };
+
+                            if is_our_kiosk {
+                                if let Ok(mut tw) = window_clone.lock() {
+                                    *tw = Some(wnd.0 as isize);
+                                }
+                                let fg = GetForegroundWindow();
+                                if fg != wnd {
+                                    let _ = SetForegroundWindow(wnd);
+                                    let _ = BringWindowToTop(wnd);
+                                }
+                                let cx = GetSystemMetrics(SM_CXSCREEN);
+                                let cy = GetSystemMetrics(SM_CYSCREEN);
+                                let _ = SetWindowPos(
+                                    wnd,
+                                    HWND_TOPMOST,
+                                    0, 0, cx, cy,
+                                    SWP_SHOWWINDOW,
+                                );
                             }
-                            let cx = GetSystemMetrics(SM_CXSCREEN);
-                            let cy = GetSystemMetrics(SM_CYSCREEN);
-                            let _ = SetWindowPos(
-                                wnd,
-                                HWND_TOPMOST,
-                                0, 0, cx, cy,
-                                SWP_SHOWWINDOW,
-                            );
                         }
                     }
                 }
-                thread::sleep(Duration::from_millis(150));
+                thread::sleep(Duration::from_millis(250));
             }
         });
 
         ForegroundLock {
             stop_signal,
             thread_handle: Some(thread_handle),
+            target_window,
         }
     }
 }
@@ -257,6 +279,22 @@ impl Drop for ForegroundLock {
         self.stop_signal.store(true, Ordering::Relaxed);
         if let Some(handle) = self.thread_handle.take() {
             let _ = handle.join();
+        }
+        // Explicitly unpin the kiosk window from HWND_TOPMOST so host desktop is 100% restored
+        unsafe {
+            if let Ok(tw) = self.target_window.lock() {
+                if let Some(val) = *tw {
+                    let wnd = HWND(val as *mut std::ffi::c_void);
+                    if !wnd.is_invalid() {
+                        let _ = SetWindowPos(
+                            wnd,
+                            HWND_NOTOPMOST,
+                            0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
+                        );
+                    }
+                }
+            }
         }
     }
 }

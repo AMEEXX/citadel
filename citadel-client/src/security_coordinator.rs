@@ -154,6 +154,7 @@ pub struct ClientLockdownGuard {
     server_ip: Ipv4Addr,
     server_port: u16,
     pub auth_token: Option<String>,
+    pub is_production: bool,
     /// Tracks whether restore_all() has already been called to prevent double-restore
     restored: bool,
 }
@@ -325,6 +326,7 @@ impl ClientLockdownGuard {
             server_ip,
             server_port,
             auth_token,
+            is_production,
             restored: false,
         })
     }
@@ -356,8 +358,12 @@ impl ClientLockdownGuard {
             }
         }
 
-        // Start continuous foreground window lock
-        self._foreground_lock = Some(ForegroundLock::start());
+        // Start continuous foreground window lock ONLY in Production Mode and ONLY for our browser PID
+        if self.is_production {
+            self._foreground_lock = Some(ForegroundLock::start(kiosk_child.known_pids.clone()));
+        } else {
+            eprintln!("[CITADEL CLIENT] TESTING MODE: ForegroundLock disabled to preserve normal window switching.");
+        }
 
         // Start process watchdog for forbidden cheat tools
         self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone()));
