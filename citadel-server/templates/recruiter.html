@@ -5,7 +5,9 @@
   <title>Citadel | Recruiter & LMS Admin Console</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
   /* ─── Surfaces ─── */
@@ -18,7 +20,11 @@
   /* ─── Borders ─── */
   --border-hairline:     #1d1c1a;   /* Hairline      */
   --border-subtle:       #262524;   /* Seam          */
-  --border-medium:       #393836;   /* Pewter        */
+  --border-medium:       #393836;
+
+  /* ─── Typography (Geist Design System) ─── */
+  --font-ui:             'Geist', "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono:           'Geist Mono', ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;   /* Pewter        */
 
   /* ─── Typography ─── */
   --text-main:           #f2f0ec;   /* Pearl         */
@@ -46,7 +52,8 @@
     body {
       background: var(--bg-base);
       color: var(--text-main);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--font-ui);
+      font-weight: 300;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -89,7 +96,7 @@
       font-weight: 700;
       padding: 4px 10px;
       border-radius: 4px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       letter-spacing: 0.05em;
     }
     .badge-not-live {
@@ -125,7 +132,7 @@
       align-items: center;
       gap: 6px;
       transition: all 0.15s ease;
-      font-family: 'Inter', sans-serif;
+      font-family: var(--font-ui);
     }
     .btn-go-live {
       background: var(--btn-live-bg);
@@ -150,7 +157,7 @@
       gap: 6px;
       font-size: 11px;
       color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
     }
     .sync-dot {
       width: 6px;
@@ -209,10 +216,11 @@
       margin-bottom: 8px;
     }
     .stat-val {
-      font-size: 24px;
-      font-weight: 700;
-      color: #f2f0ec;
-      font-family: 'JetBrains Mono', monospace;
+      font-size: 26px;
+      font-weight: 600;
+      line-height: 17px;
+      font-family: var(--font-ui);
+      letter-spacing: -0.02em;
     }
 
     .card {
@@ -246,8 +254,8 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       padding: 12px 18px;
-      border-bottom: 1px solid var(--border-subtle);
-    }
+      border-bottom: 1px solid var(--border-subtle);}
+th { font-family: var(--font-ui); font-weight: 600; font-size: 11px; letter-spacing: 0.05em; }
     td {
       padding: 14px 18px;
       border-bottom: 1px solid var(--border-hairline);
@@ -270,7 +278,7 @@
       font-weight: 600;
       padding: 3px 8px;
       border-radius: 4px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
     }
     .status-active { background: rgba(111, 222, 167, 0.15); color: #6fdea7; border: 1px solid rgba(111, 222, 167, 0.3); }
     .status-flagged { background: rgba(247, 193, 95, 0.15); color: #f7c15f; border: 1px solid rgba(247, 193, 95, 0.3); }
@@ -355,7 +363,7 @@
       font-weight: 700;
       padding: 2px 7px;
       border-radius: 3px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       text-transform: uppercase;
     }
     .diff-easy { background: rgba(111, 222, 167, 0.15); color: #6fdea7; }
@@ -411,7 +419,7 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 11.5px;
     }
     .case-data { display: flex; gap: 16px; align-items: center; }
@@ -433,7 +441,7 @@
       color: #f2f0ec;
       padding: 6px 10px;
       border-radius: 4px;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       flex: 1;
     }
@@ -530,7 +538,7 @@
       font-size: 14px;
       font-weight: 700;
       color: #f2f0ec;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
     }
     .section-title {
       font-size: 12.5px;
@@ -564,12 +572,12 @@
       font-weight: 700;
       font-size: 12px;
       color: #f47a79;
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
     }
     .violation-time {
       font-size: 11px;
       color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
     }
     .violation-details {
       font-size: 12.5px;
@@ -599,7 +607,7 @@
     .sub-meta {
       font-size: 11px;
       color: var(--text-muted);
-      font-family: 'JetBrains Mono', monospace;
+      font-family: var(--font-mono);
       display: flex;
       gap: 12px;
       align-items: center;
@@ -707,12 +715,12 @@
         <div>
           <div class="modal-title" style="display: flex; align-items: center; gap: 10px;">
             <span>Candidate Dossier:</span>
-            <span id="prof-cand-id" style="font-family: 'JetBrains Mono', monospace; color: var(--accent-blue);">--</span>
+            <span id="prof-cand-id" style="font-family: var(--font-mono); color: var(--accent-blue);">--</span>
             <span id="prof-cand-status" class="status-badge">--</span>
           </div>
           <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-            Workstation IP: <span id="prof-cand-ip" style="font-family: 'JetBrains Mono', monospace; color: #f2f0ec;">--</span> &bull;
-            Last Heartbeat: <span id="prof-last-seen" style="font-family: 'JetBrains Mono', monospace; color: #f2f0ec;">--</span>
+            Workstation IP: <span id="prof-cand-ip" style="font-family: var(--font-mono); color: #f2f0ec;">--</span> &bull;
+            Last Heartbeat: <span id="prof-last-seen" style="font-family: var(--font-mono); color: #f2f0ec;">--</span>
           </div>
         </div>
         <button class="btn-sm" onclick="closeCandidateProfile()">✕ Close</button>
@@ -1019,10 +1027,10 @@
 
         return `
           <tr class="candidate-row" onclick="openCandidateProfile('${c.candidate_id}')">
-            <td style="font-weight: 700; color: #f2f0ec; font-family: 'JetBrains Mono', monospace;">${escapeHtml(c.candidate_id)}</td>
+            <td style="font-weight: 700; color: #f2f0ec; font-family: var(--font-mono);">${escapeHtml(c.candidate_id)}</td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>Problem #${c.active_question}</td>
-            <td style="font-weight: 600; color: #6fdea7; font-family: 'JetBrains Mono', monospace;">${c.total_score} pts</td>
+            <td style="font-weight: 600; color: #6fdea7; font-family: var(--font-mono);">${c.total_score} pts</td>
             <td style="color: var(--text-muted); font-size: 12px;">${lastSeen}</td>
             <td onclick="event.stopPropagation();">
               <button class="btn-sm" onclick="openCandidateProfile('${c.candidate_id}')">Inspect Profile</button>
@@ -1160,10 +1168,10 @@
                 </div>
                 <div class="sub-right">
                   <div style="display: flex; align-items: center; gap: 8px;">
-                    <span style="font-weight: 700; color: ${statusColor}; font-family: 'JetBrains Mono', monospace; font-size: 13px;">${sub.status}</span>
-                    <span style="color: #6fdea7; font-weight: 700; font-family: 'JetBrains Mono', monospace;">+${sub.score} pts</span>
+                    <span style="font-weight: 700; color: ${statusColor}; font-family: var(--font-mono); font-size: 13px;">${sub.status}</span>
+                    <span style="color: #6fdea7; font-weight: 700; font-family: var(--font-mono);">+${sub.score} pts</span>
                   </div>
-                  <div style="font-size: 11.5px; font-family: 'JetBrains Mono', monospace; color: var(--text-muted);">
+                  <div style="font-size: 11.5px; font-family: var(--font-mono); color: var(--text-muted);">
                     Test Cases Passed: <strong style="color: ${isPass ? '#6fdea7' : '#f47a79'};">${sub.passed_cases} / ${sub.total_cases}</strong> (${passPct}%)
                   </div>
                 </div>
@@ -1232,7 +1240,7 @@
               <div class="q-title">
                 <span>#${q.number || (qIdx + 1)}. ${escapeHtml(q.title)}</span>
                 <span class="diff-badge ${diffClass}">${escapeHtml(q.difficulty)}</span>
-                <span style="font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace;">${q.points} pts</span>
+                <span style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono);">${q.points} pts</span>
               </div>
               <div class="q-head-actions">
                 <button class="q-cases-toggle" onclick="toggleCasesPanel('${panelId}')">

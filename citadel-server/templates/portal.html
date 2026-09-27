@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <title>CITADEL — Code Assessment Portal</title>
   <script src="/static/ace.bundle.js"></script>
   <style>
@@ -42,8 +44,8 @@
   --accent-red:          #d78e88; /* Garnet                                        */
   --accent-run-btn:      #323130; /* Pewter                                        */
 
-  --font-ui:   'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
+  --font-ui:   'Geist', "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
 
     @keyframes blink {
@@ -166,24 +168,38 @@
     }
 
     .btn-end-exam {
-      background: transparent;
-      border: 1px solid var(--border-subtle);
-      color: var(--text-secondary);
+      background: #290b0b;
+      border: 1px solid #a03f40;
+      color: #f47a79;
       font-size: 11.5px;
-      font-weight: 500;
-      padding: 4px 12px;
-      border-radius: 3px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 4px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 6px;
-      transition: all 0.15s ease;
+      transition: all 0.18s ease;
       font-family: var(--font-ui);
+      letter-spacing: 0.02em;
     }
     .btn-end-exam:hover {
-      background: #1f1e1d;
-      color: var(--accent-red);
-      border-color: #323130;
+      background: #af3c40;
+      border-color: #f17070;
+      color: #f2f0ec;
+      box-shadow: 0 0 12px rgba(244, 122, 121, 0.45);
+      transform: translateY(-0.5px);
+    }
+    .btn-end-exam:active {
+      background: #c4474b;
+      border-color: #f17070;
+      color: #f2f0ec;
+    }
+    .btn-end-exam.urgent {
+      background: #af3c40;
+      border-color: #f17070;
+      color: #f2f0ec;
+      animation: pulse-danger 2s infinite;
     }
 
     /* ─── MAIN WORKSPACE (SPLIT LAYOUT) ─── */
@@ -221,19 +237,26 @@
     .q-tab-btn {
       background: transparent;
       border: none;
-      border-bottom: 1.5px solid transparent;
+      border-bottom: 2px solid transparent;
       color: var(--text-dim);
       padding: 0 16px;
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
-      letter-spacing: 0.02em;
-      transition: all 0.15s;
+      letter-spacing: 0.04em;
+      transition: all 0.15s ease;
+      font-family: var(--font-mono);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
     }
-    .q-tab-btn:hover { color: var(--text-secondary); }
+    .q-tab-btn:hover {
+      color: var(--text-secondary);
+    }
     .q-tab-btn.active {
       color: var(--text-primary);
       border-bottom-color: var(--accent-lang);
+      font-weight: 600;
     }
 
     .problem-content {
@@ -287,11 +310,12 @@
       font-weight: 600;
       color: var(--text-primary);
       margin-bottom: 14px;
-      letter-spacing: -0.01em;
+      letter-spacing: -0.015em;
       line-height: 1.35;
+      font-family: var(--font-ui);
     }
 
-    .q-desc p { margin-bottom: 12px; color: var(--text-primary); }
+    .q-desc p { margin-bottom: 12px; color: var(--text-primary); font-weight: 300; font-size: 12px; line-height: 18px; font-family: var(--font-ui); }
     .q-desc code, .code-snippet {
       font-family: var(--font-mono);
       background: var(--bg-editor);
@@ -488,7 +512,7 @@
     }
 
     /* ─── Ace editor (Obsidian Atelier theme) ─── */
-    .ace_editor                         { background: #070605 !important; color: #e6e2dc !important; }
+    .ace_editor                         { background: #070605 !important; color: #e6e2dc !important; font-family: var(--font-mono) !important; font-weight: 300 !important; font-size: 12.5px !important; line-height: 1.6 !important; }
     .ace_gutter                         { background: #070605 !important; color: #555451 !important; border-right: 1px solid var(--border-hair) !important; }
     .ace_gutter-active-line             { background: transparent !important; color: #dad0bf !important; }
     .ace_marker-layer .ace_active-line  { background: rgba(242, 240, 236, 0.03) !important; }
@@ -997,10 +1021,10 @@
       <p style="color: #a5a39f; font-size: 13.5px; line-height: 1.65; margin-bottom: 20px;">
         Your examination session has concluded. All Citadel lockdown processes have been terminated with zero pending restrictions.
       </p>
-      <div style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: 'JetBrains Mono', monospace;">
+      <div style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: var(--font-mono);">
         User, you can now successfully close the window.
       </div>
-      <p style="color: #7d7b78; font-size: 12px; font-family: 'JetBrains Mono', monospace; margin-bottom: 20px;">
+      <p style="color: #7d7b78; font-size: 12px; font-family: var(--font-mono); margin-bottom: 20px;">
         All shortcuts (Win+R, Win+Shift+S, Alt+Tab, PrtScn) and system shell are restored.
       </p>
       <button onclick="try{window.close();}catch(e){} try{window.open('','_self').close();}catch(e){}" style="background: #48658b; color: #f2f0ec; border: none; padding: 10px 26px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">
@@ -1017,7 +1041,7 @@
       <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
         Your examination session has been terminated by the proctor. All lockdown restrictions are now being completely removed from your laptop.
       </p>
-      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #f4c8c6; font-size: 12px; font-weight: 600; padding: 6px 18px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;">
+      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #f4c8c6; font-size: 12px; font-weight: 600; padding: 6px 18px; border-radius: 4px; font-family: var(--font-mono);">
         Workstation Restoration Active...
       </div>
     </div>
@@ -1027,7 +1051,7 @@
   <!-- EXAM NOT STARTED OVERLAY -->
   <div id="exam-not-started-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
     <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel);">
-      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(162, 186, 216, 0.1); border: 1px solid rgba(162, 186, 216, 0.25); color: #a2bad8; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; margin-bottom: 20px;">
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(162, 186, 216, 0.1); border: 1px solid rgba(162, 186, 216, 0.25); color: #a2bad8; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; margin-bottom: 20px;">
         <span style="width: 7px; height: 7px; background: #a2bad8; border-radius: 50%; box-shadow: 0 0 8px rgba(162, 186, 216, 0.4); animation: pulse-border 1.5s infinite;"></span>
         <span>AWAITING PROCTOR INITIATION</span>
       </div>
@@ -1035,7 +1059,7 @@
       <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
         The exam administrator has not yet initiated the examination fleet. Please remain on this screen; your assessment session will begin automatically as soon as the proctor hits <strong>Go Live</strong>.
       </p>
-      <div style="background: var(--bg-surface); border: 1px solid var(--border-hair); border-radius: 4px; padding: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
+      <div style="background: var(--bg-surface); border: 1px solid var(--border-hair); border-radius: 4px; padding: 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
         <span style="color: var(--text-dim);">Candidate Identifier:</span>
         <span id="overlay-cand-id" style="font-weight: 600; color: var(--accent-lang);"></span>
       </div>
@@ -1063,7 +1087,7 @@
       <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
         The examination session has been concluded by the proctor or the exam time duration has expired. All code submissions are now closed.
       </p>
-      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #d78e88; font-size: 11.5px; font-weight: 600; padding: 5px 14px; border-radius: 4px; font-family: 'JetBrains Mono', monospace;">
+      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #d78e88; font-size: 11.5px; font-weight: 600; padding: 5px 14px; border-radius: 4px; font-family: var(--font-mono);">
         Session Terminated & Locked
       </div>
     </div>
@@ -1170,6 +1194,8 @@
       editor.setShowPrintMargin(false);
 
       editor.setOptions({
+        fontFamily: "'Geist Mono', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace",
+        fontSize: "12.5px",
         tabSize: 4,
         useSoftTabs: true,
         highlightActiveLine: true,
@@ -1229,9 +1255,10 @@
       container.innerHTML = questionsList.map((q, idx) => {
         const isActive = activeQuestion && activeQuestion.id === q.id;
         const activeClass = isActive ? 'active' : '';
+        const qNum = q.number !== undefined ? q.number : (idx + 1);
         return `
           <button class="q-tab-btn ${activeClass}" onclick="selectQuestion('${q.id}')">
-            #${q.number} ${q.title} (${q.points} pts)
+            Q${qNum}
           </button>
         `;
       }).join('');
