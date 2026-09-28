@@ -1,0 +1,452 @@
+{
+  "guard-net/Cargo.toml": {
+    "mtime": 1790321785.8463335,
+    "seen": 1790566807.6591244,
+    "ast_hash": "a9b068278037cc94c440e60e4fb9bad3",
+    "semantic_hash": "a9b068278037cc94c440e60e4fb9bad3"
+  },
+  "guard-net/src/lib.rs": {
+    "mtime": 1790399894.1299486,
+    "seen": 1790566807.659127,
+    "ast_hash": "1e168f6b0d4dc6b3024a41f502ec17a7",
+    "semantic_hash": "1e168f6b0d4dc6b3024a41f502ec17a7"
+  },
+  "guard-net/tests/wfp_policy.rs": {
+    "mtime": 1790321831.4487758,
+    "seen": 1790566807.6591296,
+    "ast_hash": "846aa5b6f1221b54cb531533ef032e87",
+    "semantic_hash": "846aa5b6f1221b54cb531533ef032e87"
+  },
+  "guard-svc/src/main.rs": {
+    "mtime": 1790323954.3833737,
+    "seen": 1790566807.6591392,
+    "ast_hash": "3e76032c5c04e895b31b4b5dc6eb01a7",
+    "semantic_hash": "3e76032c5c04e895b31b4b5dc6eb01a7"
+  },
+  "guard-svc/tests/log_format.rs": {
+    "mtime": 1790323339.741751,
+    "seen": 1790566807.6591465,
+    "ast_hash": "5372813394e9d3d21e44700663eef574",
+    "semantic_hash": "5372813394e9d3d21e44700663eef574"
+  },
+  "guard-verify/Cargo.toml": {
+    "mtime": 1790323993.0725024,
+    "seen": 1790566807.6591516,
+    "ast_hash": "7f0db8b7cb5319291d006f1170d54c15",
+    "semantic_hash": "7f0db8b7cb5319291d006f1170d54c15"
+  },
+  "guard-verify/src/bin/check_deny_all.rs": {
+    "mtime": 1789893615.434407,
+    "seen": 1790566807.659154,
+    "ast_hash": "af8148fbaabe35fd52992d58561d6204",
+    "semantic_hash": "af8148fbaabe35fd52992d58561d6204"
+  },
+  "guard-verify/src/bin/test_college_lan_isolation.rs": {
+    "mtime": 1790321934.2925317,
+    "seen": 1790566807.659164,
+    "ast_hash": "cd757bd6c744f42efed1585613dcfb8e",
+    "semantic_hash": "cd757bd6c744f42efed1585613dcfb8e"
+  },
+  "00-README-INDEX.md": {
+    "mtime": 1790012567.4167366,
+    "seen": 1790566807.6591716,
+    "ast_hash": "b64d889fbe063bc982a7d87752049554",
+    "semantic_hash": "b64d889fbe063bc982a7d87752049554"
+  },
+  "01-SDD-software-design-document.md": {
+    "mtime": 1790503055.8152597,
+    "seen": 1790566807.6591742,
+    "ast_hash": "81ea0fc0d14ca7f40d08ffc7a9ab9454",
+    "semantic_hash": "81ea0fc0d14ca7f40d08ffc7a9ab9454"
+  },
+  "02-HLD-high-level-design.md": {
+    "mtime": 1790502988.231794,
+    "seen": 1790566807.6591763,
+    "ast_hash": "0af37be57f26314e27e88ff87e4aec48",
+    "semantic_hash": "0af37be57f26314e27e88ff87e4aec48"
+  },
+  "03-LLD-lockdown-client.md": {
+    "mtime": 1790507410.850085,
+    "seen": 1790566807.6591787,
+    "ast_hash": "370b571d1706784e1c88ad2593b29aff",
+    "semantic_hash": "370b571d1706784e1c88ad2593b29aff"
+  },
+  "04-LLD-network-routing-and-lan.md": {
+    "mtime": 1790502697.1820571,
+    "seen": 1790566807.6591814,
+    "ast_hash": "d216d0143365739ebc7fda9eecf895dc",
+    "semantic_hash": "d216d0143365739ebc7fda9eecf895dc"
+  },
+  "05-LLD-exam-appliance-and-api.md": {
+    "mtime": 1790502731.5964177,
+    "seen": 1790566807.6591835,
+    "ast_hash": "9ce67d4d421d74513670b64cca9275cf",
+    "semantic_hash": "9ce67d4d421d74513670b64cca9275cf"
+  },
+  "06-LLD-judge-and-sandbox.md": {
+    "mtime": 1790338880.6562312,
+    "seen": 1790566807.659186,
+    "ast_hash": "71f836bb0a7167c9eecae69d367348cc",
+    "semantic_hash": "71f836bb0a7167c9eecae69d367348cc"
+  },
+  "07-LLD-content-authoring-upload-and-distribution.md": {
+    "mtime": 1789818386.0,
+    "seen": 1790566807.6591883,
+    "ast_hash": "a13e9ec0a4b5121a199895078df338d5",
+    "semantic_hash": "a13e9ec0a4b5121a199895078df338d5"
+  },
+  "08-LLD-load-balancing-caching-and-scale.md": {
+    "mtime": 1789818474.0,
+    "seen": 1790566807.659191,
+    "ast_hash": "0b1088c807143ea3de882e666145937f",
+    "semantic_hash": "0b1088c807143ea3de882e666145937f"
+  },
+  "09-LLD-reliability-failover-and-dr.md": {
+    "mtime": 1789818544.0,
+    "seen": 1790566807.659193,
+    "ast_hash": "a4e0b082b7d5eb912a11d7fb8bd80b81",
+    "semantic_hash": "a4e0b082b7d5eb912a11d7fb8bd80b81"
+  },
+  "10-LLD-integrity-analytics-and-proctoring.md": {
+    "mtime": 1789818628.0,
+    "seen": 1790566807.6591954,
+    "ast_hash": "911c2894da39c955d1ee100e31d85f29",
+    "semantic_hash": "911c2894da39c955d1ee100e31d85f29"
+  },
+  "11-LLD-admin-console-and-operations.md": {
+    "mtime": 1790503035.7969978,
+    "seen": 1790566807.6591978,
+    "ast_hash": "8f7b5f3396128492bfef3e35c9d8f9df",
+    "semantic_hash": "8f7b5f3396128492bfef3e35c9d8f9df"
+  },
+  "12-capacity-planning-and-bom.md": {
+    "mtime": 1790012640.659698,
+    "seen": 1790566807.6592,
+    "ast_hash": "c462c4e5f9a780c69e23d4bb04fa6eca",
+    "semantic_hash": "c462c4e5f9a780c69e23d4bb04fa6eca"
+  },
+  "13-security-threat-model.md": {
+    "mtime": 1790502923.8877928,
+    "seen": 1790566807.6592023,
+    "ast_hash": "d080b587607a60f3aed1b5b848b49b32",
+    "semantic_hash": "d080b587607a60f3aed1b5b848b49b32"
+  },
+  "14-implementation-roadmap.md": {
+    "mtime": 1789818870.0,
+    "seen": 1790566807.6592052,
+    "ast_hash": "b7919ce783d09c76c0ec3c0a251c68e0",
+    "semantic_hash": "b7919ce783d09c76c0ec3c0a251c68e0"
+  },
+  "15-senior-review-and-hardened-lockdown-v2.md": {
+    "mtime": 1790350548.6354208,
+    "seen": 1790566807.6592073,
+    "ast_hash": "48516ea9535f7bf08009097b3ca04dea",
+    "semantic_hash": "48516ea9535f7bf08009097b3ca04dea"
+  },
+  "16-implementation-playbook-task-contract-standard.md": {
+    "mtime": 1789857512.0,
+    "seen": 1790566807.6592097,
+    "ast_hash": "1fa1660e83668c30932bcf645921ddaf",
+    "semantic_hash": "1fa1660e83668c30932bcf645921ddaf"
+  },
+  "17-implementation-plan-p0-spike.md": {
+    "mtime": 1789857812.0,
+    "seen": 1790566807.659212,
+    "ast_hash": "7ff34d4b7c11e3a43493761b03781d80",
+    "semantic_hash": "7ff34d4b7c11e3a43493761b03781d80"
+  },
+  ".opencode/opencode.json": {
+    "mtime": 1790328231.1286588,
+    "seen": 1790566807.6590295,
+    "ast_hash": "bd4080e3157de742dcc843fab719a3bb",
+    "semantic_hash": "bd4080e3157de742dcc843fab719a3bb"
+  },
+  ".opencode/plugins/graphify.js": {
+    "mtime": 1790324083.092313,
+    "seen": 1790566807.6590452,
+    "ast_hash": "3ea725724bc8ebe483c9f13d6aa1124f",
+    "semantic_hash": "3ea725724bc8ebe483c9f13d6aa1124f"
+  },
+  "Cargo.toml": {
+    "mtime": 1790325257.6143327,
+    "seen": 1790566807.6590514,
+    "ast_hash": "b3652d1498846fe3a3bb8554f2e7ac1a",
+    "semantic_hash": "b3652d1498846fe3a3bb8554f2e7ac1a"
+  },
+  "guard-svc/Cargo.toml": {
+    "mtime": 1790399894.1299486,
+    "seen": 1790566807.6591318,
+    "ast_hash": "3951ab3ebe7537fd2d7747ca9fd4174c",
+    "semantic_hash": "3951ab3ebe7537fd2d7747ca9fd4174c"
+  },
+  "guard-svc/src/lib.rs": {
+    "mtime": 1790323290.0500739,
+    "seen": 1790566807.659134,
+    "ast_hash": "8db37a1937ee4b233a9a986f3e7415e5",
+    "semantic_hash": "8db37a1937ee4b233a9a986f3e7415e5"
+  },
+  "guard-svc/src/llm_detect.rs": {
+    "mtime": 1790399894.1299486,
+    "seen": 1790566807.659136,
+    "ast_hash": "2ea3ac58d0289d27c06b846b89eec30e",
+    "semantic_hash": "2ea3ac58d0289d27c06b846b89eec30e"
+  },
+  "guard-svc/tests/capture_affinity_check.rs": {
+    "mtime": 1790323904.9620767,
+    "seen": 1790566807.6591415,
+    "ast_hash": "e9b9d0275c6efd5fa74b14f103d6ea19",
+    "semantic_hash": "e9b9d0275c6efd5fa74b14f103d6ea19"
+  },
+  "guard-svc/tests/injection_flag_check.rs": {
+    "mtime": 1790323911.586061,
+    "seen": 1790566807.659144,
+    "ast_hash": "07c3c3e26421bfdd76a61d1ad0586bb0",
+    "semantic_hash": "07c3c3e26421bfdd76a61d1ad0586bb0"
+  },
+  "guard-svc/tests/loopback_allowlist.rs": {
+    "mtime": 1790323339.5320408,
+    "seen": 1790566807.6591494,
+    "ast_hash": "a2f1f3ab84b03f421529a1ea6094edbc",
+    "semantic_hash": "a2f1f3ab84b03f421529a1ea6094edbc"
+  },
+  "guard-verify/src/bin/fake_capture_excluded_window.rs": {
+    "mtime": 1790324238.0443032,
+    "seen": 1790566807.6591566,
+    "ast_hash": "9a6c04d9e76019bcf7ea7bb5c682c9d4",
+    "semantic_hash": "9a6c04d9e76019bcf7ea7bb5c682c9d4"
+  },
+  "guard-verify/src/bin/fake_injected_keystrokes.rs": {
+    "mtime": 1790324253.355409,
+    "seen": 1790566807.659159,
+    "ast_hash": "7748d177a6c306643f55bb73a4a3df68",
+    "semantic_hash": "7748d177a6c306643f55bb73a4a3df68"
+  },
+  "guard-verify/src/bin/loopback_scan_test.rs": {
+    "mtime": 1790323425.8045044,
+    "seen": 1790566807.6591616,
+    "ast_hash": "dc03db4d9804d6945a72f87f9cf3b2a9",
+    "semantic_hash": "dc03db4d9804d6945a72f87f9cf3b2a9"
+  },
+  "AGENTS.md": {
+    "mtime": 1790324083.092313,
+    "seen": 1790566807.6592143,
+    "ast_hash": "6a47d64fcc136324ca395065a707ef76",
+    "semantic_hash": "6a47d64fcc136324ca395065a707ef76"
+  },
+  "citadel-server/Cargo.toml": {
+    "mtime": 1790324429.1053355,
+    "seen": 1790566807.6591032,
+    "ast_hash": "c04bca764153dc5e9d70a4e9baa2af83",
+    "semantic_hash": "c04bca764153dc5e9d70a4e9baa2af83"
+  },
+  "citadel-server/src/api.rs": {
+    "mtime": 1790511216.4699652,
+    "seen": 1790566807.6591058,
+    "ast_hash": "6ada9f85dd9cb4a83bcf0ab71c4a568b",
+    "semantic_hash": "6ada9f85dd9cb4a83bcf0ab71c4a568b"
+  },
+  "citadel-server/src/lib.rs": {
+    "mtime": 1790337644.7743082,
+    "seen": 1790566807.6591103,
+    "ast_hash": "993160a03b1de5eb5d3a026345b0a77e",
+    "semantic_hash": "993160a03b1de5eb5d3a026345b0a77e"
+  },
+  "citadel-server/src/main.rs": {
+    "mtime": 1790502000.113853,
+    "seen": 1790566807.6591127,
+    "ast_hash": "406d3bbe480407725c869c59bc60ccc6",
+    "semantic_hash": "406d3bbe480407725c869c59bc60ccc6"
+  },
+  "citadel-server/src/questions.rs": {
+    "mtime": 1790397858.8375409,
+    "seen": 1790566807.6591156,
+    "ast_hash": "2a916193bb97eb4d64e60af1d254b339",
+    "semantic_hash": "2a916193bb97eb4d64e60af1d254b339"
+  },
+  "citadel-server/src/ui.rs": {
+    "mtime": 1790392124.0034037,
+    "seen": 1790566807.659118,
+    "ast_hash": "8be314ad2026802c1c78d9b004ec629a",
+    "semantic_hash": "8be314ad2026802c1c78d9b004ec629a"
+  },
+  "citadel-server/tests/api_tests.rs": {
+    "mtime": 1790507129.5214212,
+    "seen": 1790566807.6591222,
+    "ast_hash": "a2b3d7a235b1b7b531ca944c541c5e44",
+    "semantic_hash": "a2b3d7a235b1b7b531ca944c541c5e44"
+  },
+  "opencode.json": {
+    "mtime": 1790328231.1286588,
+    "seen": 1790566807.659166,
+    "ast_hash": "849aa1f909f3a07ff226d622af09a623",
+    "semantic_hash": "849aa1f909f3a07ff226d622af09a623"
+  },
+  "citadel-client/Cargo.toml": {
+    "mtime": 1790352915.028277,
+    "seen": 1790566807.6590562,
+    "ast_hash": "c9080c381bdf1122d7af2884d2ee40de",
+    "semantic_hash": "c9080c381bdf1122d7af2884d2ee40de"
+  },
+  "citadel-client/src/hotkey_lock.rs": {
+    "mtime": 1790353007.8235524,
+    "seen": 1790566807.6590714,
+    "ast_hash": "7620ddfeb83e57484c2a1ef9ad7e0af5",
+    "semantic_hash": "7620ddfeb83e57484c2a1ef9ad7e0af5"
+  },
+  "citadel-client/src/kiosk_window.rs": {
+    "mtime": 1790514289.0229006,
+    "seen": 1790566807.6590748,
+    "ast_hash": "b0428466cdc16daba4467f0536ce79c9",
+    "semantic_hash": "b0428466cdc16daba4467f0536ce79c9"
+  },
+  "citadel-client/src/lib.rs": {
+    "mtime": 1790496236.095618,
+    "seen": 1790566807.6590774,
+    "ast_hash": "0f89a37f926ef84c3807c831d306ba0f",
+    "semantic_hash": "0f89a37f926ef84c3807c831d306ba0f"
+  },
+  "citadel-client/src/main.rs": {
+    "mtime": 1790506902.1991408,
+    "seen": 1790566807.6590827,
+    "ast_hash": "38bc655ed3aafe863435e8af3e97122e",
+    "semantic_hash": "38bc655ed3aafe863435e8af3e97122e"
+  },
+  "citadel-client/src/security_coordinator.rs": {
+    "mtime": 1790514289.0229006,
+    "seen": 1790566807.659093,
+    "ast_hash": "92fc1e8fe22141bf38e25c7c6370dc12",
+    "semantic_hash": "92fc1e8fe22141bf38e25c7c6370dc12"
+  },
+  "citadel-client/tests/hotkey_filter_test.rs": {
+    "mtime": 1790330921.3681242,
+    "seen": 1790566807.6590953,
+    "ast_hash": "9f2a6acbe7c2480cb89ec40a4c0fb5e2",
+    "semantic_hash": "9f2a6acbe7c2480cb89ec40a4c0fb5e2"
+  },
+  "citadel-client/tests/kiosk_config_test.rs": {
+    "mtime": 1790325360.7285416,
+    "seen": 1790566807.659098,
+    "ast_hash": "f06402c64954938315905cdc8c320527",
+    "semantic_hash": "f06402c64954938315905cdc8c320527"
+  },
+  "citadel-client/tests/security_lifecycle_test.rs": {
+    "mtime": 1790506979.5974584,
+    "seen": 1790566807.6591005,
+    "ast_hash": "780c1e8fa417f56a56c6fcdc3db17af2",
+    "semantic_hash": "780c1e8fa417f56a56c6fcdc3db17af2"
+  },
+  "citadel-client/build.rs": {
+    "mtime": 1790347517.3597057,
+    "seen": 1790566807.6590602,
+    "ast_hash": "75b489a2a4fb952625eca830942ef589",
+    "semantic_hash": "75b489a2a4fb952625eca830942ef589"
+  },
+  "citadel-client/src/crash_handler.rs": {
+    "mtime": 1790508413.668897,
+    "seen": 1790566807.6590655,
+    "ast_hash": "2d369ce17c5e49bdd4039b2a92e01b4b",
+    "semantic_hash": "2d369ce17c5e49bdd4039b2a92e01b4b"
+  },
+  "citadel-client/src/explorer_lock.rs": {
+    "mtime": 1790335167.0615592,
+    "seen": 1790566807.6590679,
+    "ast_hash": "2cc3634a5d69ae732a08bd6609e60e98",
+    "semantic_hash": "2cc3634a5d69ae732a08bd6609e60e98"
+  },
+  "citadel-client/src/registry_lock.rs": {
+    "mtime": 1790392337.410592,
+    "seen": 1790566807.6590877,
+    "ast_hash": "f98d4de03a89ad0af61b57037aa94f8f",
+    "semantic_hash": "f98d4de03a89ad0af61b57037aa94f8f"
+  },
+  "citadel-client/src/secure_desktop.rs": {
+    "mtime": 1790336986.260351,
+    "seen": 1790566807.6590903,
+    "ast_hash": "fb6299ef0cb503f9dff4c906f5dfc6ec",
+    "semantic_hash": "fb6299ef0cb503f9dff4c906f5dfc6ec"
+  },
+  "citadel-server/src/judge.rs": {
+    "mtime": 1790391800.4384432,
+    "seen": 1790566807.6591082,
+    "ast_hash": "39722f757bd967a77f5f320a316ec87e",
+    "semantic_hash": "39722f757bd967a77f5f320a316ec87e"
+  },
+  "citadel-client/src/bin/recovery.rs": {
+    "mtime": 1790399933.8419337,
+    "seen": 1790566807.6590633,
+    "ast_hash": "a195909c5556b7211c609c7a643169df",
+    "semantic_hash": "a195909c5556b7211c609c7a643169df"
+  },
+  "citadel-client/src/pre_flight.rs": {
+    "mtime": 1790504886.2282667,
+    "seen": 1790566807.6590853,
+    "ast_hash": "8626ff0d5d0ffeccdfb7f2a9a3f9e730",
+    "semantic_hash": "8626ff0d5d0ffeccdfb7f2a9a3f9e730"
+  },
+  "citadel-server/static/ace.bundle.js": {
+    "mtime": 1790357613.8083994,
+    "seen": 1790566807.6591198,
+    "ast_hash": "8687733eb8c5ef6df721316251669a33",
+    "semantic_hash": "8687733eb8c5ef6df721316251669a33"
+  },
+  "portal_test.js": {
+    "mtime": 1790358708.1180894,
+    "seen": 1790566807.659169,
+    "ast_hash": "9842fc7e283a8be009ddadc6a64ffccb",
+    "semantic_hash": "9842fc7e283a8be009ddadc6a64ffccb"
+  },
+  "CITADEL_SECURITY_ARCHITECTURE.md": {
+    "mtime": 1790507344.3667643,
+    "seen": 1790566807.6592166,
+    "ast_hash": "a6d944312150f4a1fda86c7b3d9720a6",
+    "semantic_hash": "a6d944312150f4a1fda86c7b3d9720a6"
+  },
+  "GOLDEN_RULE_ARCHITECTURE.md": {
+    "mtime": 1790391528.978088,
+    "seen": 1790566807.6592193,
+    "ast_hash": "839e4298de6199d6719d3f2609d123a9",
+    "semantic_hash": "839e4298de6199d6719d3f2609d123a9"
+  },
+  "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md": {
+    "mtime": 1790507379.3490636,
+    "seen": 1790566807.6592214,
+    "ast_hash": "f182f37a646af2b33dc7de6490e49f04",
+    "semantic_hash": "f182f37a646af2b33dc7de6490e49f04"
+  },
+  "citadel-server/templates/denied.html": {
+    "mtime": 1790526867.5383198,
+    "seen": 1790566807.6592238,
+    "ast_hash": "36dab4b70fead84218dcd2fd845f89d1",
+    "semantic_hash": "36dab4b70fead84218dcd2fd845f89d1"
+  },
+  "citadel-server/templates/gatekeeper.html": {
+    "mtime": 1790526867.5383198,
+    "seen": 1790566807.6592264,
+    "ast_hash": "b229e830989c75eedc3c22e552228bd6",
+    "semantic_hash": "b229e830989c75eedc3c22e552228bd6"
+  },
+  "citadel-server/templates/portal.html": {
+    "mtime": 1790527216.3659322,
+    "seen": 1790566807.659229,
+    "ast_hash": "ac7ba2cb4f5beabbb8a19ee0e6d8caea",
+    "semantic_hash": "ac7ba2cb4f5beabbb8a19ee0e6d8caea"
+  },
+  "citadel-server/templates/recruiter.html": {
+    "mtime": 1790526952.9168847,
+    "seen": 1790566807.6592312,
+    "ast_hash": "dbc5f5d10ca67c1aaeab0874c39ba521",
+    "semantic_hash": "dbc5f5d10ca67c1aaeab0874c39ba521"
+  },
+  "citadel-client/src/local_control.rs": {
+    "mtime": 1790501231.5613286,
+    "seen": 1790566807.6590803,
+    "ast_hash": "b4090b1b80aa0cb6ef6bd347718ad843",
+    "semantic_hash": "b4090b1b80aa0cb6ef6bd347718ad843"
+  },
+  "upgradation.md": {
+    "mtime": 1790507323.574296,
+    "seen": 1790566807.6592338,
+    "ast_hash": "0d4bf428cc560c11c7db156f2461092a",
+    "semantic_hash": "0d4bf428cc560c11c7db156f2461092a"
+  }
+}
