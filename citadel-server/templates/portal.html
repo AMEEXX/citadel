@@ -5,65 +5,82 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <title>CITADEL — Code Assessment Portal</title>
   <script src="/static/ace.bundle.js"></script>
   <style>
-    /* ─── COLOR SYSTEM (Synced from React component BG/BORDER/TEXT) ─── */
-    /* Every surface is a shade of pure black with a faint cold-blue undertone */
+    /* ─── COLOR SYSTEM & TYPOGRAPHY TOKENS ─── */
     :root {
-  /* ─── Surfaces (warm-neutral onyx, OKLCH h≈75 C≈0.003) ─── */
-  --bg-void:           #000000;   /* Void      — kiosk frame / body                */
-  --bg-base:           #0b0a09;   /* Onyx                                          */
-  --bg-panel:          #11100f;   /* Jet                                           */
-  --bg-editor:         #070605;   /* Obsidian                                      */
-  --bg-problem:        #11100f;   /* Jet                                           */
-  --bg-card:           #181716;   /* Graphite                                      */
-  --bg-surface-hover:  #1f1e1d;   /* Smoke                                         */
+      /* Surfaces (warm-neutral onyx, OKLCH h≈75 C≈0.003) */
+      --bg-void:           #000000;   /* Void      — kiosk frame / body */
+      --bg-base:           #0b0a09;   /* Onyx */
+      --bg-panel:          #11100f;   /* Jet */
+      --bg-editor:         #070605;   /* Obsidian */
+      --bg-problem:        #11100f;   /* Jet */
+      --bg-card:           #181716;   /* Graphite */
+      --bg-surface-hover:  #1f1e1d;   /* Smoke */
 
-  /* ─── Borders ─── */
-  --border-hair:       #1a1918;   /* Hairline                                      */
-  --border-subtle:     #242321;   /* Seam                                          */
-  --border-medium:     #323130;   /* Pewter                                        */
-  --grip-active:       #494746;   /* Iron      — resizer grip hover/drag           */
+      /* Borders */
+      --border-hair:       #1a1918;   /* Hairline */
+      --border-subtle:     #242321;   /* Seam */
+      --border-medium:     #323130;   /* Pewter */
+      --grip-active:       #494746;   /* Iron — resizer grip hover/drag */
 
-  /* ─── Text ─── */
-  --text-primary:      #e6e2dc;   /* Ivory     — 15.3:1 on base                    */
-  --text-secondary:    #a5a39f;   /* Ash       — 7.9:1                             */
-  --text-dim:          #7d7b78;   /* Stone     — 4.7:1                             */
-  --text-ghost:        #555451;   /* Shadow    — line numbers                      */
+      /* Text */
+      --text-primary:      #e6e2dc;   /* Ivory — 15.3:1 on base */
+      --text-secondary:    #a5a39f;   /* Ash — 7.9:1 */
+      --text-dim:          #7d7b78;   /* Stone — 4.7:1 */
+      --text-ghost:        #555451;   /* Shadow — line numbers */
 
-  /* ─── Accents ─── */
-  --accent-lang:         #dad0bf; /* Champagne — BRAND                             */
-  --accent-brand-hover:  #ece3d6; /* Champagne Light                              */
-  --accent-info:         #a2bad8; /* Moonstone — links, info, focus ring           */
-  --accent-green:        #8dc7a7; /* Jade                                          */
-  --accent-amber:        #dbb87e; /* Saffron                                       */
-  --accent-red:          #d78e88; /* Garnet                                        */
-  --accent-run-btn:      #323130; /* Pewter                                        */
+      /* Accents */
+      --accent-lang:         #dad0bf; /* Champagne — BRAND */
+      --accent-brand-hover:  #ece3d6; /* Champagne Light */
+      --accent-info:         #a2bad8; /* Moonstone — links, info, focus ring */
+      --accent-green:        #8dc7a7; /* Jade */
+      --accent-amber:        #dbb87e; /* Saffron */
+      --accent-red:          #d78e88; /* Garnet */
+      --accent-run-btn:      #323130; /* Pewter */
 
-  --font-ui:   'Geist', "Helvetica Neue", Helvetica, -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: 'Geist Mono', ui-monospace, "SF Mono", Menlo, Monaco, Consolas, monospace;
-}
+      /* Typography & Font Stacks */
+      --font-ui:   'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif;
+      --font-mono: 'Geist Mono', ui-monospace, "Cascadia Code", "SF Mono", Menlo, Monaco, Consolas, monospace;
 
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0; }
+      /* Type Scale */
+      --text-2xs:  10px;  /* Section heads, uppercase meta, status bar */
+      --text-xs:   11px;  /* Badges, sub-labels, meta pills */
+      --text-sm:   12px;  /* Timers, code snippets, secondary action items */
+      --text-base: 13px;  /* Standard UI text, descriptions, table body */
+      --text-md:   14px;  /* Prominent labels, modal body accents, inputs */
+      --text-lg:   15px;  /* Sub-headings, stat card titles */
+      --text-xl:   18px;  /* Question title */
+      --text-2xl:  20px;  /* Dialog / overlay headings */
+      --text-3xl:  24px;  /* Page / appliance title */
+
+      /* Weights */
+      --weight-light:    300;
+      --weight-regular:  400;
+      --weight-medium:   500;
+      --weight-semibold: 600;
+      --weight-bold:     700;
+      --weight-black:    800;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
       background-color: #000000;  /* BG.void — outermost */
       color: var(--text-primary);
       font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-base);
       height: 100vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       -webkit-font-smoothing: antialiased;
-      font-size: 13px;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+      font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     }
 
     /* Scrollbars — barely visible */
@@ -97,38 +114,39 @@
     .logo-badge {
       background: #181716;
       color: var(--accent-lang);
-      font-weight: 700;
-      font-size: 11px;
+      font-family: var(--font-mono);
+      font-weight: var(--weight-black);
+      font-size: var(--text-xs);
       letter-spacing: 0.1em;
       padding: 3px 10px;
       border-radius: 3px;
       border: 1px solid var(--border-medium);
-      font-family: var(--font-mono);
     }
 
     .exam-title-header {
-      font-size: 12.5px;
-      font-weight: 500;
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-sm);
       color: var(--text-secondary);
       display: flex;
       align-items: center;
       gap: 10px;
-      font-family: var(--font-ui);
+      letter-spacing: 0.01em;
     }
 
     .badge-secure {
       background: transparent;
       border: 1px solid #203329;
       color: #668a76;
-      font-size: 10px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-weight: var(--weight-light);
+      font-size: var(--text-2xs);
       padding: 2px 7px;
       border-radius: 3px;
       display: flex;
       align-items: center;
       gap: 5px;
-      letter-spacing: 0.04em;
-      font-family: var(--font-mono);
+      letter-spacing: 0.06em;
     }
 
     .secure-dot {
@@ -153,10 +171,10 @@
       align-items: center;
       gap: 7px;
       font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 500;
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
       color: var(--text-secondary);
-      letter-spacing: 0.04em;
+      letter-spacing: 0.05em;
     }
     .timer-container.timer-warning {
       color: var(--accent-amber);
@@ -171,8 +189,9 @@
       background: #290b0b;
       border: 1px solid #a03f40;
       color: #f47a79;
-      font-size: 11.5px;
-      font-weight: 600;
+      font-family: var(--font-ui);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-xs);
       padding: 5px 14px;
       border-radius: 4px;
       cursor: pointer;
@@ -180,8 +199,7 @@
       align-items: center;
       gap: 6px;
       transition: all 0.18s ease;
-      font-family: var(--font-ui);
-      letter-spacing: 0.02em;
+      letter-spacing: 0.03em;
     }
     .btn-end-exam:hover {
       background: #af3c40;
@@ -200,6 +218,11 @@
       border-color: #f17070;
       color: #f2f0ec;
       animation: pulse-danger 2s infinite;
+    }
+
+    @keyframes pulse-danger {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 122, 121, 0.4); }
+      50% { box-shadow: 0 0 12px 3px rgba(244, 122, 121, 0.7); }
     }
 
     /* ─── MAIN WORKSPACE (SPLIT LAYOUT) ─── */
@@ -230,8 +253,10 @@
       border-bottom: 1px solid var(--border-hair);
       display: flex;
       align-items: stretch;
+      gap: 4px;
       padding: 0 12px;
       flex-shrink: 0;
+      overflow-x: auto;
     }
 
     .q-tab-btn {
@@ -240,12 +265,12 @@
       border-bottom: 2px solid transparent;
       color: var(--text-dim);
       padding: 0 16px;
-      font-size: 12px;
-      font-weight: 500;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      font-weight: var(--weight-medium);
       cursor: pointer;
       letter-spacing: 0.04em;
       transition: all 0.15s ease;
-      font-family: var(--font-mono);
       display: inline-flex;
       align-items: center;
       justify-content: center;
@@ -256,7 +281,7 @@
     .q-tab-btn.active {
       color: var(--text-primary);
       border-bottom-color: var(--accent-lang);
-      font-weight: 600;
+      font-weight: var(--weight-semibold);
     }
 
     .problem-content {
@@ -264,92 +289,163 @@
       overflow-y: auto;
       line-height: 1.7;
       flex: 1;
-      font-size: 13px;
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-base);
       color: var(--text-primary);
     }
 
     .q-header-meta {
       display: flex;
       align-items: center;
-      gap: 7px;
+      gap: 8px;
       margin-bottom: 14px;
       flex-wrap: wrap;
     }
 
     .diff-badge {
-      font-size: 10px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-2xs);
       padding: 2px 8px;
       border-radius: 3px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      font-family: var(--font-mono);
     }
     .diff-easy {
       background: transparent;
       color: var(--accent-green);
       border: 1px solid #203329;
     }
+    .diff-medium {
+      background: transparent;
+      color: var(--accent-amber);
+      border: 1px solid #3b2f1e;
+    }
+    .diff-hard {
+      background: transparent;
+      color: var(--accent-red);
+      border: 1px solid #3d1c1a;
+    }
 
     .points-badge {
       background: transparent;
       border: 1px solid var(--border-subtle);
       color: var(--text-secondary);
-      font-size: 10px;
-      font-weight: 500;
+      font-family: var(--font-mono);
+      font-weight: var(--weight-light);
+      font-size: var(--text-2xs);
       padding: 2px 8px;
       border-radius: 3px;
-      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
     }
 
-    /* tag-pill removed — keep class to avoid JS errors but hidden */
     .tag-pill { display: none; }
 
     .q-title {
-      font-size: 17px;
-      font-weight: 600;
+      font-family: var(--font-ui);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-xl);
       color: var(--text-primary);
       margin-bottom: 14px;
       letter-spacing: -0.015em;
       line-height: 1.35;
-      font-family: var(--font-ui);
     }
 
-    .q-desc p { margin-bottom: 12px; color: var(--text-primary); font-weight: 300; font-size: 12px; line-height: 18px; font-family: var(--font-ui); }
+    .q-desc {
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-base);
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin: 16px 0;
+    }
+    .q-desc p {
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-base);
+      line-height: 1.7;
+    }
+    .q-desc strong, .q-desc b {
+      font-weight: var(--weight-semibold);
+      color: #f2f0ec;
+    }
     .q-desc code, .code-snippet {
       font-family: var(--font-mono);
+      font-weight: var(--weight-light);
       background: var(--bg-editor);
       border: 1px solid var(--border-hair);
       border-radius: 3px;
       padding: 1px 5px;
-      color: var(--accent-amber);   /* Saffron */
-      font-size: 12px;
+      color: var(--accent-amber);
+      font-size: var(--text-sm);
     }
 
     .section-head {
-      font-size: 10px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-2xs);
       color: var(--text-dim);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin: 20px 0 8px;
+      margin: 24px 0 10px;
+    }
+
+    .constraints-list {
+      padding-left: 20px;
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      line-height: 1.8;
+    }
+    .constraints-list li {
+      margin-bottom: 4px;
+    }
+    .constraints-list code {
       font-family: var(--font-mono);
+      font-weight: var(--weight-light);
+      font-size: var(--text-sm);
+      background: var(--bg-editor);
+      border: 1px solid var(--border-hair);
+      border-radius: 3px;
+      padding: 1px 5px;
+      color: var(--accent-amber);
     }
 
     .test-card {
       background: var(--bg-card);
       border: 1px solid var(--border-hair);
       border-radius: 4px;
-      padding: 12px 14px;
-      margin-bottom: 10px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
     }
     .test-card-title {
-      font-size: 10px;
-      font-weight: 600;
-      color: var(--text-secondary);
-      margin-bottom: 7px;
-      letter-spacing: 0.05em;
       font-family: var(--font-mono);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-2xs);
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .example-io-label {
+      font-family: var(--font-mono);
+      font-weight: var(--weight-light);
+      font-size: var(--text-2xs);
+      color: var(--text-dim);
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+    .example-explanation {
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-top: 8px;
     }
     .code-snippet {
       display: block;
@@ -442,7 +538,6 @@
       gap: 1px;
     }
 
-    /* Language tabs — styled like the React component tabs */
     .lang-tab {
       background: transparent;
       color: var(--text-dim);
@@ -451,13 +546,13 @@
       border-radius: 3px 3px 0 0;
       padding: 0 16px;
       height: 40px;
-      font-size: 10.5px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-size: var(--text-2xs);
+      font-weight: var(--weight-semibold);
       cursor: pointer;
       transition: all 0.15s;
       letter-spacing: 0.06em;
       text-transform: uppercase;
-      font-family: var(--font-mono);
       display: flex;
       align-items: center;
       gap: 7px;
@@ -468,7 +563,6 @@
       color: var(--text-primary);
       border-top-color: var(--accent-lang);
     }
-    /* Language color swatch inside tab */
     .lang-tab::before {
       content: '';
       display: inline-block;
@@ -487,14 +581,14 @@
       border: 1px solid var(--border-hair);
       border-radius: 3px;
       padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 500;
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
       transition: all 0.15s ease;
-      font-family: var(--font-ui);
     }
     .btn-reset:hover {
       color: var(--text-secondary);
@@ -502,16 +596,17 @@
     }
 
     #code-editor {
-      flex: 1;
+      flex: 1 1 0;
       width: 100%;
       height: 100%;
       font-family: var(--font-mono) !important;
-      font-size: 13.5px !important;
+      font-size: var(--text-sm) !important;
+      font-weight: var(--weight-light) !important;
       line-height: 1.65 !important;
       background: var(--bg-editor) !important;
     }
 
-    /* ─── Ace editor (Obsidian Atelier theme) ─── */
+    /* Ace editor (Obsidian Atelier theme) */
     .ace_editor                         { background: #070605 !important; color: #e6e2dc !important; font-family: var(--font-mono) !important; font-weight: 300 !important; font-size: 12.5px !important; line-height: 1.6 !important; }
     .ace_gutter                         { background: #070605 !important; color: #555451 !important; border-right: 1px solid var(--border-hair) !important; }
     .ace_gutter-active-line             { background: transparent !important; color: #dad0bf !important; }
@@ -535,11 +630,18 @@
       justify-content: space-between;
       padding: 0 14px;
       font-family: var(--font-mono);
-      font-size: 10px;
+      font-weight: var(--weight-light);
+      font-size: var(--text-2xs);
       color: var(--text-dim);
       user-select: none;
       flex-shrink: 0;
       gap: 16px;
+      letter-spacing: 0.04em;
+    }
+    #status-lang-text {
+      color: var(--accent-lang);
+      font-weight: var(--weight-semibold);
+      letter-spacing: 0.06em;
     }
 
     /* ─── HORIZONTAL RESIZER (BETWEEN EDITOR & DRAWER) ─── */
@@ -611,8 +713,9 @@
     }
 
     .nav-pill {
-      font-size: 11px;
-      font-weight: 500;
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
       color: var(--text-dim);
       cursor: pointer;
       padding: 4px 10px;
@@ -623,7 +726,7 @@
       display: flex;
       align-items: center;
       gap: 5px;
-      font-family: var(--font-ui);
+      letter-spacing: 0.02em;
     }
     .nav-pill:hover { color: var(--text-secondary); }
     .nav-pill.active {
@@ -642,14 +745,15 @@
       border: none;
       border-radius: 3px;
       padding: 5px 14px;
-      font-size: 11.5px;
-      font-weight: 600;
+      font-family: var(--font-ui);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-semibold);
+      letter-spacing: 0.03em;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
       transition: all 0.15s ease;
-      font-family: var(--font-ui);
     }
 
     /* Run Code — Obsidian Atelier */
@@ -677,7 +781,7 @@
       color: #0b0a09;
       cursor: pointer;
       border: 1px solid #dad0bf;
-      font-weight: 600;
+      font-weight: var(--weight-semibold);
     }
     .btn-submit:not([disabled]):not(.locked):hover, .btn-submit.unlocked:hover {
       background: #ece3d6;
@@ -703,15 +807,16 @@
       border: 1px solid var(--border-hair);
       border-radius: 3px;
       color: var(--text-dim);
-      font-size: 11px;
-      font-weight: 500;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: var(--weight-medium);
       padding: 3px 10px;
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
+      letter-spacing: 0.04em;
       transition: all 0.15s ease;
-      font-family: var(--font-mono);
     }
     .case-pill:hover { color: var(--text-secondary); border-color: var(--border-subtle); }
     .case-pill.active {
@@ -731,13 +836,13 @@
     }
 
     .detail-head {
-      font-size: 10px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-2xs);
       color: var(--text-dim);
       margin-bottom: 5px;
       text-transform: uppercase;
       letter-spacing: 0.06em;
-      font-family: var(--font-mono);
     }
 
     .detail-box {
@@ -746,7 +851,9 @@
       border-radius: 3px;
       padding: 8px 12px;
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-weight: var(--weight-light);
+      font-size: var(--text-sm);
+      line-height: 1.6;
       color: var(--text-primary);
       white-space: pre-wrap;
     }
@@ -757,10 +864,11 @@
       border-radius: 3px;
       padding: 12px;
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-weight: var(--weight-light);
+      font-size: var(--text-sm);
       color: var(--text-secondary);
       white-space: pre-wrap;
-      line-height: 1.65;
+      line-height: 1.6;
       min-height: 100px;
     }
 
@@ -773,6 +881,7 @@
       align-items: center;
       justify-content: center;
       z-index: 1000;
+      backdrop-filter: blur(4px);
     }
 
     .modal-box {
@@ -780,29 +889,33 @@
       border: 1px solid var(--border-subtle);
       border-radius: 6px;
       padding: 28px;
-      max-width: 420px;
+      max-width: 440px;
       width: 90%;
       box-shadow: 0 40px 80px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(242, 240, 236, 0.02);
     }
 
     .modal-title {
-      font-size: 15px;
-      font-weight: 600;
+      font-family: var(--font-ui);
+      font-size: var(--text-xl);
+      font-weight: var(--weight-semibold);
+      letter-spacing: -0.015em;
       color: var(--text-primary);
-      margin-bottom: 10px;
+      margin-bottom: 12px;
     }
 
     .modal-body {
-      font-size: 13px;
+      font-family: var(--font-ui);
+      font-size: var(--text-base);
+      font-weight: var(--weight-light);
       color: var(--text-secondary);
       line-height: 1.65;
-      margin-bottom: 20px;
+      margin-bottom: 22px;
     }
 
     .modal-actions {
       display: flex;
       justify-content: flex-end;
-      gap: 8px;
+      gap: 10px;
     }
 
     .conclusion-overlay {
@@ -817,12 +930,66 @@
 
     .conclusion-card {
       background: var(--bg-panel);
-      border: 1px solid var(--border-subtle);
-      border-radius: 6px;
-      padding: 40px;
-      max-width: 440px;
+      border: 1px solid var(--border-medium);
+      border-radius: 8px;
+      padding: 44px 36px;
+      max-width: 520px;
+      width: 90%;
       text-align: center;
       box-shadow: 0 40px 80px rgba(0, 0, 0, 0.95);
+      font-family: var(--font-ui);
+    }
+    .conclusion-card h2 {
+      font-family: var(--font-ui);
+      font-weight: var(--weight-semibold);
+      font-size: var(--text-2xl);
+      letter-spacing: -0.015em;
+      color: #e6e2dc;
+      margin-bottom: 12px;
+    }
+    .conclusion-card p {
+      font-family: var(--font-ui);
+      font-weight: var(--weight-light);
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      line-height: 1.65;
+      margin-bottom: 24px;
+    }
+
+    .candidate-reg-input {
+      width: 100%;
+      padding: 12px 14px;
+      background: var(--bg-surface-hover);
+      border: 1px solid var(--border-subtle);
+      color: #e6e2dc;
+      font-family: var(--font-mono);
+      font-size: var(--text-md);
+      font-weight: var(--weight-light);
+      border-radius: 4px;
+      margin-bottom: 20px;
+      text-align: center;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .candidate-reg-input:focus {
+      border-color: var(--accent-info);
+    }
+    .candidate-reg-btn {
+      width: 100%;
+      background: #48658b;
+      color: #f2f0ec;
+      padding: 12px;
+      border: none;
+      border-radius: 4px;
+      font-family: var(--font-ui);
+      font-size: var(--text-md);
+      font-weight: var(--weight-semibold);
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .candidate-reg-btn:hover {
+      background: #5f82b0;
     }
 
     /* INVISIBLE DRAG BARRIER OVERLAY */
@@ -835,7 +1002,7 @@
       background: rgba(0, 0, 0, 0.001);
       cursor: inherit;
     }
-      :focus-visible { outline: 1px solid #a2bad8; outline-offset: 2px; }
+    :focus-visible { outline: 1px solid #a2bad8; outline-offset: 2px; }
   </style>
 </head>
 <body>
@@ -876,26 +1043,26 @@
   <div class="workspace">
     <!-- LEFT: PROBLEM SPEC -->
     <div class="pane-problem" id="pane-problem">
-      <div class="problem-tabs" id="problem-tab-list" style="display: flex; gap: 4px; overflow-x: auto; padding: 6px 12px; background: var(--bg-panel); border-bottom: 1px solid var(--border-hair);">
+      <div class="problem-tabs" id="problem-tab-list">
         <!-- DYNAMICALLY POPULATED QUESTION TABS -->
       </div>
-      <div class="problem-content" id="problem-content-area" style="overflow-y: auto; padding: 20px 24px;">
-        <div class="q-header-meta" id="q-meta-container" style="display: flex; gap: 8px; align-items: center; margin-bottom: 14px; flex-wrap: wrap;">
+      <div class="problem-content" id="problem-content-area">
+        <div class="q-header-meta" id="q-meta-container">
           <span class="diff-badge diff-easy">Easy</span>
           <span class="points-badge">100 Points</span>
         </div>
 
         <h1 class="q-title" id="q-title">Loading Assessment Problem...</h1>
 
-        <div class="q-desc" id="q-desc" style="color: var(--text-secondary); font-size: 13.5px; line-height: 1.65; margin: 16px 0;">
+        <div class="q-desc" id="q-desc">
           Please wait while assessment specifications are loaded from the secure offline server.
         </div>
 
-        <div class="section-head" style="font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; margin: 24px 0 10px 0; font-family: var(--font-mono);">EXAMPLES</div>
+        <div class="section-head">EXAMPLES</div>
         <div id="q-examples-container"></div>
 
-        <div class="section-head" style="font-size: 11px; font-weight: 700; color: var(--text-dim); letter-spacing: 0.08em; text-transform: uppercase; margin: 24px 0 10px 0; font-family: var(--font-mono);">CONSTRAINTS</div>
-        <ul id="q-constraints-list" style="padding-left: 20px; font-size: 13px; color: var(--text-secondary); line-height: 1.8;"></ul>
+        <div class="section-head">CONSTRAINTS</div>
+        <ul class="constraints-list" id="q-constraints-list"></ul>
       </div>
     </div>
 <div class="resizer-v" id="resizer-v" title="Drag to resize panes"></div>
@@ -1002,32 +1169,32 @@
       <div class="modal-title">End Assessment Session?</div>
       <div class="modal-body">
         Are you sure you want to end your examination session?
-        <div style="margin-top: 8px; color: var(--text-primary); font-size: 12.5px;">
+        <div style="margin-top: 8px; color: var(--text-primary); font-size: var(--text-sm);">
           Your final code will be evaluated. Once confirmed, this exam session will close.
         </div>
       </div>
       <div class="modal-actions">
-        <button class="btn-action" style="background: #1f1e1d; color: #a5a39f; border: 1px solid #323130;" onclick="closeEndExamModal()">Continue Exam</button>
-        <button class="btn-action" style="background: #af3c40; color: #f2f0ec; border: 1px solid #c4474b;" id="btn-confirm-end" onclick="executeEndExam()">Confirm & End Exam</button>
+        <button class="btn-action btn-run" onclick="closeEndExamModal()">Continue Exam</button>
+        <button class="btn-action btn-end-exam" id="btn-confirm-end" onclick="executeEndExam()">Confirm & End Exam</button>
       </div>
     </div>
   </div>
 
   <!-- CONCLUSION OVERLAY -->
   <div id="conclusion-screen" class="conclusion-overlay" style="display: none;">
-    <div class="conclusion-card" style="text-align: center; max-width: 520px; padding: 40px 32px; border-radius: 8px; border: 1px solid #357153; background: #081d13; box-shadow: 0 20px 50px rgba(0,0,0,0.6);">
+    <div class="conclusion-card" style="max-width: 520px; border-color: #357153; background: #081d13;">
       <div style="font-size: 44px; color: #71d6a3; margin-bottom: 14px;">✓</div>
-      <h2 style="font-size: 20px; font-weight: 700; color: #e6e2dc; margin-bottom: 10px;">Assessment Submitted Successfully</h2>
-      <p style="color: #a5a39f; font-size: 13.5px; line-height: 1.65; margin-bottom: 20px;">
+      <h2>Assessment Submitted Successfully</h2>
+      <p>
         Your examination session has concluded. All Citadel lockdown processes have been terminated with zero pending restrictions.
       </p>
-      <div style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: 13px; font-weight: 700; padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: var(--font-mono);">
+      <div style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: var(--text-base); font-weight: var(--weight-semibold); padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: var(--font-mono);">
         User, you can now successfully close the window.
       </div>
-      <p style="color: #7d7b78; font-size: 12px; font-family: var(--font-mono); margin-bottom: 20px;">
+      <p style="color: var(--text-dim); font-size: var(--text-sm); font-family: var(--font-mono); margin-bottom: 20px;">
         All shortcuts (Win+R, Win+Shift+S, Alt+Tab, PrtScn) and system shell are restored.
       </p>
-      <button onclick="try{window.close();}catch(e){} try{window.open('','_self').close();}catch(e){}" style="background: #48658b; color: #f2f0ec; border: none; padding: 10px 26px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px;">
+      <button onclick="try{window.close();}catch(e){} try{window.open('','_self').close();}catch(e){}" class="candidate-reg-btn" style="max-width: 200px; margin: 0 auto; display: inline-block;">
         Close Window
       </button>
     </div>
@@ -1035,59 +1202,57 @@
 
   <!-- DISQUALIFIED OVERLAY -->
   <div id="disqualified-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 7000;">
-    <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid #a03f40; background: var(--bg-panel); text-align: center;">
+    <div class="conclusion-card" style="border-color: #a03f40;">
       <div style="font-size: 38px; color: #f17070; margin-bottom: 16px;">⚠️</div>
-      <h2 style="font-size: 20px; font-weight: 700; color: #d78e88; margin-bottom: 12px;">Session Terminated / Disqualified</h2>
-      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+      <h2 style="color: var(--accent-red);">Session Terminated / Disqualified</h2>
+      <p>
         Your examination session has been terminated by the proctor. All lockdown restrictions are now being completely removed from your laptop.
       </p>
-      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #f4c8c6; font-size: 12px; font-weight: 600; padding: 6px 18px; border-radius: 4px; font-family: var(--font-mono);">
+      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #f4c8c6; font-size: var(--text-sm); font-weight: var(--weight-semibold); padding: 6px 18px; border-radius: 4px; font-family: var(--font-mono);">
         Workstation Restoration Active...
       </div>
     </div>
   </div>
 
-  
   <!-- EXAM NOT STARTED OVERLAY -->
   <div id="exam-not-started-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
-    <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel);">
-      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(162, 186, 216, 0.1); border: 1px solid rgba(162, 186, 216, 0.25); color: #a2bad8; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; margin-bottom: 20px;">
-        <span style="width: 7px; height: 7px; background: #a2bad8; border-radius: 50%; box-shadow: 0 0 8px rgba(162, 186, 216, 0.4); animation: pulse-border 1.5s infinite;"></span>
+    <div class="conclusion-card">
+      <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(162, 186, 216, 0.1); border: 1px solid rgba(162, 186, 216, 0.25); color: #a2bad8; font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--weight-semibold); padding: 4px 12px; border-radius: 4px; margin-bottom: 20px;">
+        <span style="width: 7px; height: 7px; background: #a2bad8; border-radius: 50%; box-shadow: 0 0 8px rgba(162, 186, 216, 0.4);"></span>
         <span>AWAITING PROCTOR INITIATION</span>
       </div>
-      <h2 style="font-size: 20px; font-weight: 700; color: #e6e2dc; margin-bottom: 12px; letter-spacing: -0.01em;">Assessment Not Started</h2>
-      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+      <h2>Assessment Not Started</h2>
+      <p>
         The exam administrator has not yet initiated the examination fleet. Please remain on this screen; your assessment session will begin automatically as soon as the proctor hits <strong>Go Live</strong>.
       </p>
-      <div style="background: var(--bg-surface); border: 1px solid var(--border-hair); border-radius: 4px; padding: 12px; font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
+      <div style="background: var(--bg-surface-hover); border: 1px solid var(--border-hair); border-radius: 4px; padding: 12px; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
         <span style="color: var(--text-dim);">Candidate Identifier:</span>
-        <span id="overlay-cand-id" style="font-weight: 600; color: var(--accent-lang);"></span>
+        <span id="overlay-cand-id" style="font-weight: var(--weight-semibold); color: var(--accent-lang);"></span>
       </div>
     </div>
   </div>
 
-  
   <!-- CANDIDATE ID MODAL -->
   <div id="candidate-id-modal" class="modal-overlay" style="display: flex; background: #000000; z-index: 6000;">
-    <div class="conclusion-card" style="max-width: 400px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel); text-align: center;">
-      <h2 style="font-size: 20px; font-weight: 700; color: #e6e2dc; margin-bottom: 12px;">Candidate Registration</h2>
-      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+    <div class="conclusion-card" style="max-width: 420px;">
+      <h2>Candidate Registration</h2>
+      <p>
         Please enter your Candidate ID or Roll Number to begin your assessment session.
       </p>
-      <input type="text" id="candidate-id-input" placeholder="e.g. 2026-CS-042 or College ID" onkeydown="if(event.key==='Enter') saveCandidateId()" style="width: 100%; padding: 12px; background: var(--bg-surface); border: 1px solid var(--border-subtle); color: #e6e2dc; font-size: 14px; border-radius: 4px; margin-bottom: 20px; text-align: center;">
-      <button id="btn-register-join" onclick="saveCandidateId()" style="width: 100%; background: #48658b; color: #f2f0ec; padding: 12px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer;">Register & Join</button>
+      <input type="text" id="candidate-id-input" class="candidate-reg-input" placeholder="e.g. 2026-CS-042 or College ID" onkeydown="if(event.key==='Enter') saveCandidateId()">
+      <button id="btn-register-join" class="candidate-reg-btn" onclick="saveCandidateId()">Register & Join</button>
     </div>
   </div>
 
   <!-- EXAM CONCLUDED OVERLAY -->
   <div id="exam-concluded-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
-    <div class="conclusion-card" style="max-width: 500px; padding: 48px 36px; border: 1px solid var(--border-medium); background: var(--bg-panel);">
-      <div style="font-size: 36px; color: #d78e88; margin-bottom: 16px;">⏹</div>
-      <h2 style="font-size: 20px; font-weight: 700; color: #e6e2dc; margin-bottom: 12px;">Assessment Concluded</h2>
-      <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.65; margin-bottom: 24px;">
+    <div class="conclusion-card">
+      <div style="font-size: 36px; color: var(--accent-red); margin-bottom: 16px;">⏹</div>
+      <h2>Assessment Concluded</h2>
+      <p>
         The examination session has been concluded by the proctor or the exam time duration has expired. All code submissions are now closed.
       </p>
-      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #d78e88; font-size: 11.5px; font-weight: 600; padding: 5px 14px; border-radius: 4px; font-family: var(--font-mono);">
+      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: var(--accent-red); font-size: var(--text-xs); font-weight: var(--weight-semibold); padding: 5px 14px; border-radius: 4px; font-family: var(--font-mono);">
         Session Terminated & Locked
       </div>
     </div>
@@ -1327,11 +1492,11 @@
         examplesEl.innerHTML = (q.sample_cases || []).map((tc, idx) => `
           <div class="test-card">
             <div class="test-card-title">Example ${idx + 1}</div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px;">Input:</div>
+            <div class="example-io-label">Input:</div>
             <code class="code-snippet">${escapeHtml(tc.input)}</code>
-            <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 4px; margin-top: 8px;">Expected Output:</div>
+            <div class="example-io-label" style="margin-top: 8px;">Expected Output:</div>
             <code class="code-snippet">${escapeHtml(tc.expected_output)}</code>
-            ${tc.explanation ? `<div style="font-size: 12.5px; color: var(--text-muted); margin-top: 8px;">Explanation: ${escapeHtml(tc.explanation)}</div>` : ''}
+            ${tc.explanation ? `<div class="example-explanation">Explanation: ${escapeHtml(tc.explanation)}</div>` : ''}
           </div>
         `).join('');
       }
