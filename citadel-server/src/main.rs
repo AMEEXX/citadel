@@ -36,6 +36,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         std::env::set_var("CITADEL_PRODUCTION", "1");
     }
 
+    if std::env::var("CITADEL_EXAM_AUTO_LIVE").is_err() {
+        std::env::set_var("CITADEL_EXAM_AUTO_LIVE", "1");
+    }
+
     let port = std::env::var("PORT")
         .ok()
         .and_then(|p| p.parse::<u16>().ok())

@@ -6,6 +6,7 @@ Thumbs.db
 .agents/
 .env
 *.exe
+node_modules/
 
 # Graphify internal cache and machine-specific files
 graphify-out/cache/
@@ -14,3 +15,7 @@ graphify-out/.graphify_detect.json
 graphify-out/.graphify_incremental.json
 graphify-out/.graphify_old.json
 graphify-out/2026-*/
+
+# Citadel Server dynamic runtime state
+citadel-server/state/*
+!citadel-server/state/.gitkeep

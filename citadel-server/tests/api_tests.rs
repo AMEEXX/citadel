@@ -1115,7 +1115,8 @@ async fn test_mandatory_elevation_handshake_enforcement() {
                     "client_version": "0.2.0",
                     "machine_guid": null,
                     "mode": "production",
-                    "is_elevated": true
+                    "is_elevated": true,
+                    "elevation_proof": "citadel-elevated-token-proof-verified"
                 })).unwrap()))
                 .unwrap(),
         )
@@ -1126,4 +1127,98 @@ async fn test_mandatory_elevation_handshake_enforcement() {
     let val_acc: serde_json::Value = serde_json::from_slice(&body_acc).unwrap();
     assert_eq!(val_acc["status"], "authorized");
     assert!(!val_acc["session_token"].as_str().unwrap().is_empty());
+}
+
+
+#[tokio::test]
+async fn test_gatekeeper_production_mode_removes_testing_link() {
+    let gatekeeper_testing = citadel_server::ui::render_gatekeeper_html(false);
+    assert!(gatekeeper_testing.contains("Launch Web Assessment Directly (Testing Mode)"));
+    assert!(gatekeeper_testing.contains(r#"href="/exam""#));
+    assert!(gatekeeper_testing.contains("/download/citadel-client.exe"));
+
+    let gatekeeper_prod = citadel_server::ui::render_gatekeeper_html(true);
+    assert!(!gatekeeper_prod.contains("Launch Web Assessment Directly (Testing Mode)"));
+    assert!(!gatekeeper_prod.contains(r#"href="/exam""#));
+    assert!(gatekeeper_prod.contains("/download/citadel-client.exe"));
+}
+
+
+#[tokio::test]
+async fn test_offline_self_hosted_fonts_and_citadel_skin_served() {
+    let app = citadel_server::build_app();
+
+    // 1. Skin CSS
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/static/citadel-skin.css")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get("content-type").unwrap(), "text/css; charset=utf-8");
+    let skin_body = res.into_body().collect().await.unwrap().to_bytes();
+    assert!(skin_body.len() > 100);
+    assert!(String::from_utf8_lossy(&skin_body).contains("OBSIDIAN ATELIER SKIN"));
+
+    // 2. Fonts CSS
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/static/fonts/citadel-fonts.css")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    assert_eq!(res.headers().get("content-type").unwrap(), "text/css; charset=utf-8");
+
+    // 3. Self-hosted WOFF2 fonts
+    let font_uris = [
+        "/static/fonts/Geist-Variable.woff2",
+        "/static/fonts/GeistMono-Variable.woff2",
+        "/static/fonts/InstrumentSerif-Regular.woff2",
+        "/static/fonts/InstrumentSerif-Italic.woff2",
+    ];
+
+    for uri in font_uris {
+        let res = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("GET")
+                    .uri(uri)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK, "Failed to serve font: {}", uri);
+        assert_eq!(res.headers().get("content-type").unwrap(), "font/woff2");
+        let body = res.into_body().collect().await.unwrap().to_bytes();
+        assert!(body.len() > 5000, "Font payload too small: {} has len {}", uri, body.len());
+    }
+
+    // 4. Verify templates contain skin and offline fonts, and zero external Google Fonts
+    let portal = citadel_server::ui::render_portal_html();
+    assert!(!portal.contains("fonts.googleapis.com"), "portal.html must have 0 external Google Fonts calls");
+    assert!(!portal.contains("fonts.gstatic.com"), "portal.html must have 0 external Google Fonts calls");
+    assert!(portal.contains("/static/fonts/citadel-fonts.css"));
+    assert!(portal.contains("/static/citadel-skin.css"));
+    assert!(portal.contains("class=\"app-portal\""));
+
+    let recruiter = citadel_server::ui::render_recruiter_lms_html();
+    assert!(!recruiter.contains("fonts.googleapis.com"), "recruiter.html must have 0 external Google Fonts calls");
+    assert!(!recruiter.contains("fonts.gstatic.com"), "recruiter.html must have 0 external Google Fonts calls");
+    assert!(recruiter.contains("/static/fonts/citadel-fonts.css"));
+    assert!(recruiter.contains("/static/citadel-skin.css"));
+    assert!(recruiter.contains("class=\"app-recruiter\""));
 }

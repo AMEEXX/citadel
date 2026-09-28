@@ -1,5 +1,10 @@
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
+use crate::persistence::{
+    load_all_candidate_states, load_roster, parse_roster_csv,
+    save_candidate_state, save_roster, save_submission_snapshot, save_violation_snapshot,
+    CandidateResumeState, CandidateState, ExamRoster, RosterEntry,
+};
+use std::path::PathBuf;
+
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -70,6 +75,8 @@ pub struct IntegrityEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandidateSession {
     pub candidate_id: String,
+    #[serde(default)]
+    pub name: Option<String>,
     pub ip_address: String,
     pub active_question: u32,
     pub violations_count: u32,
@@ -100,6 +107,8 @@ pub struct CandidateSubmissionDetail {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CandidateProfileResponse {
     pub candidate_id: String,
+    #[serde(default)]
+    pub name: Option<String>,
     pub ip_address: String,
     pub status: String,
     pub total_score: u32,
@@ -144,6 +153,8 @@ pub struct ExamStatusResponse {
     pub remaining_seconds: u64,
     pub total_duration_minutes: u32,
     pub ended_at: Option<String>,
+    #[serde(default)]
+    pub is_production: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -160,6 +171,7 @@ pub struct ClientHandshakeRequest {
     pub machine_guid: Option<String>,
     pub mode: Option<String>,
     pub is_elevated: Option<bool>,
+    pub elevation_proof: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -190,6 +202,8 @@ pub struct ProctorDashboardData {
     pub flagged_candidates: usize,
     pub logged_out_candidates: usize,
     pub disqualified_candidates: usize,
+    #[serde(default)]
+    pub disconnected_candidates: usize,
     pub total_submissions: usize,
     pub error_submissions_count: usize,
     pub passed_submissions_count: usize,
@@ -255,6 +269,10 @@ pub struct AddTestCasePayload {
 #[derive(Clone)]
 pub struct AppState {
     pub candidates: Arc<Mutex<HashMap<String, CandidateSession>>>,
+    pub candidate_states: Arc<Mutex<HashMap<String, CandidateState>>>,
+    pub roster: Arc<RwLock<ExamRoster>>,
+    pub exam_passcode: Arc<RwLock<String>>,
+    pub state_dir: PathBuf,
     pub violations: Arc<Mutex<Vec<IntegrityEvent>>>,
     pub submissions: Arc<Mutex<Vec<SubmissionRecord>>>,
     pub questions: Arc<RwLock<Vec<Question>>>,
@@ -264,21 +282,66 @@ pub struct AppState {
     pub authorized_tokens: Arc<Mutex<HashMap<String, TokenSession>>>,
 }
 
-impl Default for AppState {
-    fn default() -> Self {
+impl AppState {
+    pub fn new_with_dir(state_dir: PathBuf) -> Self {
         let admin_key = std::env::var("CITADEL_ADMIN_KEY")
             .unwrap_or_else(|_| "citadel-recruiter-key-2026".to_string());
 
         let initial_live = std::env::var("CITADEL_EXAM_AUTO_LIVE")
-            .map(|v| v != "0" && !v.eq_ignore_ascii_case("false"))
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(true);
 
         let is_prod_val = std::env::var("CITADEL_PRODUCTION")
             .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
             .unwrap_or(false);
 
+        let exam_passcode = std::env::var("CITADEL_EXAM_PASSCODE")
+            .unwrap_or_else(|_| "CITADEL2026".to_string());
+
+        let _ = crate::persistence::ensure_directories(&state_dir);
+
+        let roster = load_roster(&state_dir).unwrap_or_default();
+        let saved_states = load_all_candidate_states(&state_dir).unwrap_or_default();
+
+        let mut candidates_map = HashMap::new();
+        let mut tokens_map = HashMap::new();
+
+        for (cid, cstate) in &saved_states {
+            candidates_map.insert(
+                cid.clone(),
+                CandidateSession {
+                    candidate_id: cstate.candidate_id.clone(),
+                    name: Some(cstate.name.clone()),
+                    ip_address: cstate.ip_address.clone(),
+                    active_question: cstate.active_question_id.replace("q-", "").parse().unwrap_or(1),
+                    violations_count: cstate.violations_count,
+                    last_seen: cstate.last_seen.clone(),
+                    status: cstate.status.clone(),
+                    total_score: cstate.total_score,
+                    started_at: cstate.started_at.clone(),
+                    completed_at: cstate.completed_at.clone(),
+                },
+            );
+
+            if !cstate.session_token.is_empty() {
+                tokens_map.insert(
+                    cstate.session_token.clone(),
+                    TokenSession {
+                        token: cstate.session_token.clone(),
+                        client_version: "restored".to_string(),
+                        machine_guid: None,
+                        created_at: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
         AppState {
-            candidates: Arc::new(Mutex::new(HashMap::new())),
+            candidates: Arc::new(Mutex::new(candidates_map)),
+            candidate_states: Arc::new(Mutex::new(saved_states)),
+            roster: Arc::new(RwLock::new(roster)),
+            exam_passcode: Arc::new(RwLock::new(exam_passcode)),
+            state_dir,
             violations: Arc::new(Mutex::new(Vec::new())),
             submissions: Arc::new(Mutex::new(Vec::new())),
             questions: Arc::new(RwLock::new(get_all_questions())),
@@ -290,7 +353,102 @@ impl Default for AppState {
             })),
             admin_key,
             is_production: Arc::new(AtomicBool::new(is_prod_val)),
-            authorized_tokens: Arc::new(Mutex::new(HashMap::new())),
+            authorized_tokens: Arc::new(Mutex::new(tokens_map)),
+        }
+    }
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        let admin_key = std::env::var("CITADEL_ADMIN_KEY")
+            .unwrap_or_else(|_| "citadel-recruiter-key-2026".to_string());
+
+        let initial_live = std::env::var("CITADEL_EXAM_AUTO_LIVE")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        let is_prod_val = std::env::var("CITADEL_PRODUCTION")
+            .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
+            .unwrap_or(false);
+
+        let exam_passcode = std::env::var("CITADEL_EXAM_PASSCODE")
+            .unwrap_or_else(|_| "CITADEL2026".to_string());
+
+        let state_dir = std::env::var("CITADEL_STATE_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                if PathBuf::from("citadel-server/state").exists() {
+                    PathBuf::from("citadel-server/state")
+                } else if PathBuf::from("../citadel-server/state").exists() {
+                    PathBuf::from("../citadel-server/state")
+                } else {
+                    PathBuf::from("./state")
+                }
+            });
+
+        let _ = crate::persistence::ensure_directories(&state_dir);
+
+        let roster = load_roster(&state_dir).unwrap_or_default();
+        let saved_states = load_all_candidate_states(&state_dir).unwrap_or_default();
+
+        let mut candidates_map = HashMap::new();
+        let mut tokens_map = HashMap::new();
+
+        for (cid, cstate) in &saved_states {
+            candidates_map.insert(
+                cid.clone(),
+                CandidateSession {
+                    candidate_id: cstate.candidate_id.clone(),
+                    name: Some(cstate.name.clone()),
+                    ip_address: cstate.ip_address.clone(),
+                    active_question: cstate.active_question_id.replace("q-", "").parse().unwrap_or(1),
+                    violations_count: cstate.violations_count,
+                    last_seen: cstate.last_seen.clone(),
+                    status: cstate.status.clone(),
+                    total_score: cstate.total_score,
+                    started_at: cstate.started_at.clone(),
+                    completed_at: cstate.completed_at.clone(),
+                },
+            );
+
+            if !cstate.session_token.is_empty() {
+                tokens_map.insert(
+                    cstate.session_token.clone(),
+                    TokenSession {
+                        token: cstate.session_token.clone(),
+                        client_version: "restored".to_string(),
+                        machine_guid: None,
+                        created_at: chrono::Utc::now(),
+                    },
+                );
+            }
+        }
+
+        eprintln!(
+            "[CITADEL SERVER PERSISTENCE] Loaded {} candidates and {} roster entries from disk ({})",
+            saved_states.len(),
+            roster.candidates.len(),
+            state_dir.display()
+        );
+
+        AppState {
+            candidates: Arc::new(Mutex::new(candidates_map)),
+            candidate_states: Arc::new(Mutex::new(saved_states)),
+            roster: Arc::new(RwLock::new(roster)),
+            exam_passcode: Arc::new(RwLock::new(exam_passcode)),
+            state_dir,
+            violations: Arc::new(Mutex::new(Vec::new())),
+            submissions: Arc::new(Mutex::new(Vec::new())),
+            questions: Arc::new(RwLock::new(get_all_questions())),
+            exam_live: Arc::new(RwLock::new(ExamLiveState {
+                is_live: initial_live,
+                started_at: if initial_live { Some(chrono::Utc::now().to_rfc3339()) } else { None },
+                duration_minutes: 90,
+                ended_at: None,
+            })),
+            admin_key,
+            is_production: Arc::new(AtomicBool::new(is_prod_val)),
+            authorized_tokens: Arc::new(Mutex::new(tokens_map)),
         }
     }
 }
@@ -366,19 +524,24 @@ pub fn is_admin_authorized(headers: &HeaderMap, query: &HashMap<String, String>,
 }
 
 pub fn build_app() -> Router {
-    let state = AppState::default();
+    build_app_with_state(AppState::default())
+}
 
+pub fn build_app_with_state(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
 
-    Router::new()
+    let router = Router::new()
         // Candidate Portal & Gatekeeper Routes
         .route("/", get(portal_or_gatekeeper_handler))
         .route("/exam", get(portal_handler))
         .route("/download/citadel-client.exe", get(download_client_handler))
         .route("/static/ace.bundle.js", get(serve_ace_bundle_handler))
+        .route("/static/*path", get(serve_static_handler))
+        .route("/architecture", get(architecture_handler))
+        .route("/archify", get(architecture_handler))
         .route("/health", get(health_handler))
         .route("/api/v1/exam/info", get(exam_info_handler))
         .route("/api/v1/exam/status", get(exam_status_handler))
@@ -392,6 +555,16 @@ pub fn build_app() -> Router {
         .route("/api/v1/client/handshake", post(client_handshake_handler))
         .route("/api/v1/client/end-exam", post(client_end_exam_handler))
         .route("/api/v1/client/kill-all-lockdown", post(kill_all_lockdown_handler))
+        // Candidate Roster Authentication & State Persistence Routes
+        .route("/api/v1/auth/login", post(candidate_login_handler))
+        .route("/api/v1/state/sync", post(state_sync_handler))
+        .route("/api/v1/state/restore", get(state_restore_handler))
+        .route("/api/v1/admin/roster", get(admin_get_roster_handler))
+        .route("/api/v1/admin/roster/upload", post(admin_upload_roster_handler))
+        .route("/api/v1/admin/roster/add", post(admin_add_roster_candidate_handler))
+        .route("/api/v1/admin/roster/:roll", delete(admin_delete_roster_candidate_handler))
+        .route("/api/v1/admin/candidates/:id/extend-time", post(admin_extend_candidate_time_handler))
+        .route("/api/v1/admin/exam/passcode", get(admin_get_passcode_handler).post(admin_set_passcode_handler))
 
         // Protected Recruiter & Administrator Routes
         .route("/admin", get(admin_page_handler))
@@ -416,7 +589,15 @@ pub fn build_app() -> Router {
         .route("/api/v1/proctor/metrics", get(proctor_metrics_handler))
         .route("/api/v1/proctor/candidates/:id/disqualify", post(admin_disqualify_candidate_handler))
         .layer(cors)
-        .with_state(state)
+        .with_state(state.clone());
+
+    // Spawn disconnect watchdog task
+    let watchdog_state = state.clone();
+    tokio::spawn(async move {
+        disconnect_watchdog_loop(watchdog_state).await;
+    });
+
+    router
 }
 
 // ============================================================================
@@ -428,7 +609,22 @@ async fn portal_or_gatekeeper_handler(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let authorized = is_request_authorized(&headers, &params, &state);
+    let has_token_param = params.get("auth_token").or_else(|| params.get("token")).is_some();
+    let has_token_cookie = headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .map(|c| c.contains("citadel_auth_token="))
+        .unwrap_or(false);
+    let has_auth_header = headers.get("X-Citadel-Auth-Token").is_some();
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let has_lockdown_ua = user_agent.contains("CitadelSecurityCore")
+        || user_agent.contains("CITADEL-Lockdown-Client");
+
+    let is_presenting_auth = has_token_param || has_token_cookie || has_auth_header || has_lockdown_ua;
+    let authorized = is_presenting_auth && is_request_authorized(&headers, &params, &state);
 
     if authorized {
         let mut response = (
@@ -448,13 +644,14 @@ async fn portal_or_gatekeeper_handler(
         }
         response
     } else {
+        let is_prod = state.is_production.load(Ordering::SeqCst);
         (
             [
                 (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
                 (header::PRAGMA, "no-cache"),
                 (header::EXPIRES, "0"),
             ],
-            Html(render_gatekeeper_html()),
+            Html(render_gatekeeper_html(is_prod)),
         ).into_response()
     }
 }
@@ -536,6 +733,7 @@ async fn exam_status_handler(State(state): State<AppState>) -> Json<ExamStatusRe
         remaining_seconds,
         total_duration_minutes: live_lock.duration_minutes,
         ended_at: live_lock.ended_at.clone(),
+        is_production: state.is_production.load(Ordering::SeqCst),
     })
 }
 
@@ -687,11 +885,12 @@ async fn submit_code_handler(
     // 5. Update Proctor analytics and candidate score
     {
         let mut subs = state.submissions.lock().unwrap();
-        subs.push(sub_record);
+        subs.push(sub_record.clone());
 
         let mut cands = state.candidates.lock().unwrap();
         let cand = cands.entry(cand_id.clone()).or_insert_with(|| CandidateSession {
             candidate_id: cand_id.clone(),
+            name: None,
             ip_address: "127.0.0.1".to_string(),
             active_question: 1,
             violations_count: 0,
@@ -707,6 +906,42 @@ async fn submit_code_handler(
         }
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
+
+    // Persist to CandidateState and Submissions
+    {
+        let mut c_states = state.candidate_states.lock().unwrap();
+        let cand_st = c_states.entry(cand_id.clone()).or_insert_with(|| CandidateState {
+            candidate_id: cand_id.clone(),
+            name: cand_id.clone(),
+            ip_address: "127.0.0.1".to_string(),
+            active_question_id: payload.question_id.clone(),
+            active_language: payload.language.clone(),
+            code_store: HashMap::new(),
+            remaining_seconds: 90 * 60,
+            timer_paused_at: None,
+            best_scores: HashMap::new(),
+            total_score: 0,
+            status: "Active".to_string(),
+            violations_count: 0,
+            started_at: Some(chrono::Utc::now().to_rfc3339()),
+            last_seen: chrono::Utc::now().to_rfc3339(),
+            completed_at: None,
+            session_token: String::new(),
+            state_version: 1,
+            last_synced_at: chrono::Utc::now().to_rfc3339(),
+        });
+
+        if !payload.is_sample_run {
+            let curr_best = cand_st.best_scores.entry(payload.question_id.clone()).or_insert(0);
+            if judge_res.score > *curr_best {
+                *curr_best = judge_res.score;
+            }
+            cand_st.total_score = cand_st.best_scores.values().sum();
+        }
+        cand_st.last_seen = chrono::Utc::now().to_rfc3339();
+        let _ = save_candidate_state(&state.state_dir, cand_st);
+    }
+    let _ = save_submission_snapshot(&state.state_dir, &sub_record.submission_id, &sub_record);
 
     Json(SubmissionResponse {
         submission_id: sub_id,
@@ -728,6 +963,7 @@ async fn heartbeat_handler(
     let mut cands = state.candidates.lock().unwrap();
     let entry = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
         candidate_id: req.candidate_id.clone(),
+        name: None,
         ip_address: "127.0.0.1".to_string(),
         active_question: req.active_question,
         violations_count: 0,
@@ -760,6 +996,7 @@ async fn logout_handler(
     let mut cands = state.candidates.lock().unwrap();
     let cand = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
         candidate_id: req.candidate_id.clone(),
+        name: None,
         ip_address: "127.0.0.1".to_string(),
         active_question: 1,
         violations_count: 0,
@@ -809,10 +1046,10 @@ async fn client_session_control_handler(
         if !cid.is_empty() {
             let cands = state.candidates.lock().unwrap();
             if let Some(cand) = cands.get(cid) {
-                if cand.status == "Submitted" {
+                if cand.status == "Submitted" || cand.status == "Logged Out" {
                     return Json(SessionControlResponse {
                         should_exit: true,
-                        reason: "Candidate session submitted".to_string(),
+                        reason: "Candidate session concluded".to_string(),
                         status: cand.status.clone(),
                     });
                 }
@@ -840,131 +1077,19 @@ async fn client_session_control_handler(
     })
 }
 
-pub fn kill_all_citadel_lockdown_processes() {
-    eprintln!("[CITADEL SERVER] === TOTAL CLIENT PROCESS ELIMINATION INITIATED ===");
-    #[cfg(windows)]
-    {
-        // 1. Force-kill all client/guard processes (SAFE: NEVER kill citadel-server)
-        let mut cmd = std::process::Command::new("taskkill");
-        cmd.args(["/F", "/FI", "IMAGENAME eq citadel-client*", "/T"]);
-        cmd.creation_flags(0x08000000);
-        let _ = cmd.output();
-
-        let mut cmd2 = std::process::Command::new("taskkill");
-        cmd2.args(["/F", "/FI", "IMAGENAME eq guard*", "/T"]);
-        cmd2.creation_flags(0x08000000);
-        let _ = cmd2.output();
-
-        // 1b. Additional PowerShell sweep to kill citadel-client or guard, plus kiosk browser (NEVER server)
-        let _ = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                "Get-Process | Where-Object { ($_.ProcessName -like '*citadel-client*' -or $_.ProcessName -like '*guard*') -and $_.Id -ne $PID } | Stop-Process -Force -ErrorAction SilentlyContinue; Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like '*citadel_kiosk*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }",
-            ])
-            .creation_flags(0x08000000)
-            .output();
-
-        // 2. Remove all restrictive policies from HKCU, HKLM, and User SID hives
-        let keys = [
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableLockWorkstation"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableChangePassword"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableAltTab"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoWinKeys"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoClose"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoLogoff"),
-            ("HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced", "EnableSnapAssistFlyout"),
-            ("HKCU\\Software\\Policies\\Microsoft\\Windows\\TabletPC", "DisableSnippingTool"),
-            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr"),
-            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableLockWorkstation"),
-            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableChangePassword"),
-            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoWinKeys"),
-            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoClose"),
-            ("HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoLogoff"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableTaskMgr"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableLockWorkstation"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableChangePassword"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System", "DisableAltTab"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoWinKeys"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoClose"),
-            ("HKU\\S-1-5-21-1751942760-950062233-4152076368-1001\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer", "NoLogoff"),
-        ];
-
-        for (p, val) in keys {
-            let mut reg_cmd = std::process::Command::new("reg");
-            reg_cmd.args(["delete", p, "/v", val, "/f"]);
-            reg_cmd.creation_flags(0x08000000);
-            let _ = reg_cmd.output();
-        }
-
-        // 3. Restore ACL permissions on registry policies
-        let _ = std::process::Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-Command",
-                r"$paths = @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer', 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System', 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies'); foreach ($p in $paths) { if (Test-Path $p) { try { $acl = Get-Acl $p; $user = [System.Security.Principal.NTAccount]'AmitX\amitk'; $acl.SetOwner($user); $rule = New-Object System.Security.AccessControl.RegistryAccessRule($user, 'FullControl', 'ContainerInherit,ObjectInherit', 'None', 'Allow'); $acl.ResetAccessRule($rule); Set-Acl $p $acl } catch {} } }",
-            ])
-            .creation_flags(0x08000000)
-            .output();
-
-        // 4. Restore Bluetooth & WLAN
-        let mut bth_cfg = std::process::Command::new("sc");
-        bth_cfg.args(["config", "bthserv", "start=", "auto"]).creation_flags(0x08000000);
-        let _ = bth_cfg.output();
-
-        let mut bth_start = std::process::Command::new("net");
-        bth_start.args(["start", "bthserv"]).creation_flags(0x08000000);
-        let _ = bth_start.output();
-
-        let mut wlan_cfg = std::process::Command::new("sc");
-        wlan_cfg.args(["config", "WlanSvc", "start=", "auto"]).creation_flags(0x08000000);
-        let _ = wlan_cfg.output();
-
-        let mut wlan_start = std::process::Command::new("net");
-        wlan_start.args(["start", "WlanSvc"]).creation_flags(0x08000000);
-        let _ = wlan_start.output();
-
-        // 5. Ensure Explorer shell is active
-        let mut exp = std::process::Command::new("explorer.exe");
-        exp.creation_flags(0x08000000);
-        let _ = exp.spawn();
-
-        // 5b. Directly trigger RESTORE_MY_LAPTOP.bat for 100% parity and 3-pass verification
-        let bat_candidates = [
-            "RESTORE_MY_LAPTOP.bat",
-            r".\RESTORE_MY_LAPTOP.bat",
-            r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\RESTORE_MY_LAPTOP.bat",
-        ];
-        for bat in bat_candidates {
-            if std::path::Path::new(bat).exists() {
-                eprintln!("[CITADEL SERVER] Directly invoking RESTORE_MY_LAPTOP.bat from End Exam handler...");
-                let _ = std::process::Command::new("cmd.exe")
-                    .args(["/c", "start", "", bat])
-                    .spawn();
-                break;
-            }
-        }
-
-        eprintln!("[CITADEL SERVER] === TOTAL PROCESS ELIMINATION COMPLETED ===");
-
-        // 6. Schedule server self-termination in 1000ms so HTTP response completes cleanly
-        std::thread::spawn(|| {
-            std::thread::sleep(std::time::Duration::from_millis(1000));
-            eprintln!("[CITADEL SERVER] Clean exit: all Citadel processes terminated.");
-            std::process::exit(0);
-        });
-    }
-}
-
 async fn kill_all_lockdown_handler(
     State(state): State<AppState>,
     Json(req): Json<LogoutRequest>,
 ) -> StatusCode {
+    eprintln!(
+        "[CITADEL SERVER] Candidate '{}' concluded session. Reason: {}",
+        req.candidate_id, req.reason.as_deref().unwrap_or("No reason specified")
+    );
     {
         let mut cands = state.candidates.lock().unwrap();
         let cand = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
             candidate_id: req.candidate_id.clone(),
+            name: None,
             ip_address: "127.0.0.1".to_string(),
             active_question: 1,
             violations_count: 0,
@@ -979,7 +1104,10 @@ async fn kill_all_lockdown_handler(
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
 
-    kill_all_citadel_lockdown_processes();
+    // Security Fix (Finding G): Under NO circumstances does the server terminate
+    // its own host processes or modify host registry settings when a candidate exits.
+    // Client restoration is performed strictly on the candidate's workstation
+    // via citadel-client's loopback control server (127.0.0.1:8444).
     StatusCode::OK
 }
 
@@ -991,11 +1119,12 @@ async fn client_handshake_handler(
     let now = chrono::Utc::now();
     let is_prod = state.is_production.load(Ordering::SeqCst);
     let is_elevated = payload.is_elevated.unwrap_or(false);
+    let has_proof = payload.elevation_proof.as_ref().map(|p| p.starts_with("citadel-elevated-")).unwrap_or(false);
 
-    // In Production Mode, mandate that the client must be verified elevated.
-    // Degraded or unprivileged execution is strictly blocked by Citadel Security Policy.
-    if is_prod && !is_elevated {
-        eprintln!("[CITADEL SERVER SECURITY ALERT] Handshake rejected: Client reported non-elevated status in Production Mode.");
+    // In Production Mode, mandate that the client must be verified elevated with valid proof token.
+    // Degraded or unprivileged execution is strictly blocked by Citadel Security Policy (Finding A).
+    if is_prod && (!is_elevated || !has_proof) {
+        eprintln!("[CITADEL SERVER SECURITY ALERT] Handshake rejected: Client failed elevation proof verification in Production Mode.");
         return Err((
             StatusCode::FORBIDDEN,
             Json(ClientHandshakeResponse {
@@ -1114,11 +1243,12 @@ async fn report_event_handler(
 
     {
         let mut viols = state.violations.lock().unwrap();
-        viols.push(event);
+        viols.push(event.clone());
 
         let mut cands = state.candidates.lock().unwrap();
         let cand = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
             candidate_id: req.candidate_id.clone(),
+            name: None,
             ip_address: "127.0.0.1".to_string(),
             active_question: 1,
             violations_count: 0,
@@ -1135,6 +1265,19 @@ async fn report_event_handler(
         }
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
+
+    {
+        let mut c_states = state.candidate_states.lock().unwrap();
+        if let Some(cand_st) = c_states.get_mut(&req.candidate_id) {
+            cand_st.violations_count += 1;
+            if cand_st.status != "Disqualified" {
+                cand_st.status = "Flagged".to_string();
+            }
+            cand_st.last_seen = chrono::Utc::now().to_rfc3339();
+            let _ = save_candidate_state(&state.state_dir, cand_st);
+        }
+    }
+    let _ = save_violation_snapshot(&state.state_dir, &event.id, &event);
 
     StatusCode::OK
 }
@@ -1279,6 +1422,7 @@ async fn admin_metrics_handler(
     let flagged_candidates = candidates.iter().filter(|c| c.status == "Flagged").count();
     let logged_out_candidates = candidates.iter().filter(|c| c.status == "Logged Out").count();
     let disqualified_candidates = candidates.iter().filter(|c| c.status == "Disqualified").count();
+    let disconnected_candidates = candidates.iter().filter(|c| c.status == "Disconnected").count();
 
     let error_submissions_count = subs_lock
         .iter()
@@ -1295,6 +1439,7 @@ async fn admin_metrics_handler(
         flagged_candidates,
         logged_out_candidates,
         disqualified_candidates,
+        disconnected_candidates,
         total_submissions: subs_lock.len(),
         error_submissions_count,
         passed_submissions_count,
@@ -1332,6 +1477,14 @@ async fn admin_disqualify_candidate_handler(
     if let Some(cand) = cands.get_mut(&id) {
         cand.status = "Disqualified".to_string();
         cand.last_seen = chrono::Utc::now().to_rfc3339();
+        
+        let mut c_states = state.candidate_states.lock().unwrap();
+        if let Some(cand_st) = c_states.get_mut(&id) {
+            cand_st.status = "Disqualified".to_string();
+            cand_st.last_seen = chrono::Utc::now().to_rfc3339();
+            let _ = save_candidate_state(&state.state_dir, cand_st);
+        }
+
         // Candidate will receive Disqualified on their next heartbeat and terminate locally
         StatusCode::OK
     } else {
@@ -1578,6 +1731,7 @@ async fn admin_candidate_profile_handler(
 
     Ok(Json(CandidateProfileResponse {
         candidate_id: cand.candidate_id,
+        name: cand.name,
         ip_address: cand.ip_address,
         status: cand.status,
         total_score: cand.total_score,
@@ -1624,4 +1778,684 @@ async fn serve_ace_bundle_handler() -> impl axum::response::IntoResponse {
         )],
         include_str!("../static/ace.bundle.js"),
     )
+}
+
+async fn architecture_handler() -> Redirect {
+    Redirect::temporary("/static/citadel-architecture.html")
+}
+
+async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
+    let clean_path = path.trim_start_matches('/');
+    let content_type = if clean_path.ends_with(".js") {
+        "application/javascript; charset=utf-8"
+    } else if clean_path.ends_with(".css") {
+        "text/css; charset=utf-8"
+    } else if clean_path.ends_with(".woff2") {
+        "font/woff2"
+    } else if clean_path.ends_with(".woff") {
+        "font/woff"
+    } else if clean_path.ends_with(".ttf") {
+        "font/ttf"
+    } else if clean_path.ends_with(".html") {
+        "text/html; charset=utf-8"
+    } else {
+        "application/octet-stream"
+    };
+
+    let candidates = [
+        PathBuf::from("citadel-server/static").join(clean_path),
+        PathBuf::from("static").join(clean_path),
+        PathBuf::from("../static").join(clean_path),
+    ];
+
+    for file_path in &candidates {
+        if file_path.exists() && file_path.is_file() {
+            if let Ok(bytes) = std::fs::read(file_path) {
+                return (
+                    StatusCode::OK,
+                    [
+                        (axum::http::header::CONTENT_TYPE, content_type),
+                        (axum::http::header::CACHE_CONTROL, "public, max-age=31536000"),
+                    ],
+                    bytes,
+                ).into_response();
+            }
+        }
+    }
+
+    match clean_path {
+        "ace.bundle.js" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+            include_bytes!("../static/ace.bundle.js").as_slice(),
+        ).into_response(),
+        "citadel-skin.css" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")],
+            include_bytes!("../static/citadel-skin.css").as_slice(),
+        ).into_response(),
+        "fonts/citadel-fonts.css" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "text/css; charset=utf-8")],
+            include_bytes!("../static/fonts/citadel-fonts.css").as_slice(),
+        ).into_response(),
+        "fonts/Geist-Variable.woff2" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "font/woff2")],
+            include_bytes!("../static/fonts/Geist-Variable.woff2").as_slice(),
+        ).into_response(),
+        "fonts/GeistMono-Variable.woff2" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "font/woff2")],
+            include_bytes!("../static/fonts/GeistMono-Variable.woff2").as_slice(),
+        ).into_response(),
+        "fonts/InstrumentSerif-Regular.woff2" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "font/woff2")],
+            include_bytes!("../static/fonts/InstrumentSerif-Regular.woff2").as_slice(),
+        ).into_response(),
+        "fonts/InstrumentSerif-Italic.woff2" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "font/woff2")],
+            include_bytes!("../static/fonts/InstrumentSerif-Italic.woff2").as_slice(),
+        ).into_response(),
+        _ => (StatusCode::NOT_FOUND, "Static file not found").into_response(),
+    }
+}
+
+
+// ============================================================================
+// STATE PERSISTENCE & ROSTER AUTHENTICATION HANDLERS
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateLoginRequest {
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub passcode: Option<String>,
+    #[serde(default)]
+    pub roll_number: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    pub client_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CandidateLoginResponse {
+    pub status: String,
+    pub session_token: String,
+    pub candidate_id: String,
+    pub name: String,
+    pub is_production: bool,
+    pub resume_state: Option<CandidateResumeState>,
+    pub server_time: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExamPasscodeResponse {
+    pub passcode: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetPasscodePayload {
+    pub passcode: String,
+}
+
+async fn admin_get_passcode_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ExamPasscodeResponse>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let p = state.exam_passcode.read().unwrap();
+    Ok(Json(ExamPasscodeResponse { passcode: p.clone() }))
+}
+
+async fn admin_set_passcode_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(payload): Json<SetPasscodePayload>,
+) -> Result<Json<ExamPasscodeResponse>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let trimmed = payload.passcode.trim();
+    if trimmed.is_empty() {
+        return Err(StatusCode::BAD_REQUEST);
+    }
+    let mut p = state.exam_passcode.write().unwrap();
+    *p = trimmed.to_string();
+    eprintln!("[CITADEL SERVER] Administrator updated exam entry passcode to: {}", *p);
+    Ok(Json(ExamPasscodeResponse { passcode: p.clone() }))
+}
+
+async fn candidate_login_handler(
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(payload): Json<CandidateLoginRequest>,
+) -> Response {
+    // OA Entry point: email (or roll_number for backwards compat)
+    let candidate_id = payload.email
+        .or(payload.roll_number)
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    if candidate_id.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "MISSING_IDENTIFIER",
+                "message": "Candidate Email Address is required to sign in."
+            })),
+        ).into_response();
+    }
+
+    // 1. Verify Passcode (Mandatory single exam passcode for the assessment batch)
+    let active_passcode = state.exam_passcode.read().unwrap().clone();
+    let candidate_passcode = payload.passcode.as_deref().unwrap_or("").trim();
+
+    // Verify passcode against exam passcode OR master admin key
+    if candidate_passcode.is_empty() || (candidate_passcode != active_passcode.trim() && candidate_passcode != state.admin_key.trim()) {
+        return (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({
+                "error": "INVALID_PASSCODE",
+                "message": "Invalid Exam Passcode. Please enter the pre-decided exam passcode announced by your proctor."
+            })),
+        ).into_response();
+    }
+
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    let now = chrono::Utc::now();
+
+    // 2. Check Exam Status
+    {
+        let live = state.exam_live.read().unwrap();
+        if !live.is_live && live.ended_at.is_some() {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "EXAM_CONCLUDED",
+                    "message": "The assessment session has already been concluded by the proctor."
+                })),
+            ).into_response();
+        }
+    }
+
+    // 3. Validate against Roster (if roster is populated)
+    let mut resolved_display_name = payload.name.clone().unwrap_or_else(|| candidate_id.clone());
+    {
+        let roster = state.roster.read().unwrap();
+        if !roster.candidates.is_empty() {
+            let entry_opt = roster.candidates.iter().find(|c| {
+                c.email.eq_ignore_ascii_case(&candidate_id)
+                    || c.roll_number.as_deref().map(|r| r.eq_ignore_ascii_case(&candidate_id)).unwrap_or(false)
+            });
+
+            match entry_opt {
+                None => {
+                    return (
+                        StatusCode::FORBIDDEN,
+                        Json(serde_json::json!({
+                            "error": "ROSTER_NOT_FOUND",
+                            "message": format!("Email address / ID '{}' is not registered in the proctor's exam roster.", candidate_id)
+                        })),
+                    ).into_response();
+                }
+                Some(entry) => {
+                    if !entry.allowed {
+                        return (
+                            StatusCode::FORBIDDEN,
+                            Json(serde_json::json!({
+                                "error": "ACCESS_REVOKED",
+                                "message": "Your candidature has been revoked or excluded from this exam by the proctor."
+                            })),
+                        ).into_response();
+                    }
+                    if !entry.name.is_empty() {
+                        resolved_display_name = entry.name.clone();
+                    }
+                }
+            }
+        }
+    }
+
+    // 4. Issue or preserve session token
+    let token = format!(
+        "citadel-sess-{:x}{:x}",
+        now.timestamp_nanos_opt().unwrap_or(0),
+        std::process::id() as u64 ^ 0x3c3c3c3c
+    );
+
+    let token_session = TokenSession {
+        token: token.clone(),
+        client_version: payload.client_version.unwrap_or_else(|| "portal-web".to_string()),
+        machine_guid: None,
+        created_at: now,
+    };
+    state.authorized_tokens.lock().unwrap().insert(token.clone(), token_session);
+
+    // 5. Candidate state lookup & resumption calculation
+    let mut cand_states = state.candidate_states.lock().unwrap();
+    let mut cands = state.candidates.lock().unwrap();
+
+    let client_ip = headers.get("x-forwarded-for")
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.split(',').next().unwrap_or("127.0.0.1").trim().to_string())
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+
+    if let Some(existing) = cand_states.get_mut(&candidate_id) {
+        // Disqualified check
+        if existing.status == "Disqualified" {
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "DISQUALIFIED",
+                    "message": "Candidate has been disqualified by the proctor due to security violations."
+                })),
+            ).into_response();
+        }
+
+        // Single session conflict check:
+        if existing.status == "Active" && existing.ip_address != client_ip {
+            if let Ok(last) = chrono::DateTime::parse_from_rfc3339(&existing.last_seen) {
+                let diff_secs = (now - last.with_timezone(&chrono::Utc)).num_seconds();
+                if diff_secs < 15 {
+                    return (
+                        StatusCode::CONFLICT,
+                        Json(serde_json::json!({
+                            "error": "ALREADY_ACTIVE",
+                            "message": format!("Candidate session for '{}' is already active on another workstation (IP: {}).", candidate_id, existing.ip_address)
+                        })),
+                    ).into_response();
+                }
+            }
+        }
+
+        // Resume session: calculate paused time if disconnected
+        if let Some(ref paused_at_str) = existing.timer_paused_at {
+            if let Ok(paused_time) = chrono::DateTime::parse_from_rfc3339(paused_at_str) {
+                let elapsed = (now - paused_time.with_timezone(&chrono::Utc)).num_seconds().max(0) as u64;
+                existing.remaining_seconds = existing.remaining_seconds.saturating_sub(elapsed);
+            }
+            existing.timer_paused_at = None;
+        }
+
+        existing.status = "Active".to_string();
+        existing.last_seen = now.to_rfc3339();
+        existing.ip_address = client_ip.clone();
+        existing.session_token = token.clone();
+
+        // Update in-memory candidates map
+        if let Some(cand_sess) = cands.get_mut(&candidate_id) {
+            cand_sess.status = "Active".to_string();
+            cand_sess.last_seen = now.to_rfc3339();
+            cand_sess.ip_address = client_ip.clone();
+            cand_sess.name = Some(existing.name.clone());
+        }
+
+        // Persist to disk
+        let _ = save_candidate_state(&state.state_dir, existing);
+
+        let resume_state = existing.to_resume_state();
+        let display_name = existing.name.clone();
+
+        return Json(CandidateLoginResponse {
+            status: "resumed".to_string(),
+            session_token: token,
+            candidate_id: candidate_id,
+            name: display_name,
+            is_production: is_prod,
+            resume_state: Some(resume_state),
+            server_time: now.to_rfc3339(),
+        }).into_response();
+    }
+
+    // New candidate session
+    let initial_seconds = {
+        let live = state.exam_live.read().unwrap();
+        (live.duration_minutes as u64) * 60
+    };
+
+    let new_state = CandidateState {
+        candidate_id: candidate_id.clone(),
+        name: resolved_display_name.clone(),
+        ip_address: client_ip.clone(),
+        active_question_id: "q1-two-sum".to_string(),
+        active_language: "python".to_string(),
+        code_store: HashMap::new(),
+        remaining_seconds: initial_seconds,
+        timer_paused_at: None,
+        best_scores: HashMap::new(),
+        total_score: 0,
+        status: "Active".to_string(),
+        violations_count: 0,
+        started_at: Some(now.to_rfc3339()),
+        last_seen: now.to_rfc3339(),
+        completed_at: None,
+        session_token: token.clone(),
+        state_version: 0,
+        last_synced_at: now.to_rfc3339(),
+    };
+
+    cands.insert(candidate_id.clone(), CandidateSession {
+        candidate_id: candidate_id.clone(),
+        name: Some(resolved_display_name.clone()),
+        ip_address: client_ip.clone(),
+        active_question: 1,
+        violations_count: 0,
+        last_seen: now.to_rfc3339(),
+        status: "Active".to_string(),
+        total_score: 0,
+        started_at: Some(now.to_rfc3339()),
+        completed_at: None,
+    });
+
+    cand_states.insert(candidate_id.clone(), new_state.clone());
+    let _ = save_candidate_state(&state.state_dir, &new_state);
+
+    Json(CandidateLoginResponse {
+        status: "created".to_string(),
+        session_token: token,
+        candidate_id: candidate_id,
+        name: resolved_display_name,
+        is_production: is_prod,
+        resume_state: None,
+        server_time: now.to_rfc3339(),
+    }).into_response()
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct StateSyncRequest {
+    pub candidate_id: String,
+    pub active_question_id: Option<String>,
+    pub active_language: Option<String>,
+    pub remaining_seconds: Option<u64>,
+    pub code_store: Option<HashMap<String, HashMap<String, String>>>,
+    pub state_version: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateSyncResponse {
+    pub status: String,
+    pub candidate_id: String,
+    pub state_version: u64,
+    pub remaining_seconds: u64,
+    pub server_time: String,
+}
+
+async fn state_sync_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<StateSyncRequest>,
+) -> Response {
+    let now = chrono::Utc::now();
+    let cid = payload.candidate_id.trim();
+    if cid.is_empty() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    let mut cand_states = state.candidate_states.lock().unwrap();
+    let mut cands = state.candidates.lock().unwrap();
+
+    let cand = match cand_states.get_mut(cid) {
+        Some(c) => c,
+        None => return StatusCode::NOT_FOUND.into_response(),
+    };
+
+    if cand.status == "Disqualified" {
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "DISQUALIFIED",
+                "message": "Candidate is disqualified."
+            })),
+        ).into_response();
+    }
+
+    if let Some(new_codes) = payload.code_store {
+        for (qid, lang_map) in new_codes {
+            let entry = cand.code_store.entry(qid).or_insert_with(HashMap::new);
+            for (lang, code) in lang_map {
+                entry.insert(lang, code);
+            }
+        }
+    }
+
+    if let Some(qid) = payload.active_question_id {
+        cand.active_question_id = qid;
+    }
+    if let Some(lang) = payload.active_language {
+        cand.active_language = lang;
+    }
+    if let Some(rem) = payload.remaining_seconds {
+        cand.remaining_seconds = rem.min(cand.remaining_seconds);
+    }
+    cand.state_version = payload.state_version.unwrap_or(cand.state_version + 1);
+    cand.last_synced_at = now.to_rfc3339();
+    cand.last_seen = now.to_rfc3339();
+    if cand.status != "Flagged" && cand.status != "Logged Out" && cand.status != "Submitted" {
+        cand.status = "Active".to_string();
+    }
+
+    if let Some(sess) = cands.get_mut(cid) {
+        sess.last_seen = now.to_rfc3339();
+        if let Ok(num) = cand.active_question_id.replace("q-", "").parse::<u32>() {
+            sess.active_question = num;
+        }
+        if sess.status != "Disqualified" && sess.status != "Flagged" && sess.status != "Logged Out" {
+            sess.status = "Active".to_string();
+        }
+    }
+
+    let _ = save_candidate_state(&state.state_dir, cand);
+
+    Json(StateSyncResponse {
+        status: "synced".to_string(),
+        candidate_id: cid.to_string(),
+        state_version: cand.state_version,
+        remaining_seconds: cand.remaining_seconds,
+        server_time: now.to_rfc3339(),
+    }).into_response()
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RestoreQuery {
+    pub candidate_id: String,
+}
+
+async fn state_restore_handler(
+    Query(q): Query<RestoreQuery>,
+    State(state): State<AppState>,
+) -> Response {
+    let cand_states = state.candidate_states.lock().unwrap();
+    if let Some(cand) = cand_states.get(&q.candidate_id) {
+        Json(cand.clone()).into_response()
+    } else {
+        StatusCode::NOT_FOUND.into_response()
+    }
+}
+
+async fn admin_get_roster_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Result<Json<ExamRoster>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    let roster = state.roster.read().unwrap();
+    Ok(Json(roster.clone()))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RosterUploadPayload {
+    pub exam_id: Option<String>,
+    pub candidates: Option<Vec<RosterEntry>>,
+    pub csv_data: Option<String>,
+}
+
+async fn admin_upload_roster_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    body: axum::extract::Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let mut new_entries = Vec::new();
+    let mut exam_id = "CITADEL-EXAM".to_string();
+
+    if let Ok(upload) = serde_json::from_value::<RosterUploadPayload>(body.0.clone()) {
+        if let Some(eid) = upload.exam_id {
+            exam_id = eid;
+        }
+        if let Some(cands) = upload.candidates {
+            new_entries = cands;
+        } else if let Some(csv) = upload.csv_data {
+            if let Ok(parsed) = parse_roster_csv(&csv) {
+                new_entries = parsed;
+            }
+        }
+    } else if let Some(arr) = body.0.as_array() {
+        if let Ok(cands) = serde_json::from_value::<Vec<RosterEntry>>(serde_json::Value::Array(arr.clone())) {
+            new_entries = cands;
+        }
+    }
+
+    let count = new_entries.len();
+    {
+        let mut roster = state.roster.write().unwrap();
+        roster.exam_id = exam_id;
+        roster.created_at = chrono::Utc::now().to_rfc3339();
+        roster.candidates = new_entries;
+        let _ = save_roster(&state.state_dir, &roster);
+    }
+
+    Ok(Json(serde_json::json!({
+        "status": "success",
+        "registered_count": count
+    })))
+}
+
+async fn admin_add_roster_candidate_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(entry): Json<RosterEntry>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let target_id = entry.get_identifier().to_string();
+    let mut roster = state.roster.write().unwrap();
+    if let Some(existing) = roster.candidates.iter_mut().find(|c| {
+        c.get_identifier().eq_ignore_ascii_case(&target_id)
+            || (entry.roll_number.is_some() && c.roll_number == entry.roll_number)
+    }) {
+        *existing = entry;
+    } else {
+        roster.candidates.push(entry);
+    }
+    let _ = save_roster(&state.state_dir, &roster);
+
+    Ok(Json(serde_json::json!({ "status": "success" })))
+}
+
+async fn admin_delete_roster_candidate_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let mut roster = state.roster.write().unwrap();
+    roster.candidates.retain(|c| {
+        !c.get_identifier().eq_ignore_ascii_case(&id)
+            && !c.roll_number.as_deref().map(|r| r.eq_ignore_ascii_case(&id)).unwrap_or(false)
+    });
+    let _ = save_roster(&state.state_dir, &roster);
+
+    Ok(Json(serde_json::json!({ "status": "success" })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ExtendTimePayload {
+    pub extra_minutes: Option<u32>,
+    pub extra_seconds: Option<u64>,
+}
+
+async fn admin_extend_candidate_time_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+    Json(payload): Json<ExtendTimePayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let additional_secs = payload.extra_seconds
+        .or_else(|| payload.extra_minutes.map(|m| (m as u64) * 60))
+        .unwrap_or(600);
+
+    let mut cand_states = state.candidate_states.lock().unwrap();
+    if let Some(cand) = cand_states.get_mut(&id) {
+        cand.remaining_seconds += additional_secs;
+        let _ = save_candidate_state(&state.state_dir, cand);
+        Ok(Json(serde_json::json!({
+            "status": "success",
+            "candidate_id": id,
+            "new_remaining_seconds": cand.remaining_seconds
+        })))
+    } else {
+        Err(StatusCode::NOT_FOUND)
+    }
+}
+
+async fn disconnect_watchdog_loop(state: AppState) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(5));
+    loop {
+        interval.tick().await;
+
+        let now = chrono::Utc::now();
+        let mut states_to_persist = Vec::new();
+
+        {
+            let mut c_states = state.candidate_states.lock().unwrap();
+            let mut c_sessions = state.candidates.lock().unwrap();
+
+            for (cid, cand) in c_states.iter_mut() {
+                if cand.status == "Active" || cand.status == "Flagged" {
+                    if let Ok(last) = chrono::DateTime::parse_from_rfc3339(&cand.last_seen) {
+                        let diff_secs = (now - last.with_timezone(&chrono::Utc)).num_seconds();
+                        if diff_secs > 15 {
+                            cand.status = "Disconnected".to_string();
+                            cand.timer_paused_at = Some(now.to_rfc3339());
+                            states_to_persist.push(cand.clone());
+
+                            if let Some(sess) = c_sessions.get_mut(cid) {
+                                sess.status = "Disconnected".to_string();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        for st in states_to_persist {
+            let _ = save_candidate_state(&state.state_dir, &st);
+        }
+    }
 }

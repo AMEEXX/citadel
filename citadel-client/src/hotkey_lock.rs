@@ -34,6 +34,15 @@ static HEALTH_PONG_RECEIVED: AtomicBool = AtomicBool::new(false);
 static HOOK_REINSTALL_REQUESTED: AtomicBool = AtomicBool::new(false);
 static ESC_TAP_COUNT: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 static LAST_ESC_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+static IS_PRODUCTION_MODE: AtomicBool = AtomicBool::new(false);
+
+pub fn set_production_mode(is_prod: bool) {
+    IS_PRODUCTION_MODE.store(is_prod, Ordering::SeqCst);
+}
+
+pub fn is_production_mode() -> bool {
+    IS_PRODUCTION_MODE.load(Ordering::Relaxed)
+}
 
 fn check_escape_rapid_press() -> bool {
     let now_ms = std::time::SystemTime::now()
@@ -75,7 +84,9 @@ pub fn evaluate_keystroke(
     }
 
     // Rapid 5x Escape Emergency Override (tap Escape 5 times rapidly)
-    if vk == 0x1B && check_escape_rapid_press() {
+    // STRICT SECURITY ENFORCEMENT (Finding F): Rapid Escape is strictly restricted to Testing/Dev Mode.
+    // In Production Mode, candidates are prevented from escaping via Escape taps.
+    if !is_production_mode() && vk == 0x1B && check_escape_rapid_press() {
         return KeyAction::EmergencyOverride;
     }
 

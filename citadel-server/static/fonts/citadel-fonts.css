@@ -1,0 +1,32 @@
+/* ═══════════════════════════════════════════════════════════════════
+   /static/fonts/citadel-fonts.css — SELF-HOSTED (works 100% offline)
+   Files go in citadel-server/static/fonts/
+   ═══════════════════════════════════════════════════════════════════ */
+@font-face {
+  font-family: 'Geist';
+  src: url('/static/fonts/Geist-Variable.woff2') format('woff2');
+  font-weight: 100 900;          /* variable axis — enables weight 350 */
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/static/fonts/GeistMono-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/static/fonts/InstrumentSerif-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Instrument Serif';
+  src: url('/static/fonts/InstrumentSerif-Italic.woff2') format('woff2');
+  font-weight: 400;
+  font-style: italic;
+  font-display: swap;
+}

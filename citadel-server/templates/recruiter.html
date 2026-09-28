@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <title>Citadel | Recruiter & LMS Admin Console</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="/static/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/citadel-fonts.css">
   <style>
     :root {
   /* ─── Surfaces ─── */
@@ -326,6 +326,7 @@
     .status-active { background: rgba(111, 222, 167, 0.15); color: #6fdea7; border: 1px solid rgba(111, 222, 167, 0.3); }
     .status-flagged { background: rgba(247, 193, 95, 0.15); color: #f7c15f; border: 1px solid rgba(247, 193, 95, 0.3); }
     .status-logged-out { background: rgba(166, 164, 160, 0.1); color: #a6a4a0; border: 1px solid rgba(166, 164, 160, 0.2); }
+    .status-disconnected { background: rgba(245, 158, 11, 0.14); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.4); }
     .status-disqualified { background: rgba(244, 122, 121, 0.15); color: #f47a79; border: 1px solid rgba(244, 122, 121, 0.3); }
 
     .btn-sm {
@@ -663,8 +664,9 @@
       align-items: flex-end;
     }
   </style>
+  <link rel="stylesheet" href="/static/citadel-skin.css">
 </head>
-<body>
+<body class="app-recruiter">
   <header>
     <div class="brand-title">
       <span class="brand-logo">CITADEL</span>
@@ -675,6 +677,7 @@
       <button id="btn-toggle-mode" class="btn-sm" style="background: #1a1918; color: #f2f0ec; border: 1px solid #393836; cursor: pointer;" onclick="toggleSecurityMode()">Switch to Production</button>
       <div id="exam-status-badge" class="exam-badge badge-not-live">EXAM NOT STARTED</div>
       <button id="btn-toggle-live" class="btn-live btn-go-live" onclick="toggleExamLive()">▶ GO LIVE</button>
+      <a href="/architecture" target="_blank" class="btn-sm" style="background: rgba(8, 145, 178, 0.15); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); text-decoration: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 4px; font-family: var(--font-mono); font-size: 11px; font-weight: 700; letter-spacing: 0.05em;" title="Open verified interactive system architecture map powered by Archify">🗺️ ARCHITECTURE</a>
       <div class="sync-indicator">
         <div class="sync-dot"></div>
         <span>Live Heartbeat</span>
@@ -686,6 +689,7 @@
   <!-- NAVIGATION -->
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="switchNav('candidates')">Candidate Fleet & Telemetry</button>
+    <button class="nav-tab" onclick="switchNav('roster')">Exam Roster & Identity Verification</button>
     <button class="nav-tab" onclick="switchNav('questions')">Problem Bank & Test Cases</button>
   </div>
 
@@ -737,6 +741,73 @@
         </thead>
         <tbody id="candidate-table-body">
           <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 24px;">Loading candidates...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- VIEW: ROSTER & IDENTITY -->
+    <div id="view-roster" class="card" style="display: none;">
+      <div class="card-head">
+        <div>
+          <div class="card-title">Exam Candidate Roster (Access Control & Identity Gate)</div>
+          <div style="font-size: 12px; color: var(--text-dim); margin-top: 4px;">
+            Only candidates enrolled in this roster are permitted to sign into the assessment. Interrupted sessions can resume automatically.
+          </div>
+        </div>
+        <button class="btn-sm" onclick="loadRoster()">Refresh Roster</button>
+      </div>
+
+      <!-- EXAM PASSCODE CONFIGURATION BANNER -->
+      <div style="background: rgba(59, 130, 246, 0.08); border-bottom: 1px solid var(--border-subtle); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="font-size: 20px;">🔑</span>
+          <div>
+            <div style="font-size: 13px; font-weight: 600; color: #93c5fd;">Active Assessment Passcode: <span id="display-active-passcode" style="font-family: var(--font-mono); font-size: 14px; color: #ffffff; background: #1e3a5f; padding: 2px 10px; border-radius: 4px; letter-spacing: 0.08em; border: 1px solid #3b82f6;">CITADEL2026</span></div>
+            <div style="font-size: 11px; color: var(--text-dim); margin-top: 2px;">Pre-decided single passcode required for all candidates to enter this assessment batch.</div>
+          </div>
+        </div>
+        <button class="btn-sm btn-primary" onclick="promptChangePasscode()">Change Passcode</button>
+      </div>
+
+      <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; border-bottom: 1px solid var(--border-subtle);">
+        <!-- Upload Roster Box -->
+        <div class="bento-tile" style="background: var(--bg-surface-hover); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 16px;">
+          <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">📋 Batch Import Candidates (CSV Format)</div>
+          <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 10px;">
+            Format: <code>email, full_name, section</code> (one student per line)
+          </p>
+          <textarea id="roster-csv-input" style="width: 100%; height: 110px; background: #0c0b0a; border: 1px solid var(--border-subtle); color: #f2f0ec; font-family: var(--font-mono); font-size: 12px; padding: 10px; border-radius: 4px; resize: vertical;" placeholder="alex@univ.edu, Alex Mercer, Section A&#10;sarah@univ.edu, Sarah Connor, Section B&#10;david@univ.edu, David Miller, Section A"></textarea>
+          <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button class="btn-sm btn-primary" onclick="uploadRosterCsv()">Upload & Enforce Roster</button>
+            <button class="btn-sm" onclick="document.getElementById('roster-csv-input').value = ''">Clear</button>
+          </div>
+        </div>
+
+        <!-- Add Single Candidate Box -->
+        <div class="bento-tile" style="background: var(--bg-surface-hover); border: 1px solid var(--border-subtle); border-radius: 4px; padding: 16px;">
+          <div style="font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px;">➕ Quick Add Individual Candidate</div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <input type="email" id="single-email" placeholder="Candidate Email (e.g. alex@univ.edu)" style="padding: 8px 12px; background: #0c0b0a; border: 1px solid var(--border-subtle); color: #f2f0ec; font-size: 12px; border-radius: 4px;">
+            <input type="text" id="single-name" placeholder="Full Name (e.g. Alex Mercer)" style="padding: 8px 12px; background: #0c0b0a; border: 1px solid var(--border-subtle); color: #f2f0ec; font-size: 12px; border-radius: 4px;">
+            <input type="text" id="single-section" placeholder="Section / Batch (Optional)" style="padding: 8px 12px; background: #0c0b0a; border: 1px solid var(--border-subtle); color: #f2f0ec; font-size: 12px; border-radius: 4px;">
+            <button class="btn-sm btn-primary" style="align-self: flex-start;" onclick="addSingleCandidate()">+ Add to Active Roster</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Roster Table -->
+      <table style="width: 100%;">
+        <thead>
+          <tr>
+            <th>Candidate Email (OA ID)</th>
+            <th>Candidate Name</th>
+            <th>Section</th>
+            <th>Access Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="roster-table-body">
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No candidates in roster. (Testing mode accepts all IDs until roster is populated).</td></tr>
         </tbody>
       </table>
     </div>
@@ -907,13 +978,19 @@
 
     function switchNav(view) {
       document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active'));
+      document.getElementById('view-candidates').style.display = 'none';
+      document.getElementById('view-roster').style.display = 'none';
+      document.getElementById('view-questions').style.display = 'none';
+
       if (view === 'candidates') {
         document.querySelectorAll('.nav-tab')[0].classList.add('active');
         document.getElementById('view-candidates').style.display = 'block';
-        document.getElementById('view-questions').style.display = 'none';
-      } else {
+      } else if (view === 'roster') {
         document.querySelectorAll('.nav-tab')[1].classList.add('active');
-        document.getElementById('view-candidates').style.display = 'none';
+        document.getElementById('view-roster').style.display = 'block';
+        loadRoster();
+      } else {
+        document.querySelectorAll('.nav-tab')[2].classList.add('active');
         document.getElementById('view-questions').style.display = 'block';
         loadQuestions();
       }
@@ -946,12 +1023,12 @@
         const data = await res.json();
 
         // 1. Metric stat cards
-        document.getElementById('stat-total').innerText = data.total_candidates;
-        document.getElementById('stat-active').innerText = data.active_candidates;
-        document.getElementById('stat-flagged').innerText = data.flagged_candidates;
-        document.getElementById('stat-logged-out').innerText = data.logged_out_candidates;
-        document.getElementById('stat-disqualified').innerText = data.disqualified_candidates;
-        document.getElementById('stat-subs').innerText = data.total_submissions;
+        setStat('stat-total', data.total_candidates);
+        setStat('stat-active', data.active_candidates);
+        setStat('stat-flagged', data.flagged_candidates);
+        setStat('stat-logged-out', data.logged_out_candidates);
+        setStat('stat-disqualified', data.disqualified_candidates);
+        setStat('stat-subs', data.total_submissions);
 
         // 2. Exam Live State
         if (data.exam_live) {
@@ -987,12 +1064,14 @@
             modeBadge.style.color = '#6fdea7';
             modeBadge.style.border = '1px solid rgba(111, 222, 167, 0.35)';
             modeBtn.innerText = 'Switch to Testing Mode';
+            modeBtn.dataset.on = 'true';
           } else {
             modeBadge.innerText = 'MODE: TESTING (OPEN ACCESS)';
             modeBadge.style.background = 'rgba(247, 193, 95, 0.12)';
             modeBadge.style.color = '#f7c15f';
             modeBadge.style.border = '1px solid rgba(247, 193, 95, 0.3)';
             modeBtn.innerText = 'Switch to Production Mode';
+            modeBtn.dataset.on = 'false';
           }
         }
       } catch (e) {
@@ -1024,6 +1103,14 @@
     }
 
     async function toggleSecurityMode() {
+      const modeBadge = document.getElementById('security-mode-badge');
+      const isCurrentlyProd = modeBadge && modeBadge.innerText.includes('PRODUCTION');
+      const msg = isCurrentlyProd
+        ? "Switch to TESTING mode? This will show the direct web assessment link and allow standard browsers."
+        : "Switch to PRODUCTION mode? This enforces full workstation lockdown and requires citadel-client.exe.";
+      if (!confirm(msg)) {
+        return;
+      }
       try {
         const res = await fetch(`/api/v1/admin/mode/toggle?key=${AUTH_KEY}`, { method: 'POST' });
         if (res.ok) {
@@ -1067,16 +1154,24 @@
         }
 
         const lastSeen = c.last_seen ? new Date(c.last_seen).toLocaleTimeString() : 'N/A';
+        if (c.status === 'Disconnected') {
+          statusClass = 'status-disconnected';
+          statusLabel = '⚡ Disconnected';
+        }
 
         return `
           <tr class="candidate-row" onclick="openCandidateProfile('${c.candidate_id}')">
-            <td class="candidate-id-cell">${escapeHtml(c.candidate_id)}</td>
+            <td class="candidate-id-cell">
+              <strong>${escapeHtml(c.name || c.candidate_id)}</strong>
+              ${c.name ? `<br/><span style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);">${escapeHtml(c.candidate_id)}</span>` : ''}
+            </td>
             <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>Problem #${c.active_question}</td>
             <td class="candidate-score-cell">${c.total_score} pts</td>
             <td class="candidate-lastseen-cell">${lastSeen}</td>
             <td onclick="event.stopPropagation();">
-              <button class="btn-sm" onclick="openCandidateProfile('${c.candidate_id}')">Inspect Profile</button>
+              <button class="btn-sm" onclick="openCandidateProfile('${c.candidate_id}')">Inspect</button>
+              <button class="btn-sm" style="margin-left: 6px; border-color: rgba(59, 130, 246, 0.4); color: #60a5fa;" onclick="extendCandidateTime('${c.candidate_id}')">+15m Time</button>
               ${c.status !== 'Disqualified' ? `
                 <button class="btn-sm btn-danger" style="margin-left: 6px;" onclick="disqualifyCandidate('${c.candidate_id}')">Disqualify</button>
               ` : '<span style="color: var(--text-dim); font-size: 11px; font-weight: 600; margin-left: 6px;">Disqualified</span>'}
@@ -1087,6 +1182,196 @@
           </tr>
         `;
       }).join('');
+    }
+
+
+    // =========================================================================
+    // ROSTER MANAGEMENT & TIME EXTENSION API
+    // =========================================================================
+    async function extendCandidateTime(candId) {
+      const minutes = prompt(`Extend exam time for candidate ${candId} (in minutes):`, "15");
+      if (!minutes || isNaN(parseInt(minutes))) return;
+      const extra_minutes = parseInt(minutes);
+
+      try {
+        const res = await fetch(`/api/v1/admin/candidates/${candId}/extend-time?key=${AUTH_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ extra_minutes })
+        });
+        if (res.ok) {
+          alert(`Granted ${extra_minutes} minutes extension to candidate ${candId}.`);
+          fetchMetrics();
+        } else {
+          alert("Failed to extend candidate time.");
+        }
+      } catch (e) {
+        alert("Network error extending time: " + e.message);
+      }
+    }
+
+    async function fetchPasscode() {
+      try {
+        const res = await fetch(`/api/v1/admin/exam/passcode?key=${AUTH_KEY}`);
+        if (res.ok) {
+          const data = await res.json();
+          const el = document.getElementById('display-active-passcode');
+          if (el) el.innerText = data.passcode;
+        }
+      } catch (e) {
+        console.warn("[CITADEL] Failed to load passcode:", e);
+      }
+    }
+
+    async function promptChangePasscode() {
+      const current = document.getElementById('display-active-passcode')?.innerText || 'CITADEL2026';
+      const next = prompt("Enter new single batch assessment passcode for all candidates:", current);
+      if (!next || !next.trim() || next.trim() === current) return;
+      try {
+        const res = await fetch(`/api/v1/admin/exam/passcode?key=${AUTH_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ passcode: next.trim() })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const el = document.getElementById('display-active-passcode');
+          if (el) el.innerText = data.passcode;
+          alert(`Assessment passcode updated to: ${data.passcode}`);
+        } else {
+          alert("Failed to update exam passcode.");
+        }
+      } catch (e) {
+        alert("Error updating passcode: " + e.message);
+      }
+    }
+
+    async function loadRoster() {
+      fetchPasscode();
+      const tbody = document.getElementById('roster-table-body');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 20px;">Fetching roster data...</td></tr>';
+
+      try {
+        const res = await fetch(`/api/v1/admin/roster?key=${AUTH_KEY}`);
+        if (!res.ok) throw new Error("Unauthorized or server error");
+        const data = await res.json();
+        const candidates = data.candidates || [];
+
+        if (candidates.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No candidates enrolled in roster. In testing mode, all candidates can join until roster is configured.</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = candidates.map(c => {
+          const primaryId = c.email || c.roll_number || 'Unknown';
+          return `
+          <tr>
+            <td style="font-family: var(--font-mono); font-weight: 600; color: var(--accent-blue);">${escapeHtml(primaryId)}</td>
+            <td><strong>${escapeHtml(c.name)}</strong></td>
+            <td>${escapeHtml(c.section || 'General')}</td>
+            <td>
+              <span class="status-badge ${c.allowed ? 'status-active' : 'status-disqualified'}">
+                ${c.allowed ? '✓ Authorized' : '✕ Revoked'}
+              </span>
+            </td>
+            <td>
+              <button class="btn-sm ${c.allowed ? 'btn-danger' : 'btn-primary'}" onclick="toggleCandidateAccess('${escapeHtml(primaryId)}', ${!c.allowed})">
+                ${c.allowed ? 'Revoke Access' : 'Restore Access'}
+              </button>
+              <button class="btn-sm" style="margin-left: 6px; color: #f87171;" onclick="deleteRosterCandidate('${escapeHtml(primaryId)}')">
+                Delete
+              </button>
+            </td>
+          </tr>
+        `;
+        }).join('');
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--accent-red); padding: 20px;">Failed to load roster: ${e.message}</td></tr>`;
+      }
+    }
+
+    async function uploadRosterCsv() {
+      const csv = document.getElementById('roster-csv-input').value.trim();
+      if (!csv) {
+        alert("Please enter CSV data before uploading.");
+        return;
+      }
+      try {
+        const res = await fetch(`/api/v1/admin/roster/upload?key=${AUTH_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ csv_data: csv })
+        });
+        const data = await res.json();
+        alert(`Successfully imported and enforced roster with ${data.registered_count} candidate(s).`);
+        loadRoster();
+      } catch (e) {
+        alert("Failed to upload roster: " + e.message);
+      }
+    }
+
+    async function addSingleCandidate() {
+      const email = document.getElementById('single-email').value.trim();
+      const name = document.getElementById('single-name').value.trim();
+      const sec = document.getElementById('single-section').value.trim();
+
+      if (!email || !name) {
+        alert("Please enter both Candidate Email and Full Name.");
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/v1/admin/roster/add?key=${AUTH_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: email,
+            name: name,
+            section: sec ? sec : null,
+            allowed: true
+          })
+        });
+        if (res.ok) {
+          document.getElementById('single-email').value = '';
+          document.getElementById('single-name').value = '';
+          document.getElementById('single-section').value = '';
+          loadRoster();
+        } else {
+          alert("Failed to add candidate to roster.");
+        }
+      } catch (e) {
+        alert("Error adding candidate: " + e.message);
+      }
+    }
+
+    async function toggleCandidateAccess(id, allow) {
+      try {
+        await fetch(`/api/v1/admin/roster/add?key=${AUTH_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: id,
+            name: id,
+            allowed: allow
+          })
+        });
+        loadRoster();
+      } catch (e) {
+        alert("Error updating candidate: " + e.message);
+      }
+    }
+
+    async function deleteRosterCandidate(id) {
+      if (!confirm(`Delete candidate ${id} from the exam roster?`)) return;
+      try {
+        await fetch(`/api/v1/admin/roster/${encodeURIComponent(id)}?key=${AUTH_KEY}`, {
+          method: 'DELETE'
+        });
+        loadRoster();
+      } catch (e) {
+        alert("Error deleting candidate: " + e.message);
+      }
     }
 
     async function disqualifyCandidate(id) {
@@ -1557,6 +1842,24 @@
 
     fetchMetrics();
     setInterval(fetchMetrics, 3000);
+    // H2: Only animate a stat when its value actually changes
+    function setStat(id, v) {
+      const el = document.getElementById(id);
+      if (!el || el.innerText === String(v)) return;
+      el.innerText = v;
+      el.classList.remove('cit-tick'); void el.offsetWidth; el.classList.add('cit-tick');
+    }
+
+    // H3: Bento cursor spotlight
+    document.querySelectorAll('.stats-row, .profile-meta-grid, #view-roster').forEach(grid => {
+      grid.addEventListener('pointermove', e => {
+        const tile = e.target.closest('.stat-card, .profile-card, .bento-tile');
+        if (!tile) return;
+        const r = tile.getBoundingClientRect();
+        tile.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+        tile.style.setProperty('--my', (e.clientY - r.top) + 'px');
+      }, { passive: true });
+    });
   </script>
 </body>
 </html>

@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="/static/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/citadel-fonts.css">
   <title>CITADEL — Code Assessment Portal</title>
   <script src="/static/ace.bundle.js"></script>
   <style>
@@ -1004,8 +1004,9 @@
     }
     :focus-visible { outline: 1px solid #a2bad8; outline-offset: 2px; }
   </style>
+  <link rel="stylesheet" href="/static/citadel-skin.css">
 </head>
-<body>
+<body class="app-portal">
   <!-- INVISIBLE DRAG SHIELD -->
   <div id="drag-overlay"></div>
 
@@ -1355,12 +1356,11 @@
     function initAceEditor() {
       editor = ace.edit("code-editor");
       editor.setTheme("ace/theme/one_dark");
-      editor.setFontSize("13.5px");
       editor.setShowPrintMargin(false);
 
       editor.setOptions({
         fontFamily: "'Geist Mono', ui-monospace, 'SF Mono', Menlo, Monaco, Consolas, monospace",
-        fontSize: "12.5px",
+        fontSize: "13px",
         tabSize: 4,
         useSoftTabs: true,
         highlightActiveLine: true,
@@ -1368,6 +1368,8 @@
         behavioursEnabled: true,
         scrollPastEnd: 0.2
       });
+
+      document.fonts && document.fonts.ready.then(() => { editor.renderer.updateFontSize(); editor.resize(true); });
 
       editor.session.setMode("ace/mode/python");
 
@@ -1462,6 +1464,10 @@
 
       // 3. Heartbeat update
       sendHeartbeat();
+
+      // H4: Soft fade when switching questions
+      const _pc = document.getElementById('problem-content-area');
+      if (_pc) { _pc.classList.remove('cit-enter'); void _pc.offsetWidth; _pc.classList.add('cit-enter'); }
     }
 
     function renderActiveProblemContent() {

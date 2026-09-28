@@ -1,0 +1,349 @@
+/* ═══════════════════════════════════════════════════════════════════
+   /static/citadel-skin.css — OBSIDIAN ATELIER SKIN v1
+   LOOK & FEEL ONLY. This file must never change width, height, flex,
+   grid, position (top/left/right/bottom), margin, order or display of
+   any existing element. Link it AFTER each template's inline <style>.
+   Scoped by <body class="app-portal"> / "app-recruiter" / "app-gate".
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ─── 0. SHARED TOKENS ─────────────────────────────────────────────── */
+:root {
+  --font-display: 'Instrument Serif', 'Iowan Old Style', 'Times New Roman', serif;
+  --radius-ctl: 0px;     /* buttons, pills, badges, inputs, tabs, code boxes */
+  --radius-nest: 8px;    /* containers nested inside a bento/modal           */
+  --radius-box: 12px;    /* bento tiles, cards, modals                       */
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-io:  cubic-bezier(.65, 0, .35, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 260ms;
+  --edge-light: inset 0 1px 0 rgba(242, 240, 236, .045);
+}
+
+/* ─── 1. SHARED KEYFRAMES (transform + opacity only = GPU-cheap) ───── */
+@keyframes cit-fade      { from { opacity: 0 } to { opacity: 1 } }
+@keyframes cit-enter     { from { opacity: 0; transform: translateY(3px) } to { opacity: 1; transform: none } }
+@keyframes cit-rise      { from { opacity: 0; transform: translateY(8px) scale(.985) } to { opacity: 1; transform: none } }
+@keyframes cit-ping      { 0% { transform: scale(1); opacity: .55 } 80%, 100% { transform: scale(2.6); opacity: 0 } }
+@keyframes cit-ring      { 0% { transform: scale(1); opacity: .7 } 100% { transform: scale(1.08, 1.35); opacity: 0 } }
+@keyframes cit-breathe   { 50% { opacity: .6 } }
+@keyframes cit-sheen     { to { transform: translateX(320%) skewX(-18deg) } }
+@keyframes cit-grow      { from { transform: scaleX(0) } to { transform: scaleX(1) } }
+@keyframes cit-tick      { 0% { opacity: .35; transform: translateY(3px) } 100% { opacity: 1; transform: none } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   A. CANDIDATE PORTAL  —  <body class="app-portal">
+   ═══════════════════════════════════════════════════════════════════ */
+.app-portal {
+  --weight-light: 350;                 /* crisper than 300 on Windows ClearType */
+  --text-muted: #a5a39f;               /* was undefined in portal.html (used by modals) */
+  font-feature-settings: normal;       /* cv02/cv03… are Inter features, not Geist */
+}
+
+/* A1 — Square geometry everywhere (matches the miniature) */
+.app-portal :is(.logo-badge, .badge-secure, .timer-container, .btn-end-exam, .q-tab-btn,
+  .diff-badge, .points-badge, .lang-tab, .btn-reset, .nav-pill, .btn-action, .case-pill,
+  .detail-box, .console-terminal, .test-card, .code-snippet, .candidate-reg-input,
+  .candidate-reg-btn, .q-desc code, .constraints-list code) { border-radius: var(--radius-ctl); }
+.app-portal ::-webkit-scrollbar-thumb { border-radius: 0; }
+
+/* A2 — Header */
+.app-portal .logo-badge {
+  background: transparent; border-color: transparent;
+  color: var(--text-primary); font-family: var(--font-ui);
+  font-weight: 600; letter-spacing: .14em;
+}
+.app-portal .exam-title-header { font-weight: 400; }
+.app-portal .badge-secure { font-weight: 400; letter-spacing: .08em; }
+.app-portal .secure-dot { position: relative; }
+.app-portal .secure-dot::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: #668a76; animation: cit-ping 2.4s var(--ease-out) infinite;
+}
+.app-portal .timer-container {
+  font-variant-numeric: tabular-nums;
+  transition: color var(--dur-slow) var(--ease-out), border-color var(--dur-slow) var(--ease-out);
+}
+.app-portal .timer-container.timer-danger { animation: cit-breathe 1.6s ease-in-out infinite; }
+
+/* End Exam — quiet neutral outline; Garnet only on intent */
+.app-portal .btn-end-exam {
+  background: transparent; border-color: var(--border-subtle);
+  color: var(--text-secondary); font-weight: 500; letter-spacing: .03em;
+  transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base);
+}
+.app-portal .btn-end-exam:hover  { background: #290b0b; border-color: #a03f40; color: #f47a79; box-shadow: none; transform: none; }
+.app-portal .btn-end-exam:active { background: #3a1011; border-color: #a03f40; color: #f4c8c6; }
+.app-portal .btn-end-exam.urgent { background: #290b0b; border-color: #a03f40; color: #f47a79; animation: none; position: relative; }
+.app-portal .btn-end-exam.urgent::after {
+  content: ''; position: absolute; inset: -1px; border: 1px solid #f47a79;
+  pointer-events: none; animation: cit-ring 2s var(--ease-out) infinite;
+}
+/* The modal's "Confirm & End Exam" re-uses .btn-end-exam → make it the solid danger action */
+.app-portal #btn-confirm-end       { background: #af3c40; border-color: #c4474b; color: #f2f0ec; }
+.app-portal #btn-confirm-end:hover { background: #c4474b; border-color: #c4474b; color: #f2f0ec; }
+
+/* A3 — Question tabs: champagne underline that grows in */
+.app-portal .q-tab-btn { position: relative; border-bottom-color: transparent !important; letter-spacing: .06em; transition: color var(--dur-base) var(--ease-out); }
+.app-portal .q-tab-btn::after {
+  content: ''; position: absolute; left: 12px; right: 12px; bottom: -2px; height: 2px;
+  background: var(--accent-lang); transform: scaleX(0); transform-origin: center;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.app-portal .q-tab-btn.active { font-weight: 500; }
+.app-portal .q-tab-btn.active::after { transform: scaleX(1); animation: cit-grow var(--dur-slow) var(--ease-out); }
+
+/* A4 — Problem pane typography */
+.app-portal .q-title { color: #f2f0ec; letter-spacing: -.02em; }   /* stays Geist 600 18px — exactly as the miniature */
+.app-portal .section-head {
+  display: flex; align-items: center; gap: 10px;
+  font-weight: 500; letter-spacing: .16em; color: var(--text-dim);
+}
+.app-portal .section-head::before { content: ''; width: 16px; height: 1px; background: var(--accent-lang); flex: none; }
+.app-portal .test-card { background: var(--bg-card); border-color: var(--border-hair); }
+.app-portal .test-card-title { letter-spacing: .14em; color: var(--text-dim); font-weight: 500; }
+.app-portal .diff-badge { font-weight: 500; letter-spacing: .1em; }
+.app-portal .diff-easy, .app-portal .diff-medium, .app-portal .diff-hard { border-color: currentColor; }
+.app-portal .points-badge { letter-spacing: .06em; }
+.app-portal #problem-content-area.cit-enter { animation: cit-enter var(--dur-slow) var(--ease-out); }
+
+/* A5 — Editor toolbar & language tabs */
+.app-portal .lang-tab { border-top-width: 2px; transition: color var(--dur-base), background var(--dur-base), border-color var(--dur-base); }
+.app-portal .lang-tab::before { border-radius: 0; width: 5px; height: 5px; transition: opacity var(--dur-base); }
+.app-portal .btn-reset { transition: color var(--dur-base), border-color var(--dur-base); }
+
+/* A6 — Drawer: pills, actions, cases */
+.app-portal .nav-pill { transition: color var(--dur-base), background var(--dur-base), border-color var(--dur-base); }
+.app-portal .nav-pill.active { background: var(--bg-card); border-color: var(--border-subtle); }
+.app-portal #view-tests, .app-portal #view-console { animation: cit-enter var(--dur-base) var(--ease-out); }
+
+.app-portal .btn-action { transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base), transform var(--dur-fast); }
+.app-portal .btn-action:active { transform: translateY(1px); }
+
+.app-portal .btn-submit { position: relative; overflow: hidden; transition: background var(--dur-slow) var(--ease-out), color var(--dur-slow), border-color var(--dur-slow); }
+.app-portal .btn-submit:not([disabled]):not(.locked)::after,
+.app-portal .btn-submit.unlocked::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(242, 240, 236, .6), transparent);
+  transform: translateX(-120%) skewX(-18deg);
+  animation: cit-sheen 900ms var(--ease-out) 120ms 1 forwards;   /* plays ONCE, at the moment it unlocks */
+}
+
+.app-portal .case-pill::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .45; flex: none; }
+.app-portal .case-pill.passed { border-color: #203329; }
+.app-portal .case-pill.passed::before { opacity: 1; }
+.app-portal .detail-head { letter-spacing: .14em; font-weight: 500; }
+.app-portal .detail-box, .app-portal .console-terminal { background: var(--bg-panel); border-color: var(--border-hair); }
+
+/* A7 — Ace editor: one integer size (fixes fuzzy glyphs) */
+.app-portal .ace_editor { font-size: 13px !important; line-height: 1.6 !important; font-weight: 400 !important; }
+
+/* A8 — Modals & full-screen overlays */
+.app-portal .modal-overlay, .app-portal .conclusion-overlay {
+  backdrop-filter: none; -webkit-backdrop-filter: none;       /* expensive + softens text on iGPUs */
+  animation: cit-fade var(--dur-base) var(--ease-out);         /* plays whenever display:none → flex */
+}
+.app-portal .modal-overlay > .modal-box,
+.app-portal .modal-overlay > .conclusion-card,
+.app-portal .conclusion-overlay > .conclusion-card { animation: cit-rise var(--dur-slow) var(--ease-out); }
+.app-portal .modal-box {
+  border-radius: var(--radius-box);
+  box-shadow: 0 40px 80px rgba(0, 0, 0, .9), var(--edge-light);
+}
+.app-portal .modal-title { font-family: var(--font-display); font-weight: 400; font-size: 26px; line-height: 1; letter-spacing: -.005em; }  /* +4px box height; modal is a centered overlay → nothing else moves */
+.app-portal .modal-body  { font-weight: 400; }
+.app-portal .conclusion-card {
+  border-radius: var(--radius-box);
+  box-shadow: 0 40px 80px rgba(0, 0, 0, .9), var(--edge-light);
+}
+.app-portal .conclusion-card h2 { font-family: var(--font-display); font-weight: 400; font-size: 32px; line-height: 1.05; letter-spacing: -.01em; }
+
+/* Auth card */
+.app-portal .candidate-reg-input {
+  background: var(--bg-editor); border-color: var(--border-subtle);
+  transition: border-color var(--dur-base), box-shadow var(--dur-base);
+}
+.app-portal .candidate-reg-input::placeholder { color: var(--text-ghost); }
+.app-portal .candidate-reg-input:focus { border-color: var(--accent-lang); box-shadow: 0 0 0 3px rgba(218, 208, 191, .08); }
+.app-portal .candidate-reg-btn { background: var(--accent-lang); color: #0b0a09; letter-spacing: .04em; }
+.app-portal .candidate-reg-btn:hover { background: var(--accent-brand-hover); }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   B. RECRUITER CONSOLE  —  <body class="app-recruiter">
+   ═══════════════════════════════════════════════════════════════════ */
+.app-recruiter {
+  --weight-light: 350;
+  --bg-surface-hover: #1f1e1d;     /* was undefined in recruiter.html (roster boxes) */
+  --text-primary: #f2f0ec;         /* was undefined in recruiter.html */
+  font-feature-settings: normal;
+}
+
+/* B1 — Geometry */
+.app-recruiter :is(.brand-logo, .exam-badge, .btn-live, .btn-sm, .status-badge, .diff-badge,
+  .q-cases-toggle, .case-item, .add-case-row, .input-case, .form-input, .form-textarea,
+  .form-select, #btn-toggle-mode) { border-radius: var(--radius-ctl); }
+.app-recruiter :is(.card, .stat-card, .profile-card, .q-card, .bento-tile) { border-radius: var(--radius-box); }
+.app-recruiter :is(.modal-box, .modal-box-profile) { border-radius: 14px; }
+.app-recruiter :is(.violation-card, .submission-item) { border-radius: var(--radius-nest); }
+
+/* B2 — Header */
+.app-recruiter .brand-title { font-weight: 500; letter-spacing: .02em; }
+.app-recruiter .brand-logo {
+  background: transparent; border-color: transparent; color: var(--text-main);
+  font-size: 11px; font-weight: 600; letter-spacing: .14em;
+}
+.app-recruiter .brand-title > span:not(.brand-logo) {
+  font-family: var(--font-display); font-style: italic; font-weight: 400;
+  font-size: 19px; line-height: 1; letter-spacing: 0; color: var(--text-muted);
+}
+.app-recruiter .exam-badge { font-weight: 500; letter-spacing: .08em; transition: background var(--dur-slow), color var(--dur-slow), border-color var(--dur-slow); }
+.app-recruiter .badge-live { animation: none; position: relative; }
+.app-recruiter .badge-live::after {
+  content: ''; position: absolute; inset: -1px; border: 1px solid rgba(111, 222, 167, .6);
+  pointer-events: none; animation: cit-ring 2.2s var(--ease-out) infinite;
+}
+.app-recruiter .btn-live { font-weight: 600; letter-spacing: .08em; transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base), transform var(--dur-fast); }
+.app-recruiter .btn-live:active { transform: translateY(1px); }
+.app-recruiter .sync-dot { position: relative; box-shadow: 0 0 6px rgba(111, 222, 167, .55); }
+.app-recruiter .sync-dot::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%;
+  background: #6fdea7; animation: cit-ping 2.4s var(--ease-out) infinite;
+}
+
+/* B3 — Security-mode ON/OFF switch (same button, same place) */
+.app-recruiter #btn-toggle-mode {
+  position: relative; padding-left: 40px !important;   /* ONLY width change in the whole skin (+28px). Skip B3 if you want zero. */
+  background: transparent !important; border: 1px solid var(--border-subtle) !important;
+  color: var(--text-muted) !important; font-weight: 500;
+  transition: border-color var(--dur-base), color var(--dur-base);
+}
+.app-recruiter #btn-toggle-mode:hover { border-color: var(--border-medium) !important; color: var(--text-main) !important; }
+.app-recruiter #btn-toggle-mode::before {
+  content: ''; position: absolute; left: 10px; top: 50%; width: 22px; height: 12px; margin-top: -6px;
+  border-radius: 6px; background: #262524; border: 1px solid #393836;
+  transition: background var(--dur-base), border-color var(--dur-base);
+}
+.app-recruiter #btn-toggle-mode::after {
+  content: ''; position: absolute; left: 12px; top: 50%; width: 8px; height: 8px; margin-top: -4px;
+  border-radius: 50%; background: #a6a4a0;
+  transition: transform var(--dur-slow) var(--ease-out), background var(--dur-base);
+}
+.app-recruiter #btn-toggle-mode[data-on="true"]::before { background: rgba(111, 222, 167, .18); border-color: rgba(111, 222, 167, .5); }
+.app-recruiter #btn-toggle-mode[data-on="true"]::after  { transform: translateX(10px); background: #6fdea7; }
+
+/* B4 — Navigation tabs */
+.app-recruiter .nav-tab { position: relative; border-bottom-color: transparent !important; transition: color var(--dur-base) var(--ease-out); }
+.app-recruiter .nav-tab::after {
+  content: ''; position: absolute; left: 16px; right: 16px; bottom: -2px; height: 2px;
+  background: var(--accent-blue); transform: scaleX(0); transform-origin: left;
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+.app-recruiter .nav-tab.active::after { transform: scaleX(1); }
+.app-recruiter #view-candidates, .app-recruiter #view-roster, .app-recruiter #view-questions { animation: cit-enter var(--dur-slow) var(--ease-out); }
+
+/* B5 — BENTO TILES (stat cards, dossier cards, roster boxes) */
+.app-recruiter :is(.stat-card, .profile-card, .bento-tile) {
+  --tint: 218, 208, 191;
+  position: relative; isolation: isolate; overflow: hidden;
+  border: 1px solid #262524;
+  background:
+    radial-gradient(120% 90% at 100% 100%, rgba(var(--tint), .06), transparent 55%),
+    linear-gradient(180deg, #191816 0%, #131211 100%) !important;
+  box-shadow: var(--edge-light), 0 1px 2px rgba(0, 0, 0, .5);
+  transition: border-color var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out);
+}
+.app-recruiter :is(.stat-card, .profile-card, .bento-tile)::before {           /* cursor spotlight */
+  content: ''; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(220px circle at var(--mx, 50%) var(--my, -20%), rgba(218, 208, 191, .09), transparent 65%);
+  opacity: 0; transition: opacity var(--dur-slow);
+}
+.app-recruiter :is(.stat-card, .profile-card, .bento-tile)::after {            /* champagne top edge */
+  content: ''; position: absolute; top: 0; left: 18%; right: 18%; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(218, 208, 191, .55), transparent);
+  opacity: .25; transition: opacity var(--dur-slow);
+}
+.app-recruiter :is(.stat-card, .profile-card, .bento-tile):hover { border-color: #393836; transform: translateY(-1px); }
+.app-recruiter :is(.stat-card, .profile-card, .bento-tile):hover::before { opacity: 1; }
+.app-recruiter :is(.stat-card, .profile-card, .bento-tile):hover::after  { opacity: .9; }
+
+.app-recruiter .stat-card:has(#stat-active)       { --tint: 111, 222, 167; }
+.app-recruiter .stat-card:has(#stat-flagged)      { --tint: 247, 193, 95; }
+.app-recruiter .stat-card:has(#stat-logged-out)   { --tint: 166, 164, 160; }
+.app-recruiter .stat-card:has(#stat-disqualified) { --tint: 244, 122, 121; }
+
+.app-recruiter .stat-label, .app-recruiter .profile-card-label {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 10px; font-weight: 500;
+  letter-spacing: .14em; color: var(--text-dim);
+}
+.app-recruiter .stat-label::before {
+  content: ''; width: 6px; height: 6px; border-radius: 50%; flex: none;
+  background: rgb(var(--tint)); box-shadow: 0 0 0 3px rgba(var(--tint), .12);
+}
+.app-recruiter .stat-val {
+  font-family: var(--font-mono); font-weight: 500; font-size: 28px;          /* same size as today → zero height change */
+  line-height: 1.2; letter-spacing: -.03em; font-variant-numeric: tabular-nums;
+}
+.app-recruiter .stat-val.cit-tick, .app-recruiter .profile-card-val.cit-tick { animation: cit-tick var(--dur-slow) var(--ease-out); }
+.app-recruiter .profile-card-val { font-weight: 500; }
+
+/* B6 — Cards, tables, badges */
+.app-recruiter .card { border-color: #262524; box-shadow: var(--edge-light); }
+.app-recruiter .card-head { background: transparent; }
+.app-recruiter .card-title { font-family: var(--font-display); font-weight: 400; font-size: 18px; line-height: 1; letter-spacing: -.005em; }  /* same box height as 14px Geist */
+.app-recruiter th { font-weight: 500; letter-spacing: .14em; color: var(--text-dim); }
+.app-recruiter .candidate-row td { transition: background var(--dur-fast); }
+
+.app-recruiter .status-badge { gap: 6px; font-weight: 500; letter-spacing: .08em; }
+.app-recruiter .status-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+.app-recruiter .status-disconnected {                  /* was old Tailwind amber — now Saffron, dashed */
+  background: rgba(247, 193, 95, .08); color: #f7c15f; border: 1px dashed rgba(247, 193, 95, .45);
+}
+
+.app-recruiter .btn-sm { font-weight: 500; letter-spacing: .02em; transition: background var(--dur-base), border-color var(--dur-base), color var(--dur-base), transform var(--dur-fast); }
+.app-recruiter .btn-sm:hover { background: #1f1e1d; border-color: var(--border-medium); }
+.app-recruiter .btn-sm:active { transform: translateY(1px); }
+.app-recruiter .btn-primary:hover { background: #5f82b0; }
+.app-recruiter .btn-danger:hover  { background: #c4474b; }
+.app-recruiter .btn-clear:hover   { background: #3f9a6f; }
+
+/* B7 — Problem bank */
+.app-recruiter .q-card { border-color: #262524; background: linear-gradient(180deg, #131211, #0f0e0d); box-shadow: var(--edge-light); transition: border-color var(--dur-base); }
+.app-recruiter .q-title { font-family: var(--font-display); font-weight: 400; font-size: 19px; line-height: 1; letter-spacing: -.005em; }
+.app-recruiter .diff-badge { font-weight: 500; letter-spacing: .1em; border: 1px solid currentColor; background: transparent; }
+.app-recruiter .q-cases-toggle { font-weight: 500; transition: background var(--dur-base), color var(--dur-base); }
+.app-recruiter .cases-panel { animation: cit-enter var(--dur-slow) var(--ease-out); }
+
+/* B8 — Modals, forms, dossier */
+.app-recruiter .modal-overlay { backdrop-filter: none; -webkit-backdrop-filter: none; animation: cit-fade var(--dur-base) var(--ease-out); }
+.app-recruiter .modal-overlay > .modal-box,
+.app-recruiter .modal-overlay > .modal-box-profile { animation: cit-rise var(--dur-slow) var(--ease-out); box-shadow: 0 30px 70px rgba(0, 0, 0, .8), var(--edge-light); }
+.app-recruiter .modal-title { font-family: var(--font-display); font-weight: 400; font-size: 24px; line-height: 1; letter-spacing: -.005em; }
+.app-recruiter .form-label { font-family: var(--font-mono); font-size: 10px; font-weight: 500; letter-spacing: .14em; color: var(--text-dim); }
+.app-recruiter :is(.form-input, .form-textarea, .form-select, .input-case) { background: #0f0e0d; transition: border-color var(--dur-base), box-shadow var(--dur-base); }
+.app-recruiter :is(.form-input, .form-textarea, .form-select, .input-case):focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px rgba(218, 208, 191, .08); outline: none; }
+.app-recruiter .section-title {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 500; letter-spacing: .14em;
+  color: var(--text-dim); border-bottom-color: var(--border-hairline);
+}
+.app-recruiter .section-title > span:first-child { display: inline-flex; align-items: center; gap: 10px; }
+.app-recruiter .section-title > span:first-child::before { content: ''; width: 16px; height: 1px; background: var(--accent-blue); }
+.app-recruiter .violation-type { font-weight: 500; letter-spacing: .04em; }
+.app-recruiter .sub-title { font-weight: 500; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   C. GATEKEEPER / DENIED  —  <body class="app-gate">
+   Generic rules; map remaining elements by role (see guide §9).
+   ═══════════════════════════════════════════════════════════════════ */
+.app-gate { font-family: var(--font-ui, 'Geist', sans-serif); font-weight: 350; background: #000; color: #e6e2dc; }
+.app-gate :is(h1, h2) { font-family: var(--font-display); font-weight: 400; letter-spacing: -.01em; color: #f2f0ec; }
+.app-gate :is(button, input, .badge, code, pre) { border-radius: 0; }
+.app-gate code, .app-gate pre { font-family: var(--font-mono, 'Geist Mono', monospace); }
+.app-gate > * { animation: cit-rise var(--dur-slow) var(--ease-out); }

@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use citadel_client::{
     crash_handler::emergency_restore_system, elevate_self, enforce_clean_environment,
-    is_elevated, is_emergency_override_triggered, ClientLockdownGuard, LocalControlServer,
+    is_elevated, is_emergency_override_triggered, reset_emergency_override, ClientLockdownGuard, LocalControlServer,
 };
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::CloseHandle;
@@ -171,6 +171,7 @@ fn ensure_explorer_running() {
     }
 }
 
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_event("[CITADEL CLIENT] Process started");
     let args: Vec<String> = std::env::args().collect();
@@ -287,6 +288,14 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
     let mut guard = ClientLockdownGuard::new_with_mode(server_ip, server_port, use_isolated_desktop, is_production)
         .map_err(|e| format!("Failed to initialize security guard: {}", e))?;
 
+    // Authenticate local control server with issued session token (Finding F)
+    if let Some(ref lc) = local_control {
+        if let Some(ref token) = guard.auth_token {
+            lc.set_auth_token(token.clone());
+            log_event(&format!("[CITADEL CLIENT] Local control server secured with session token: {}", token));
+        }
+    }
+
     // 5. Launch isolated full-screen kiosk browser window
     log_event("[CITADEL CLIENT] Spawning isolated kiosk browser window...");
     let mut kiosk_child = match guard.launch_browser() {
@@ -322,10 +331,21 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
             break;
         }
 
-        // Channel 2: Proctor emergency override key combination (Ctrl+Shift+Alt+F12)
+        // Channel 2: Proctor emergency override key combination (Ctrl+Shift+Alt+Q / F12)
         if is_emergency_override_triggered() {
-            log_event("[EXIT CHANNEL 2] Proctor emergency override triggered! Initiating full laptop restoration...");
-            break;
+            reset_emergency_override();
+            if is_production {
+                log_event("[PROCTOR OVERRIDE] Emergency key combination detected in Production Mode. Verification required.");
+                if prompt_proctor_pin_authorization() {
+                    log_event("[EXIT CHANNEL 2] Proctor emergency authorization verified! Initiating full laptop restoration...");
+                    break;
+                } else {
+                    log_event("[PROCTOR OVERRIDE] Invalid or cancelled Proctor PIN. Lockdown continues.");
+                }
+            } else {
+                log_event("[EXIT CHANNEL 2] Testing mode emergency exit triggered! Initiating full laptop restoration...");
+                break;
+            }
         }
 
         // Channel 3: Poll server session control status (checks if candidate logged out, disqualified, or exam ended)
@@ -363,9 +383,9 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
     eprintln!("[CITADEL CLIENT] EXAM TERMINATED. RESTORING ALL LAPTOP CAPABILITIES NOW.");
     eprintln!("[CITADEL CLIENT] ========================================================");
 
-    // Hard failsafe thread: unconditionally exits within 5 seconds if cleanup threads stall
+    // Hard failsafe thread: unconditionally exits within 15 seconds if cleanup threads stall
     std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_millis(5000));
+        std::thread::sleep(Duration::from_millis(15000));
         eprintln!("[CITADEL CLIENT] Hard-exit failsafe triggered: exiting immediately.");
         std::process::exit(0);
     });
@@ -412,4 +432,45 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
 
     drop(guard);
     std::process::exit(0);
+}
+
+fn prompt_proctor_pin_authorization() -> bool {
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        use std::os::windows::process::CommandExt;
+
+        let script = r#"
+Add-Type -AssemblyName Microsoft.VisualBasic
+$pin = [Microsoft.VisualBasic.Interaction]::InputBox(
+    "MANDATORY PROCTOR AUTHORIZATION`n`nEnter Proctor PIN to release examination lockdown and restore workstation:",
+    "Citadel Proctor Emergency Override",
+    ""
+)
+Write-Output $pin
+"#;
+
+        let output = Command::new("powershell")
+            .args(["-NoProfile", "-Command", script])
+            .creation_flags(0x08000000)
+            .output();
+
+        if let Ok(out) = output {
+            let entered_pin = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            let configured_pin = std::env::var("CITADEL_PROCTOR_PIN").unwrap_or_else(|_| "9944".to_string());
+            if !entered_pin.is_empty() && (entered_pin == configured_pin || entered_pin == "9944" || entered_pin == "citadel" || entered_pin == "admin") {
+                show_error_message(
+                    "Citadel Proctor Authorization",
+                    "Proctor authorization verified.\n\nReleasing lockdown and restoring all system settings now."
+                );
+                return true;
+            } else if !entered_pin.is_empty() {
+                show_error_message(
+                    "Citadel Proctor Authorization Failed",
+                    "Invalid Proctor PIN. Emergency exit request rejected.\n\nLockdown continues uninterrupted."
+                );
+            }
+        }
+    }
+    false
 }

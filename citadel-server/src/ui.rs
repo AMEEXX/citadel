@@ -20,6 +20,15 @@ pub fn render_admin_denied_html() -> &'static str {
     include_str!("../templates/denied.html")
 }
 
-pub fn render_gatekeeper_html() -> &'static str {
-    include_str!("../templates/gatekeeper.html")
+pub fn render_gatekeeper_html(is_production: bool) -> String {
+    let raw = include_str!("../templates/gatekeeper.html");
+    if is_production {
+        // In Production Mode, remove the testing-mode bypass link entirely
+        raw.replace(
+            r#"<a href="/exam" class="direct-link">Launch Web Assessment Directly (Testing Mode) &rarr;</a>"#,
+            r#"<div style="margin-bottom: 20px;"></div>"#,
+        )
+    } else {
+        raw.to_string()
+    }
 }

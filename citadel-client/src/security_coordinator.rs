@@ -166,10 +166,16 @@ pub fn perform_client_handshake(server_ip: Ipv4Addr, server_port: u16, is_produc
     let _ = stream.set_read_timeout(Some(Duration::from_millis(1500)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(1500)));
 
+    let elevated = is_elevated();
     let body = format!(
-        r#"{{"client_version":"0.2.0","machine_guid":null,"mode":"{}","is_elevated":{}}}"#,
+        r#"{{"client_version":"0.2.0","machine_guid":null,"mode":"{}","is_elevated":{},"elevation_proof":{}}}"#,
         if is_production { "production" } else { "testing" },
-        is_elevated()
+        elevated,
+        if elevated {
+            format!("\"citadel-elevated-{:x}\"", (std::process::id() as u64) ^ 0x0ace11ed)
+        } else {
+            "null".to_string()
+        }
     );
 
     let req = format!(
@@ -230,6 +236,9 @@ impl ClientLockdownGuard {
         let bluetooth_lock = Some(BluetoothLock::acquire());
         eprintln!("[CITADEL CLIENT] Host desktop protection active: Primary desktop registry policies preserved.");
 
+        // Set active mode in hotkey_lock module
+        crate::hotkey_lock::set_production_mode(is_production);
+
         // === 2. ALWAYS install system-wide low-level keyboard hook immediately ===
         let hotkey_handle = match install_hotkey_lock() {
             Ok(hk) => {
@@ -237,8 +246,14 @@ impl ClientLockdownGuard {
                 Some(hk)
             }
             Err(e) => {
-                eprintln!("[CITADEL CLIENT] Warning: Keyboard hook failed: {}", e);
-                None
+                if is_production {
+                    let err_msg = format!("MANDATORY SECURITY ENFORCEMENT: Failed to install low-level keyboard suppression hook in Production Mode: {}. Aborting startup.", e);
+                    eprintln!("[CITADEL CLIENT FATAL] {}", err_msg);
+                    return Err(err_msg);
+                } else {
+                    eprintln!("[CITADEL CLIENT] Warning: Keyboard hook failed: {}", e);
+                    None
+                }
             }
         };
 
@@ -366,7 +381,7 @@ impl ClientLockdownGuard {
         }
 
         // Start process watchdog for forbidden cheat tools
-        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone()));
+        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone(), self.is_production));
 
         // Start background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
         let stop_clone = self.stop_signal.clone();

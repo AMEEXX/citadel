@@ -1,0 +1,12 @@
+{
+  "name": "citadel-design",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "archify": "node scripts/sync-archify.mjs",
+    "archify:sync": "node scripts/sync-archify.mjs",
+    "archify:check": "node .agents/skills/archify/bin/archify.mjs check .archify/citadel-architecture.html",
+    "archify:doctor": "node .agents/skills/archify/bin/archify.mjs doctor"
+  }
+}

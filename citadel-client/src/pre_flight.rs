@@ -29,85 +29,7 @@ pub struct DetectedApplication {
     pub display_name: String,
 }
 
-pub const PROHIBITED_PROCESSES: &[&str] = &[
-    // Web Browsers (foreign instances to be terminated prior to kiosk launch)
-    "chrome.exe",
-    "firefox.exe",
-    "brave.exe",
-    "opera.exe",
-    "opera_gx.exe",
-    "vivaldi.exe",
-    "tor.exe",
-    "msedge.exe",
-    "edge.exe",
-    "iexplore.exe",
-    "arc.exe",
-    "chromium.exe",
-    "waterfox.exe",
-    "librewolf.exe",
-
-    // Text Editors, IDEs, & Office Suites
-    "notepad.exe",
-    "notepad++.exe",
-    "sublime_text.exe",
-    "code.exe",
-    "cursor.exe",
-    "atom.exe",
-    "wordpad.exe",
-    "winword.exe",
-    "excel.exe",
-    "powerpnt.exe",
-    "onenote.exe",
-    "onenotem.exe",
-
-    // Screenshot, Snipping, & Screen Capture Tools
-    "snippingtool.exe",
-    "screenclippinghost.exe",
-    "snippingtoolapp.exe",
-    "greenshot.exe",
-    "flameshot.exe",
-    "sharex.exe",
-    "lightshot.exe",
-    "snagit.exe",
-    "snagit32.exe",
-    "picpick.exe",
-    "gyazo.exe",
-    "screentogif.exe",
-    "capture.exe",
-    "obs64.exe",
-    "obs32.exe",
-
-    // Communication & Collaboration
-    "discord.exe",
-    "slack.exe",
-    "telegram.exe",
-    "whatsapp.exe",
-    "whatsapp.root.exe",
-    "teams.exe",
-    "skype.exe",
-    "signal.exe",
-    "zoom.exe",
-    "superhuman.webui.exe",
-
-    // Remote Desktop & Screen Sharing
-    "teamviewer.exe",
-    "anydesk.exe",
-    "rustdesk.exe",
-    "vncviewer.exe",
-    "ultraviewer.exe",
-    "parsec.exe",
-    "mstsc.exe",
-    "msrdc.exe",
-
-    // AI Runners, Cheats, & Background Helpers
-    "ollama.exe",
-    "lmstudio.exe",
-    "chatgpt.exe",
-    "grammarly.desktop.exe",
-    "wispr flow.exe",
-    "cheatengine.exe",
-    "cheatengine-x86_64.exe",
-];
+pub use crate::policy::PROHIBITED_PROCESSES;
 
 fn show_dialog(title: &str, message: &str, style: MESSAGEBOX_STYLE) -> windows::Win32::UI::WindowsAndMessaging::MESSAGEBOX_RESULT {
     let wide_title: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
@@ -156,7 +78,7 @@ pub fn get_pid_to_exe_map() -> HashMap<u32, String> {
 struct DesktopEnumContext {
     pid_to_exe: HashMap<u32, String>,
     own_pid: u32,
-    is_production: bool,
+    policy: crate::policy::LockdownPolicy,
     detected: HashSet<DetectedApplication>,
 }
 
@@ -259,33 +181,20 @@ unsafe extern "system" fn enum_desktop_windows_proc(hwnd: HWND, lparam: LPARAM) 
         return BOOL(1);
     }
 
-    // In Testing Mode, preserve developer tools and WSL components
-    if !ctx.is_production {
-        let is_dev_tool = exe_lower.contains("antigravity")
-            || title_lower.contains("antigravity")
-            || exe_lower.contains("cargo")
-            || exe_lower.contains("rustc")
-            || exe_lower.contains("powershell")
-            || exe_lower.contains("cmd.exe")
-            || exe_lower.contains("wsl")
-            || exe_lower.contains("msrdc");
-        if is_dev_tool {
-            return BOOL(1);
-        }
+    // Check against unified policy
+    if !ctx.policy.is_process_allowed(&exe_name, Some(&title), pid, ctx.own_pid, &HashSet::new()) {
+        let display_title = if title.len() > 40 {
+            format!("{}...", &title[..37])
+        } else {
+            title
+        };
+
+        ctx.detected.insert(DetectedApplication {
+            pid,
+            exe_name: exe_name.clone(),
+            display_name: format!("{} (\"{}\")", exe_name, display_title),
+        });
     }
-
-    // Visible, non-system window detected
-    let display_title = if title.len() > 40 {
-        format!("{}...", &title[..37])
-    } else {
-        title
-    };
-
-    ctx.detected.insert(DetectedApplication {
-        pid,
-        exe_name: exe_name.clone(),
-        display_name: format!("{} (\"{}\")", exe_name, display_title),
-    });
 
     BOOL(1)
 }
@@ -311,7 +220,7 @@ pub fn scan_running_applications(own_pid: u32, is_production: bool) -> Vec<Detec
             let mut ctx = DesktopEnumContext {
                 pid_to_exe: pid_to_exe.clone(),
                 own_pid,
-                is_production,
+                policy: crate::policy::LockdownPolicy::new(is_production),
                 detected: HashSet::new(),
             };
 
@@ -328,45 +237,24 @@ pub fn scan_running_applications(own_pid: u32, is_production: bool) -> Vec<Detec
         }
     }
 
-    // Layer 2: Deep Toolhelp32 process snapshot against known prohibited background processes
+    // Fail-safe check in Production Mode (Finding B): treat process enumeration failure as error!
+    if is_production && pid_to_exe.is_empty() {
+        detected_set.insert(DetectedApplication {
+            pid: 0,
+            exe_name: "PROCESS_ENUMERATION_FAILURE".to_string(),
+            display_name: "FATAL: System process snapshot failed. Cannot verify workstation clean.".to_string(),
+        });
+    }
+
+    // Layer 2: Deep Toolhelp32 process snapshot against unified policy
+    let policy = crate::policy::LockdownPolicy::new(is_production);
     for (&pid, exe_name) in &pid_to_exe {
-        if pid == own_pid {
-            continue;
-        }
-
-        let exe_lower = exe_name.to_lowercase();
-
-        // Citadel internal exemption
-        if exe_lower.contains("citadel")
-            || exe_lower.contains("recovery")
-            || exe_lower.contains("msedgewebview2")
-        {
-            continue;
-        }
-
-        // Developer exemption in testing mode (WSL, Antigravity, Cargo, Rustc, Shells)
-        if !is_production {
-            let is_dev_tool = exe_lower.contains("antigravity")
-                || exe_lower.contains("cargo")
-                || exe_lower.contains("rustc")
-                || exe_lower.contains("powershell")
-                || exe_lower.contains("cmd.exe")
-                || exe_lower.contains("wsl")
-                || exe_lower.contains("msrdc");
-            if is_dev_tool {
-                continue;
-            }
-        }
-
-        for &prohibited in PROHIBITED_PROCESSES {
-            if exe_lower == prohibited || (exe_lower.contains(prohibited) && !exe_lower.contains("msedgewebview2")) {
-                detected_set.insert(DetectedApplication {
-                    pid,
-                    exe_name: exe_name.clone(),
-                    display_name: format!("{} (PID: {})", exe_name, pid),
-                });
-                break;
-            }
+        if !policy.is_process_allowed(exe_name, None, pid, own_pid, &HashSet::new()) {
+            detected_set.insert(DetectedApplication {
+                pid,
+                exe_name: exe_name.clone(),
+                display_name: format!("{} (PID: {})", exe_name, pid),
+            });
         }
     }
 
@@ -493,7 +381,8 @@ Please open Task Manager or check your taskbar, close them now, and click 'OK' t
         let result = show_dialog("CITADEL Security Verification Required", &warn_msg, MB_OKCANCEL | MB_ICONWARNING);
 
         if result == IDCANCEL {
-            eprintln!("[PRE-FLIGHT] Candidate clicked Cancel. Aborting pre-flight safely. Returning to desktop.");
+            eprintln!("[PRE-FLIGHT] Candidate clicked Cancel. Aborting pre-flight safely. Restoring Bluetooth service.");
+            let _ = Command::new("net").args(["start", "bthserv"]).creation_flags(0x08000000).output();
             return false;
         }
 

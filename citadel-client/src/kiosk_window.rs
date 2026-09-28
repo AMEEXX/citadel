@@ -368,6 +368,7 @@ impl ProcessWatchdog {
     pub fn start(
         violations: Arc<Mutex<Vec<String>>>,
         kiosk_pids: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+        is_production: bool,
     ) -> Self {
         let stop_signal = Arc::new(AtomicBool::new(false));
         let stop_clone = stop_signal.clone();
@@ -376,7 +377,7 @@ impl ProcessWatchdog {
 
         let thread_handle = thread::spawn(move || {
             while !stop_clone.load(Ordering::Relaxed) {
-                Self::scan_and_terminate(&viol_clone, &pids_clone);
+                Self::scan_and_terminate(&viol_clone, &pids_clone, is_production);
                 thread::sleep(Duration::from_millis(1000));
             }
         });
@@ -391,6 +392,7 @@ impl ProcessWatchdog {
     fn scan_and_terminate(
         violations: &Arc<Mutex<Vec<String>>>,
         kiosk_pids: &Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+        is_production: bool,
     ) {
         let own_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
         let protected_pids: std::collections::HashSet<u32> = {
@@ -401,6 +403,9 @@ impl ProcessWatchdog {
             let seeds: Vec<u32> = p.into_iter().collect();
             find_all_descendants(&seeds).into_iter().collect()
         };
+
+        let policy = crate::policy::LockdownPolicy::new(is_production);
+        let mut active_unauthorized = Vec::new();
 
         unsafe {
             let snapshot = match CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
@@ -415,49 +420,35 @@ impl ProcessWatchdog {
                 loop {
                     let pid = entry.th32ProcessID;
 
-                    // CRITICAL: NEVER terminate own process or ANY process belonging to the Citadel kiosk browser
-                    if pid == own_pid || protected_pids.contains(&pid) {
-                        if Process32NextW(snapshot, &mut entry).is_err() {
-                            break;
-                        }
-                        continue;
-                    }
-
                     let exe_name = String::from_utf16_lossy(&entry.szExeFile)
                         .trim_matches(char::from(0))
-                        .to_lowercase();
+                        .to_string();
 
-                    // Whitelist: never terminate recovery utilities, citadel tools, or webview2
-                    if exe_name.contains("recovery")
-                        || exe_name.contains("citadel")
-                        || exe_name.contains("msedgewebview2")
-                        || exe_name.contains("wsl")
-                        || exe_name.contains("antigravity")
-                    {
-                        if Process32NextW(snapshot, &mut entry).is_err() {
-                            break;
-                        }
-                        continue;
-                    }
+                    if !policy.is_process_allowed(&exe_name, None, pid, own_pid, &protected_pids) {
+                        eprintln!("[SECURITY VIOLATION] Unauthorized cheat tool / process detected: {} (PID: {})", exe_name, pid);
 
-                    for &banned in BLACKLISTED_PROCESSES {
-                        // Never kill msedge if it belongs to protected kiosk processes (already checked above, but extra safeguard)
-                        if (banned == "msedge.exe" || banned == "edge.exe") && protected_pids.contains(&pid) {
-                            continue;
+                        // Attempt automatic termination
+                        let mut terminated = false;
+                        if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+                            if TerminateProcess(hproc, 1).is_ok() {
+                                terminated = true;
+                            }
+                            let _ = CloseHandle(hproc);
                         }
 
-                        if exe_name == banned || (exe_name.contains(banned) && !exe_name.contains("msedgewebview2")) {
-                            eprintln!("[SECURITY VIOLATION] Unauthorized cheat tool detected: {} (PID: {})", exe_name, pid);
-
+                        if terminated {
+                            eprintln!("[SECURITY WATCHDOG] Successfully terminated unauthorized process: {} (PID: {})", exe_name, pid);
                             if let Ok(mut v_lock) = violations.lock() {
-                                v_lock.push(format!("VIOLATION blacklisted_process name=\"{}\" pid={}", exe_name, pid));
+                                v_lock.push(format!("VIOLATION terminated_process name=\"{}\" pid={}", exe_name, pid));
                             }
-
-                            if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, pid) {
-                                let _ = TerminateProcess(hproc, 1);
-                                let _ = CloseHandle(hproc);
+                        } else {
+                            eprintln!("[CRITICAL SECURITY WATCHDOG] FAILED to terminate unauthorized process: {} (PID: {})", exe_name, pid);
+                            if let Ok(mut v_lock) = violations.lock() {
+                                v_lock.push(format!("CRITICAL_VIOLATION active_unauthorized name=\"{}\" pid={}", exe_name, pid));
                             }
-                            break;
+                            if is_production {
+                                active_unauthorized.push(format!("{} (PID: {})", exe_name, pid));
+                            }
                         }
                     }
 
@@ -467,6 +458,23 @@ impl ProcessWatchdog {
                 }
             }
             let _ = CloseHandle(snapshot);
+        }
+
+        // Production runtime gate (Finding C):
+        // If an unauthorized process cannot be terminated, block exam progress
+        // until the candidate / environment is verified clean.
+        if is_production {
+            if !active_unauthorized.is_empty() {
+                crate::local_control::WORKSTATION_BLOCKED.store(true, Ordering::SeqCst);
+                if let Ok(mut reason) = crate::local_control::WORKSTATION_BLOCKED_REASON.lock() {
+                    *reason = active_unauthorized.join(", ");
+                }
+            } else {
+                crate::local_control::WORKSTATION_BLOCKED.store(false, Ordering::SeqCst);
+                if let Ok(mut reason) = crate::local_control::WORKSTATION_BLOCKED_REASON.lock() {
+                    reason.clear();
+                }
+            }
         }
     }
 }

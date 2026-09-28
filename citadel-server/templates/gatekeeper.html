@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700;800&family=Geist+Mono:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="preload" href="/static/fonts/Geist-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="/static/fonts/GeistMono-Variable.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/fonts/citadel-fonts.css">
   <title>CITADEL Exam Portal — Download Client</title>
   <style>
     :root {
@@ -151,8 +151,9 @@
     .inst li { margin-bottom: 4px; }
     .inst strong { color: #e6e2dc; font-weight: var(--weight-semibold); }
   </style>
+  <link rel="stylesheet" href="/static/citadel-skin.css">
 </head>
-<body>
+<body class="app-gate">
   <div class="card">
     <div class="logo-badge">CITADEL RUNTIME</div>
     <h1>CITADEL Assessment Appliance</h1>
