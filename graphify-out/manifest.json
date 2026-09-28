@@ -1,19 +1,19 @@
 {
   "guard-net/Cargo.toml": {
-    "mtime": 1790321785.8463335,
-    "seen": 1790609578.258435,
+    "mtime": 1790321785.8463333,
+    "seen": 1790609666.8663394,
     "ast_hash": "a9b068278037cc94c440e60e4fb9bad3",
     "semantic_hash": "a9b068278037cc94c440e60e4fb9bad3"
   },
   "guard-net/src/lib.rs": {
-    "mtime": 1790399894.1299486,
-    "seen": 1790609578.2584364,
+    "mtime": 1790399894.1299484,
+    "seen": 1790609666.8663402,
     "ast_hash": "1e168f6b0d4dc6b3024a41f502ec17a7",
     "semantic_hash": "1e168f6b0d4dc6b3024a41f502ec17a7"
   },
   "guard-net/tests/wfp_policy.rs": {
-    "mtime": 1790321831.4487758,
-    "seen": 1790609578.2584374,
+    "mtime": 1790321831.4487755,
+    "seen": 1790609666.8663409,
     "ast_hash": "846aa5b6f1221b54cb531533ef032e87",
     "semantic_hash": "846aa5b6f1221b54cb531533ef032e87"
   },
@@ -30,8 +30,8 @@
     "semantic_hash": "5372813394e9d3d21e44700663eef574"
   },
   "guard-verify/Cargo.toml": {
-    "mtime": 1790323993.0725024,
-    "seen": 1790609578.2984073,
+    "mtime": 1790323993.0725021,
+    "seen": 1790609666.8663478,
     "ast_hash": "7f0db8b7cb5319291d006f1170d54c15",
     "semantic_hash": "7f0db8b7cb5319291d006f1170d54c15"
   },
@@ -66,10 +66,10 @@
     "semantic_hash": "0af37be57f26314e27e88ff87e4aec48"
   },
   "03-LLD-lockdown-client.md": {
-    "mtime": 1790507410.850085,
-    "seen": 1790566807.6591787,
-    "ast_hash": "370b571d1706784e1c88ad2593b29aff",
-    "semantic_hash": "370b571d1706784e1c88ad2593b29aff"
+    "mtime": 1790609514.4232948,
+    "seen": 1790609666.866358,
+    "ast_hash": "f4308466731a55770b65192c94e2fb9e",
+    "semantic_hash": ""
   },
   "04-LLD-network-routing-and-lan.md": {
     "mtime": 1790502697.1820571,
@@ -78,10 +78,10 @@
     "semantic_hash": "d216d0143365739ebc7fda9eecf895dc"
   },
   "05-LLD-exam-appliance-and-api.md": {
-    "mtime": 1790502731.5964177,
-    "seen": 1790566807.6591835,
-    "ast_hash": "9ce67d4d421d74513670b64cca9275cf",
-    "semantic_hash": "9ce67d4d421d74513670b64cca9275cf"
+    "mtime": 1790609486.6430511,
+    "seen": 1790609666.8663595,
+    "ast_hash": "5fb1425b3ccf2908bb614529ec7e71dd",
+    "semantic_hash": ""
   },
   "06-LLD-judge-and-sandbox.md": {
     "mtime": 1790338880.6562312,
@@ -169,13 +169,13 @@
   },
   "Cargo.toml": {
     "mtime": 1790325257.6143327,
-    "seen": 1790566807.6590514,
-    "ast_hash": "",
+    "seen": 1790609666.8663135,
+    "ast_hash": "b3652d1498846fe3a3bb8554f2e7ac1a",
     "semantic_hash": ""
   },
   "guard-svc/Cargo.toml": {
-    "mtime": 1790399894.1299486,
-    "seen": 1790609578.2584388,
+    "mtime": 1790399894.1299484,
+    "seen": 1790609666.8663416,
     "ast_hash": "3951ab3ebe7537fd2d7747ca9fd4174c",
     "semantic_hash": "3951ab3ebe7537fd2d7747ca9fd4174c"
   },
@@ -186,8 +186,8 @@
     "semantic_hash": "8db37a1937ee4b233a9a986f3e7415e5"
   },
   "guard-svc/src/llm_detect.rs": {
-    "mtime": 1790399894.1299486,
-    "seen": 1790609578.2671945,
+    "mtime": 1790399894.1299484,
+    "seen": 1790609666.8663433,
     "ast_hash": "2ea3ac58d0289d27c06b846b89eec30e",
     "semantic_hash": "2ea3ac58d0289d27c06b846b89eec30e"
   },
@@ -198,8 +198,8 @@
     "semantic_hash": "e9b9d0275c6efd5fa74b14f103d6ea19"
   },
   "guard-svc/tests/injection_flag_check.rs": {
-    "mtime": 1790323911.586061,
-    "seen": 1790609578.2835972,
+    "mtime": 1790323911.5860608,
+    "seen": 1790609666.8663454,
     "ast_hash": "07c3c3e26421bfdd76a61d1ad0586bb0",
     "semantic_hash": "07c3c3e26421bfdd76a61d1ad0586bb0"
   },
@@ -234,14 +234,14 @@
     "semantic_hash": "6a47d64fcc136324ca395065a707ef76"
   },
   "citadel-server/Cargo.toml": {
-    "mtime": 1790324429.1053355,
-    "seen": 1790609578.236305,
+    "mtime": 1790324429.1053352,
+    "seen": 1790609666.8663304,
     "ast_hash": "c04bca764153dc5e9d70a4e9baa2af83",
     "semantic_hash": "c04bca764153dc5e9d70a4e9baa2af83"
   },
   "citadel-server/src/api.rs": {
-    "mtime": 1790608788.698177,
-    "seen": 1790609578.2363071,
+    "mtime": 1790608788.6981769,
+    "seen": 1790609666.866331,
     "ast_hash": "62a97d2408420fd49bc4e650e955e54a",
     "semantic_hash": "62a97d2408420fd49bc4e650e955e54a"
   },
@@ -264,8 +264,8 @@
     "semantic_hash": "2a916193bb97eb4d64e60af1d254b339"
   },
   "citadel-server/src/ui.rs": {
-    "mtime": 1790572267.1936347,
-    "seen": 1790609578.2520595,
+    "mtime": 1790572267.1936345,
+    "seen": 1790609666.8663354,
     "ast_hash": "4a1919c98f44342a8faa58abcdad2522",
     "semantic_hash": "4a1919c98f44342a8faa58abcdad2522"
   },
@@ -342,8 +342,8 @@
     "semantic_hash": "75b489a2a4fb952625eca830942ef589"
   },
   "citadel-client/src/crash_handler.rs": {
-    "mtime": 1790508413.668897,
-    "seen": 1790609578.1956484,
+    "mtime": 1790508413.6688967,
+    "seen": 1790609666.8663182,
     "ast_hash": "2d369ce17c5e49bdd4039b2a92e01b4b",
     "semantic_hash": "2d369ce17c5e49bdd4039b2a92e01b4b"
   },
@@ -396,10 +396,10 @@
     "semantic_hash": "9842fc7e283a8be009ddadc6a64ffccb"
   },
   "CITADEL_SECURITY_ARCHITECTURE.md": {
-    "mtime": 1790507344.366764,
-    "seen": 1790606814.7296884,
-    "ast_hash": "a6d944312150f4a1fda86c7b3d9720a6",
-    "semantic_hash": "a6d944312150f4a1fda86c7b3d9720a6"
+    "mtime": 1790609466.5971282,
+    "seen": 1790609666.8663688,
+    "ast_hash": "a1abfe994c3241b45f5bb36ec9b64f71",
+    "semantic_hash": ""
   },
   "GOLDEN_RULE_ARCHITECTURE.md": {
     "mtime": 1790391528.978088,
@@ -408,10 +408,10 @@
     "semantic_hash": "839e4298de6199d6719d3f2609d123a9"
   },
   "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md": {
-    "mtime": 1790507379.3490636,
-    "seen": 1790566807.6592214,
-    "ast_hash": "f182f37a646af2b33dc7de6490e49f04",
-    "semantic_hash": "f182f37a646af2b33dc7de6490e49f04"
+    "mtime": 1790609437.492602,
+    "seen": 1790609666.8663702,
+    "ast_hash": "faea9249c16e4c0ee5cf27870abf64a9",
+    "semantic_hash": ""
   },
   "citadel-server/templates/denied.html": {
     "mtime": 1790603580.1774926,
@@ -426,9 +426,9 @@
     "semantic_hash": ""
   },
   "citadel-server/templates/portal.html": {
-    "mtime": 1790603580.1774926,
-    "seen": 1790606814.7296925,
-    "ast_hash": "26d3816a20cc11c9c6a64af7f39002bb",
+    "mtime": 1790608886.122957,
+    "seen": 1790609666.8663733,
+    "ast_hash": "3f7bb6f26859fa26fa62dd114f6c02f2",
     "semantic_hash": ""
   },
   "citadel-server/templates/recruiter.html": {
@@ -438,8 +438,8 @@
     "semantic_hash": ""
   },
   "citadel-client/src/local_control.rs": {
-    "mtime": 1790608834.5373392,
-    "seen": 1790609578.2021573,
+    "mtime": 1790608834.537339,
+    "seen": 1790609666.8663223,
     "ast_hash": "3f071c3a8c746758be59013871c662fe",
     "semantic_hash": "3f071c3a8c746758be59013871c662fe"
   },
@@ -450,8 +450,8 @@
     "semantic_hash": "0d4bf428cc560c11c7db156f2461092a"
   },
   ".archify/citadel-architecture.browser-check.json": {
-    "mtime": 1790605329.2086256,
-    "seen": 1790609578.1595361,
+    "mtime": 1790605329.2086253,
+    "seen": 1790609666.8663034,
     "ast_hash": "450d4457727174ef5d60916af237e005",
     "semantic_hash": "450d4457727174ef5d60916af237e005"
   },
@@ -498,15 +498,15 @@
     "semantic_hash": "f5894e552ac82b01f4590f7290aaa145"
   },
   ".archify/citadel-architecture.html": {
-    "mtime": 1790605475.7964792,
-    "seen": 1790606814.7296736,
-    "ast_hash": "23fc943a38feaccc93ee248140de9eb2",
+    "mtime": 1790609547.8826933,
+    "seen": 1790609666.8663552,
+    "ast_hash": "3556c84e04d6922b58d78cbbe21aab08",
     "semantic_hash": ""
   },
   "citadel-server/static/citadel-architecture.html": {
-    "mtime": 1790605475.8366807,
-    "seen": 1790606814.7296903,
-    "ast_hash": "23fc943a38feaccc93ee248140de9eb2",
+    "mtime": 1790609547.9427185,
+    "seen": 1790609666.8663712,
+    "ast_hash": "3556c84e04d6922b58d78cbbe21aab08",
     "semantic_hash": ""
   }
 }
