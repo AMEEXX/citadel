@@ -640,3 +640,150 @@ To completely eliminate the possibility of unprivileged or degraded execution, C
      `{"client_version": "0.2.0", "mode": "production", "is_elevated": true}`.
    - In Production Mode, `citadel-server` strictly validates `is_elevated == true`. If missing or false, it rejects with `403 Forbidden` (`elevation_required`).
    - Ephemeral session tokens (`citadel-sess-*`) and exam access cookies are cryptographically denied to any non-elevated client.
+
+---
+
+## 14. 15-Minute Early Completion Enforcement in Production Mode
+
+### 14.1 Operational Threat & Integrity Rationale
+In high-stakes campus examinations, allowing candidates to exit prematurely introduces severe operational and security hazards:
+- **Hall Disturbance**: Students packing laptops, unplugging chargers, and moving through aisles disturb active candidates.
+- **Premature Information Leakage**: Early leavers can immediately access smartphones outside the exam hall and transmit question statements or solution patterns to confederates inside.
+- **Collusive Coordination**: In phased or rolling assessments, premature departures synchronize timing attacks across examination batches.
+
+### 14.2 Dual-Mode Architecture: Production vs. Testing
+CITADEL implements a dual-mode threshold engine:
+1. **Production Mode (`--production`)**:
+   - Hard lock enforced whenever remaining exam time exceeds 15 minutes (`remainingSeconds > 900`).
+   - If a candidate clicks **End Exam** before the 15-minute mark, the standard exit modal is completely suppressed.
+   - The UI displays the **Obsidian Atelier Early Exit Lockout Modal (`#modal-early-exit-locked`)**, rendering:
+     - Clear regulatory notice: *"Early submission is restricted. In accordance with examination regulations, candidates are not permitted to conclude the assessment until 15 minutes remain before the scheduled finish time."*
+     - Live **Total Remaining Exam Time** (e.g. `00h 48m 22s remaining`).
+     - Real-time **Countdown to Early Exit Unlock** (e.g. `Unlocks in: 00h 33m 22s`).
+   - **Defense-in-Depth Server Enforcement**: If a candidate attempts to bypass the client-side UI via JavaScript console manipulation or direct HTTP requests to `/api/v1/client/kill-all-lockdown` or `/api/v1/integrity/logout`, `citadel-server` strictly rejects the request with **`HTTP 403 Forbidden`** and logs an unauthorized early exit attempt.
+2. **Testing Mode (Default)**:
+   - Early exit is permitted at any time to allow frictionless grading, feature verification, and developer testing.
+   - Calling `/api/v1/client/kill-all-lockdown` returns `HTTP 200 OK` and cleanly releases the workstation.
+
+---
+
+## 15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion
+
+### 15.1 Threat Audit: The Premature Disqualification Escape Hole
+In traditional exam browsers, when a proctor flags or disqualifies a candidate, the software immediately terminates or exits to Windows. This creates a severe security vulnerability:
+- A disqualified student receives immediate access to their desktop, browser, and internet while peers in the same room are still actively taking the exam.
+- The student can take screenshots, broadcast answers, browse social media, or create noise in the exam hall.
+
+### 15.2 Invariant: Lockdown Persists Until Hall Exam Ends
+CITADEL enforces an absolute security invariant across **both Testing and Production Modes**:
+> **A disqualified candidate's workstation MUST remain in complete lockdown until the designated exam time concludes for ALL candidates in the hall.**
+
+```
+[Proctor / Watchdog Flags Candidate]
+                 │
+                 ▼
+  POST /api/v1/admin/candidates/:id/disqualify
+                 │
+                 ├── Sets CandidateState.status = "Disqualified"
+                 ├── Emits SSE alert to Recruiter Console
+                 ▼
+[Candidate Workstation Live Telemetry]
+                 │
+                 ▼
+  1. Active code editor & questions immediately unmounted
+  2. Full-screen #disqualified-overlay engages:
+     - Badge: "SESSION TERMINATED / CANDIDATE DISQUALIFIED"
+     - Candidate Identifier & Security Event Log
+     - Regulatory Notice: "LOCKDOWN ENFORCED UNTIL EXAM CONCLUSION"
+     - Real-time countdown timer to scheduled hall finish time
+  3. Win32 Low-Level Hooks (WH_KEYBOARD_LL) remain active
+  4. Alt+Tab, Windows keys, Task Manager, Explorer suppression remain active
+  5. Local Exit Controller (/api/v1/client/end-exam) enforces WORKSTATION_BLOCKED
+  6. Client Supervision Loop polls GET /api/v1/client/session-control -> should_exit: false
+                 │
+                 ▼
+[Scheduled Exam Concludes for All Candidates (or Proctor ends hall exam)]
+                 │
+                 ├── Server marks live.is_live = false (or elapsed >= total_duration)
+                 ├── GET /api/v1/client/session-control returns should_exit: true
+                 ▼
+[Workstation Automatically Drops Hooks, Restores Explorer, and Closes Kiosk Cleanly]
+```
+
+### 15.3 Server State Immutability
+To prevent bypass:
+- Calling `/api/v1/integrity/logout` on a disqualified candidate will **never** overwrite or clear the `"Disqualified"` state.
+- `GET /api/v1/client/session-control` inspects the candidate's persistent state. While `state.is_live` is true and remaining exam time is greater than 0, it returns `should_exit: false`.
+- The moment the proctor concludes the hall-wide exam (`POST /api/v1/admin/exam/stop-live`) or total exam duration finishes, `should_exit: true` is broadcast, allowing all locked workstations to safely release simultaneously.
+
+---
+
+## 16. High-DPI Per-Monitor v2 Manifest & Native Rendering Architecture
+
+### 16.1 Root Cause of Blurry "Zoom Call" UI
+Windows laptops in modern university campuses frequently operate at display scaling levels of 125%, 150%, or 200% (e.g. 1920x1080 on 14" panels or 4K on 15" panels). Without explicit Per-Monitor v2 DPI awareness declared in the Windows Application Manifest:
+- The Windows Desktop Window Manager (DWM) treats the application as non-DPI-aware or System-DPI-aware.
+- The OS renders the application at virtualized 96 DPI and stretches the resulting bitmap raster to the display resolution.
+- This creates blurry text, soft Monaco editor glyphs, and a pixelated visual appearance resembling a low-bandwidth video stream.
+
+### 16.2 Implementation: Manifest Per-Monitor v2 Integration
+CITADEL embeds a native Win32 application manifest via `winresource` in `citadel-client/build.rs`:
+```xml
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 10 & 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/pm</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2, PerMonitor</dpiAwareness>
+    </windowsSettings>
+  </application>
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
+    <security>
+      <requestedPrivileges>
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+</assembly>
+```
+With `PerMonitorV2`, the Edge Chromium kiosk engine and Win32 dialogs receive native display metrics, delivering crisp, razor-sharp typography and exact pixel rendering on all displays.
+
+---
+
+## 17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography
+
+### 17.1 Zero-Layout-Shift Position Contract
+To preserve muscle memory and avoid visual displacement during proctored exams:
+- All element positions, dimensions, layout hierarchies, and flex/grid flows remain identical.
+- Visual refinement is applied strictly across typography, surfaces, borders, shadows, and micro-interactions.
+
+### 17.2 Air-Gapped Typography Architecture
+External font dependencies (e.g., `fonts.googleapis.com`) fail catastrophically in air-gapped exam environments where the zero-internet WFP firewall drops all public WAN traffic.
+- All web fonts have been replaced with self-hosted, offline static assets bundled directly into the Citadel Server binary:
+  - `/static/fonts/citadel-fonts.css`
+  - `/static/fonts/Geist-Variable.woff2` (primary interface typography)
+  - `/static/fonts/GeistMono-Variable.woff2` (monospace code & editor typography)
+- Assets are served with immutable caching (`Cache-Control: public, max-age=31536000`), guaranteeing instant sub-millisecond local loading under full offline conditions.
+
+---
+
+## 18. Roster Synchronization & Resilient Session Resumption Engine
+
+### 18.1 Proctor Roster Management
+The appliance supports automated candidate enrollment via `roster.csv`:
+- Endpoints: `POST /api/v1/admin/roster/upload`, `POST /api/v1/admin/roster/add`, `GET /api/v1/admin/roster`, and `DELETE /api/v1/admin/roster/:roll`.
+- In-memory state synchronized atomically to disk (`roster.json`).
+- Candidates must match approved roster entries and active exam passcodes to sign in.
+
+### 18.2 Session Resumption & Crash Resilience
+- State engine writes candidate snapshots to `state/candidates/{id}.json` upon every code autosave, question switch, test case execution, and heartbeat.
+- If a candidate's laptop experiences unexpected power loss or hardware failure:
+  1. The student is moved to a spare laptop.
+  2. The candidate logs in with their credentials.
+  3. The server validates their identity and returns their exact `resume_state`: active problem index, written code in Monaco, compilation history, and elapsed exam time.
+  4. The candidate resumes without losing any written code.

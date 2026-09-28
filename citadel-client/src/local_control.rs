@@ -129,6 +129,12 @@ fn is_origin_allowed(origin: &str) -> bool {
         || origin.starts_with("https://127.0.0.1:")
         || origin.starts_with("http://localhost:")
         || origin.starts_with("https://localhost:")
+        || origin.starts_with("http://172.")
+        || origin.starts_with("https://172.")
+        || origin.starts_with("http://192.168.")
+        || origin.starts_with("https://192.168.")
+        || origin.starts_with("http://10.")
+        || origin.starts_with("https://10.")
 }
 
 fn handle_request(
@@ -167,6 +173,19 @@ fn handle_request(
     }
 
     if is_end_exam {
+        if WORKSTATION_BLOCKED.load(Ordering::SeqCst) {
+            eprintln!("[CITADEL CLIENT SECURITY ALERT] Rejected exit request: Workstation is locked due to security violation or disqualification.");
+            let body = r#"{"error":"workstation_locked","message":"Workstation lockdown is enforced until exam conclusion"}"#;
+            let resp = format!(
+                "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
+                body.len(),
+                cors_headers,
+                body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            return;
+        }
+
         // Authenticate request token (Finding F security fix: unauthenticated exit prevented)
         let expected_token = match auth_token.lock() {
             Ok(g) => g.clone(),

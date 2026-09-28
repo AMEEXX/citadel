@@ -522,3 +522,23 @@ CITADEL strictly prohibits running in an unprivileged or degraded state under an
 2. **Interactive Auto-Escalation & Persistent Retry Loop**: When launched, `main.rs` tests `TokenElevation`. If unprivileged, it triggers `ShellExecuteW(..., "runas", ...)`. If the user cancels the UAC consent modal, a high-priority `MB_RETRYCANCEL` dialog explains that administrator rights are mandatory for hardware and process isolation. Clicking **Retry** re-triggers the UAC consent prompt. The loop continues indefinitely until elevation is granted or the user explicitly cancels.
 3. **Internal Kernel Hard Failure**: `ClientLockdownGuard::new_with_mode` asserts `is_elevated()` at line 1. All permissive `if is_elevated() { ... } else { None }` fallbacks have been removed. Any unprivileged construction attempt aborts immediately with a fatal error.
 4. **Appliance Cryptographic Attestation**: The client sends `"is_elevated": true` in `POST /api/v1/client/handshake`. When the appliance is running in Production Mode, any client lacking elevation is rejected with `403 Forbidden` (`elevation_required`).
+
+---
+
+## 12. High-DPI Per-Monitor v2 & Local Exit Lifecycle Control
+
+### 12.1 High-DPI Per-Monitor v2 Native Rendering
+To prevent blurry text, raster scaling artifacts, and the "Zoom call" appearance on high-density 1080p, 2K, and 4K candidate screens:
+- Embedded `<dpiAwareness>PerMonitorV2, PerMonitor</dpiAwareness>` and `<dpiAware>true/pm</dpiAware>` in `citadel-client.manifest`.
+- Process opt-in at early PE entry ensures that Edge Chromium kiosk rendering and Win32 UI dialogs use true hardware display metrics with crisp font rasterization.
+
+### 12.2 Local Lockdown Controller (`http://127.0.0.1:8444`)
+The client embeds a local control microserver on port 8444:
+- Endpoint: `POST /api/v1/client/end-exam`
+- Subnet CORS Authorization: Replaced rigid single-host CORS with subnet-aware validation (`127.0.0.1`, `localhost`, `172.*`, `192.168.*`, `10.*`) allowing campus Wi-Fi network deployments.
+- Workstation Protection: Enforces `WORKSTATION_BLOCKED` validation when exam or candidate is disqualified, rejecting local bypass commands.
+
+### 12.3 Supervision Loop & Persistent Disqualification Retention
+- The background thread `poll_server_exit_status()` repeatedly queries `GET /api/v1/client/session-control?token=<auth_token>`.
+- If a candidate is disqualified, the server returns `{ should_exit: false, status: "Disqualified" }`. The client maintains all Win32 hooks and locks until the entire exam concludes.
+- When the exam ends for all candidates, `{ should_exit: true }` triggers clean drop of `ClientLockdownGuard` and window closure.

@@ -26,7 +26,7 @@ const candidate = {
   diagram_type: 'architecture',
   meta: {
     title: 'Citadel High-Assurance Lockdown and Exam Platform',
-    subtitle: 'Air-gapped Win32 Kiosk Lockdown Client, Kernel WFP Net Isolation and Axum SSE LAN Server',
+    subtitle: 'Air-gapped Win32 Kiosk Lockdown Client, Kernel WFP Net Isolation, Per-Monitor v2 DPI, 15m Early Exit Gating, and Axum SSE LAN Server',
     output: '.archify/citadel-architecture.html',
     visual_preset: 'signal-flow',
     animation: 'trace',
@@ -43,7 +43,7 @@ const candidate = {
         id: 'student-journey',
         label: 'Candidate Lockdown Flow',
         focus: ['candidate', 'kiosk_client', 'hotkey_lock', 'portal_ui', 'citadel_server'],
-        note: 'Traces student login, Secure Desktop isolation, keyboard lockdown and heartbeat stream.'
+        note: 'Traces student login, Per-Monitor v2 rendering, Secure Desktop isolation, keyboard lockdown and heartbeat stream.'
       },
       {
         id: 'proctor-oversight',
@@ -56,6 +56,18 @@ const candidate = {
         label: 'Security and Anti-Cheat Mesh',
         focus: ['hotkey_lock', 'guard_net', 'kiosk_client', 'citadel_server'],
         note: 'Highlights low-level Win32 hooks and WFP kernel network traffic containment.'
+      },
+      {
+        id: 'early-exit-enforcement',
+        label: '15-Minute Early Completion Gate',
+        focus: ['candidate', 'portal_ui', 'citadel_server', 'kiosk_client'],
+        note: 'Enforces strict 15-minute early exit block in Production mode, displaying countdown modal and rejecting early termination.'
+      },
+      {
+        id: 'persistent-disqualification',
+        label: 'Persistent Disqualification Enclave',
+        focus: ['recruiter_ui', 'citadel_server', 'kiosk_client', 'portal_ui'],
+        note: 'Retains full lockdown containment on disqualified workstations until the exam concludes for all candidates.'
       }
     ]
   },
@@ -73,13 +85,14 @@ const candidate = {
       id: 'kiosk_client',
       type: 'security',
       label: 'Kiosk Client',
-      sublabel: 'Citadel Win32 Shell',
+      sublabel: 'Per-Monitor v2 Win32 Shell',
       pos: [50, 220],
       size: [140, 60],
-      tag: 'Secure Desktop',
+      tag: 'Secure Desktop & DPI v2',
       sources: [
         { path: 'citadel-client/src/main.rs', line: 1, label: 'Client Entry' },
-        { path: 'citadel-client/src/kiosk_window.rs', line: 1, label: 'Kiosk Window' }
+        { path: 'citadel-client/src/kiosk_window.rs', line: 1, label: 'Kiosk Window' },
+        { path: 'citadel-client/src/local_control.rs', line: 1, label: 'Local Control API' }
       ]
     },
     {
@@ -98,10 +111,10 @@ const candidate = {
       id: 'portal_ui',
       type: 'frontend',
       label: 'Student Portal UI',
-      sublabel: 'portal.html + Ace/Monaco',
+      sublabel: 'Obsidian Atelier v1 + Ace',
       pos: [390, 80],
       size: [150, 60],
-      tag: 'Exam Engine',
+      tag: '15m Exit Gate & Offline Fonts',
       sources: [
         { path: 'citadel-server/templates/portal.html', line: 1, label: 'Portal Template' }
       ]
@@ -113,7 +126,7 @@ const candidate = {
       sublabel: 'recruiter.html Dashboard',
       pos: [390, 220],
       size: [150, 60],
-      tag: 'Live Proctoring',
+      tag: 'Live Proctoring & Disqualify',
       sources: [
         { path: 'citadel-server/templates/recruiter.html', line: 1, label: 'Recruiter LMS' }
       ]
@@ -134,7 +147,7 @@ const candidate = {
       sublabel: 'Kernel Filtering Engine',
       pos: [390, 490],
       size: [150, 60],
-      tag: 'LAN-Only Isolation',
+      tag: 'Zero-Internet Isolation',
       sources: [
         { path: 'guard-net/Cargo.toml', line: 1, label: 'Guard-Net Crate' }
       ]
@@ -143,13 +156,14 @@ const candidate = {
       id: 'citadel_server',
       type: 'backend',
       label: 'Citadel Server',
-      sublabel: 'Axum REST and SSE Hub',
+      sublabel: 'Axum REST, SSE & State Engine',
       pos: [740, 80],
       size: [160, 60],
-      tag: 'LAN Port 8080',
+      tag: 'Port 8443 (HTTPS/HTTP)',
       sources: [
         { path: 'citadel-server/src/main.rs', line: 1, label: 'Server Main' },
-        { path: 'citadel-server/src/api.rs', line: 518, label: 'API Router' }
+        { path: 'citadel-server/src/api.rs', line: 518, label: 'API Router' },
+        { path: 'citadel-server/src/persistence.rs', line: 1, label: 'State & Roster' }
       ]
     },
     {
@@ -167,13 +181,13 @@ const candidate = {
     {
       id: 'sqlite_db',
       type: 'database',
-      label: 'Persistence Store',
-      sublabel: 'SQLite and InMemory State',
+      label: 'Persistence Engine',
+      sublabel: 'Roster & State Snapshots',
       pos: [740, 360],
       size: [160, 60],
-      tag: 'Submissions and State',
+      tag: 'Resumption & Autosave',
       sources: [
-        { path: 'citadel-server/src/api.rs', line: 256, label: 'AppState Engine' }
+        { path: 'citadel-server/src/persistence.rs', line: 37, label: 'Persistence Store' }
       ]
     }
   ],
@@ -213,7 +227,7 @@ const candidate = {
       id: 'kiosk-to-portal',
       from: 'kiosk_client',
       to: 'portal_ui',
-      label: 'hosts Chromium kiosk',
+      label: 'hosts Chromium kiosk (DPI v2)',
       variant: 'default',
       fromSide: 'right',
       toSide: 'left'
@@ -222,7 +236,7 @@ const candidate = {
       id: 'portal-to-server',
       from: 'portal_ui',
       to: 'citadel_server',
-      label: 'REST /api/submit',
+      label: 'REST /api/v1/submissions',
       variant: 'emphasis'
     },
     {
@@ -245,7 +259,7 @@ const candidate = {
       id: 'server-to-db',
       from: 'citadel_server',
       to: 'sqlite_db',
-      label: 'writes transactions',
+      label: 'persists state snapshots',
       variant: 'default',
       fromSide: 'right',
       toSide: 'right'
@@ -254,14 +268,14 @@ const candidate = {
       id: 'proctor-to-recruiter',
       from: 'proctor',
       to: 'recruiter_ui',
-      label: 'monitors roster',
+      label: 'monitors roster & violations',
       variant: 'default'
     },
     {
       id: 'guardnet-to-server',
       from: 'guard_net',
       to: 'citadel_server',
-      label: 'isolates LAN',
+      label: 'isolates LAN traffic',
       variant: 'security',
       fromSide: 'right',
       toSide: 'bottom'
@@ -270,29 +284,29 @@ const candidate = {
   cards: [
     {
       dot: 'rose',
-      title: 'Hardened Kiosk Enclave',
+      title: 'Hardened Kiosk Enclave & Per-Monitor v2 DPI',
       items: [
-        'Win32 lpDesktop isolation switches candidate to Secure Desktop plane',
-        'WH_KEYBOARD_LL hook blocks Alt+Tab, Windows keys, and task switching',
-        'Active watchdog detects blacklisted processes, multi-monitors, and debuggers'
+        'Win32 Per-Monitor v2 DPI awareness renders pixel-perfect fonts across 125%/150% scaling laptops',
+        'WH_KEYBOARD_LL hook blocks Alt+Tab, Windows keys, and task switching with watchdog supervisor',
+        'Active process watchdog eliminates blacklisted cheat tools, multi-monitors, and debuggers'
       ]
     },
     {
       dot: 'cyan',
-      title: 'Air-Gapped LAN Communications',
+      title: '15-Minute Early Exit Rule & Disqualification Lockdown',
       items: [
-        'Kernel WFP engine isolates workstation traffic exclusively to the Citadel LAN appliance',
-        'Axum HTTP server handles low-latency exam submission and code execution',
-        'Dual-engine state management with SQLite persistence and atomic in-memory fallback'
+        'Production mode strictly blocks early submission when >15m remaining; modal renders live countdown',
+        'Disqualified candidate workstation remains 100% locked down until hall-wide exam conclusion',
+        'Automatic hall-wide release: kiosk terminates and restores desktop when all exams conclude'
       ]
     },
     {
       dot: 'emerald',
-      title: 'Real-Time Integrity and Proctoring',
+      title: 'Offline Obsidian Atelier UI & State Persistence',
       items: [
-        'Student portal sends continuous heartbeat and window focus telemetry every 2.5s',
-        'Server-Sent Events (SSE) stream instant violation alerts to recruiter dashboard',
-        'Recruiter LMS console tracks live candidate state, test progress, and lockdown posture'
+        'Zero layout shifts with self-hosted Geist and Geist Mono offline fonts bundled into the server',
+        'Candidate roster management and automatic session recovery across reboots or laptop swaps',
+        'Server-Sent Events (SSE) stream instant violation telemetry to live proctor dashboard'
       ]
     }
   ]

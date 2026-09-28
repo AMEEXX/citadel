@@ -155,6 +155,8 @@ pub struct ExamStatusResponse {
     pub ended_at: Option<String>,
     #[serde(default)]
     pub is_production: bool,
+    #[serde(default)]
+    pub early_exit_min_remaining_seconds: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -734,6 +736,7 @@ async fn exam_status_handler(State(state): State<AppState>) -> Json<ExamStatusRe
         total_duration_minutes: live_lock.duration_minutes,
         ended_at: live_lock.ended_at.clone(),
         is_production: state.is_production.load(Ordering::SeqCst),
+        early_exit_min_remaining_seconds: 900,
     })
 }
 
@@ -993,6 +996,25 @@ async fn logout_handler(
     State(state): State<AppState>,
     Json(req): Json<LogoutRequest>,
 ) -> StatusCode {
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    if is_prod {
+        let live = state.exam_live.read().unwrap();
+        if live.is_live {
+            if let Some(ref started_str) = live.started_at {
+                if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                    let total_secs = (live.duration_minutes as i64) * 60;
+                    let now = chrono::Utc::now();
+                    let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                    let remaining_secs = (total_secs - elapsed).max(0);
+                    if remaining_secs > 900 {
+                        eprintln!("[CITADEL SERVER SECURITY] Rejected early logout for '{}': {}s remaining (> 900s). Early exit only allowed in final 15 minutes.", req.candidate_id, remaining_secs);
+                        return StatusCode::FORBIDDEN;
+                    }
+                }
+            }
+        }
+    }
+
     let mut cands = state.candidates.lock().unwrap();
     let cand = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
         candidate_id: req.candidate_id.clone(),
@@ -1011,7 +1033,6 @@ async fn logout_handler(
     }
     cand.completed_at = Some(chrono::Utc::now().to_rfc3339());
     cand.last_seen = chrono::Utc::now().to_rfc3339();
-    // Do not kill local host processes; logout is remote candidate state telemetry
     StatusCode::OK
 }
 
@@ -1025,51 +1046,78 @@ pub struct SessionControlResponse {
 #[derive(Deserialize)]
 pub struct SessionControlQuery {
     pub candidate_id: Option<String>,
+    pub token: Option<String>,
 }
 
 async fn client_session_control_handler(
     State(state): State<AppState>,
     Query(q): Query<SessionControlQuery>,
 ) -> Json<SessionControlResponse> {
-    // 1. Check if proctor concluded the whole exam for everyone
+    // 1. Check if proctor concluded the whole exam for everyone, OR exam timer expired
     let live = state.exam_live.read().unwrap();
-    if !live.is_live && live.ended_at.is_some() {
-        return Json(SessionControlResponse {
-            should_exit: true,
-            reason: "Exam concluded by proctor".to_string(),
-            status: "Concluded".to_string(),
-        });
-    }
+    let total_secs = (live.duration_minutes as i64) * 60;
+    let mut exam_over_for_all = !live.is_live && live.ended_at.is_some();
 
-    // 2. Check specific candidate_id if provided
-    if let Some(ref cid) = q.candidate_id {
-        if !cid.is_empty() {
-            let cands = state.candidates.lock().unwrap();
-            if let Some(cand) = cands.get(cid) {
-                if cand.status == "Submitted" || cand.status == "Logged Out" {
-                    return Json(SessionControlResponse {
-                        should_exit: true,
-                        reason: "Candidate session concluded".to_string(),
-                        status: cand.status.clone(),
-                    });
+    if live.is_live {
+        if let Some(ref started_str) = live.started_at {
+            if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                let now = chrono::Utc::now();
+                let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                if elapsed >= total_secs {
+                    exam_over_for_all = true;
                 }
-                if cand.status == "Disqualified" {
-                    return Json(SessionControlResponse {
-                        should_exit: true,
-                        reason: "Candidate disqualified by proctor".to_string(),
-                        status: cand.status.clone(),
-                    });
-                }
-                return Json(SessionControlResponse {
-                    should_exit: false,
-                    reason: "".to_string(),
-                    status: cand.status.clone(),
-                });
             }
         }
     }
 
-    // 3. General workstation status (e.g. pre-registration client poll)
+    if exam_over_for_all {
+        return Json(SessionControlResponse {
+            should_exit: true,
+            reason: "Exam concluded for all candidates".to_string(),
+            status: "Concluded".to_string(),
+        });
+    }
+
+    // 2. Resolve candidate ID either from query param or session token
+    let target_cid = if let Some(ref cid) = q.candidate_id {
+        if !cid.is_empty() { Some(cid.clone()) } else { None }
+    } else if let Some(ref tok) = q.token {
+        let cand_states = state.candidate_states.lock().unwrap();
+        cand_states.iter().find(|(_, c)| c.session_token == *tok).map(|(id, _)| id.clone())
+    } else {
+        None
+    };
+
+    if let Some(ref cid) = target_cid {
+        let cands = state.candidates.lock().unwrap();
+        if let Some(cand) = cands.get(cid) {
+            // Disqualified candidates MUST remain locked on screen until exam is over for all candidates!
+            if cand.status == "Disqualified" {
+                return Json(SessionControlResponse {
+                    should_exit: false,
+                    reason: "Candidate disqualified: lockdown enforced until exam conclusion for all candidates".to_string(),
+                    status: "Disqualified".to_string(),
+                });
+            }
+
+            // Normal submitted candidate who completed session within permitted window:
+            if cand.status == "Submitted" || cand.status == "Logged Out" {
+                return Json(SessionControlResponse {
+                    should_exit: true,
+                    reason: "Candidate session concluded".to_string(),
+                    status: cand.status.clone(),
+                });
+            }
+
+            return Json(SessionControlResponse {
+                should_exit: false,
+                reason: "".to_string(),
+                status: cand.status.clone(),
+            });
+        }
+    }
+
+    // 3. General workstation status (exam is still live)
     Json(SessionControlResponse {
         should_exit: false,
         reason: "".to_string(),
@@ -1081,6 +1129,29 @@ async fn kill_all_lockdown_handler(
     State(state): State<AppState>,
     Json(req): Json<LogoutRequest>,
 ) -> StatusCode {
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    if is_prod {
+        // Enforce 15-minute early exit restriction in Production Mode:
+        let live = state.exam_live.read().unwrap();
+        if live.is_live {
+            if let Some(ref started_str) = live.started_at {
+                if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                    let total_secs = (live.duration_minutes as i64) * 60;
+                    let now = chrono::Utc::now();
+                    let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                    let remaining_secs = (total_secs - elapsed).max(0);
+                    if remaining_secs > 900 {
+                        eprintln!(
+                            "[CITADEL SERVER SECURITY] Rejected early exit attempt for '{}': {} seconds remaining (> 900s). Early exit only allowed in final 15 minutes.",
+                            req.candidate_id, remaining_secs
+                        );
+                        return StatusCode::FORBIDDEN;
+                    }
+                }
+            }
+        }
+    }
+
     eprintln!(
         "[CITADEL SERVER] Candidate '{}' concluded session. Reason: {}",
         req.candidate_id, req.reason.as_deref().unwrap_or("No reason specified")
@@ -1099,15 +1170,13 @@ async fn kill_all_lockdown_handler(
             started_at: Some(chrono::Utc::now().to_rfc3339()),
             completed_at: Some(chrono::Utc::now().to_rfc3339()),
         });
-        cand.status = "Logged Out".to_string();
+        if cand.status != "Disqualified" {
+            cand.status = "Logged Out".to_string();
+        }
         cand.completed_at = Some(chrono::Utc::now().to_rfc3339());
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
 
-    // Security Fix (Finding G): Under NO circumstances does the server terminate
-    // its own host processes or modify host registry settings when a candidate exits.
-    // Client restoration is performed strictly on the candidate's workstation
-    // via citadel-client's loopback control server (127.0.0.1:8444).
     StatusCode::OK
 }
 

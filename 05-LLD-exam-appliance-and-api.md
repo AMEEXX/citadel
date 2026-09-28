@@ -124,7 +124,18 @@ Base: `https://10.10.0.1:8443/v1`. All mutating requests carry `Idempotency-Key`
 | GET | `/api/v1/proctor/metrics` | Proctor Dashboard Data API | Returns real-time metrics, active candidate sessions, and threat telemetry events |
 | POST | `/api/v1/integrity/heartbeat` | Candidate Heartbeat | Ingests candidate focus status and active question index every 15s |
 | POST | `/api/v1/integrity/event` | Integrity Threat Ingestion | Ingests focus-loss, window minimization, clipboard attempts, and process violations |
-| POST | `/api/v1/proctor/candidates/:id/disqualify` | Candidate Disqualification | Remote disqualification command from the proctor console |
+| POST | `/api/v1/proctor/candidates/:id/disqualify` | Candidate Disqualification | Remote disqualification command from proctor console; retains lockdown until hall exam concludes |
+| GET | `/api/v1/client/session-control` | Client Session Supervisor | Polled by client; returns `{should_exit, reason, status}`. Retains lockdown for Disqualified candidates until hall-wide exam conclusion |
+| POST | `/api/v1/client/kill-all-lockdown` | Workstation Exit Trigger | Enforces 15m rule in Production (403 if >15m left); permitted in Testing mode |
+| POST | `/api/v1/integrity/logout` | Session Finalization / Logout | Enforces 15m rule in Production; preserves Disqualified status against reset |
+| GET | `/api/v1/exam/status` | Live Exam Status & Timing | Returns `{is_live, elapsed_seconds, total_seconds, remaining_seconds, early_exit_min_remaining_seconds: 900}` |
+| GET | `/api/v1/admin/roster` | Fetch Candidate Roster | Returns authorized candidates, sections, and permissions |
+| POST | `/api/v1/admin/roster/add` | Add Roster Candidate | Adds/updates single candidate record in roster |
+| POST | `/api/v1/admin/roster/upload` | Bulk CSV Roster Upload | Ingests university batch CSV (`name,email,roll_number,section`) |
+| DELETE | `/api/v1/admin/roster/:roll` | Delete Candidate from Roster | Revokes candidate access and unregisters student |
+| POST | `/api/v1/admin/exam/go-live` | Start Hall-Wide Exam | Initiates countdown timer and unlocks questions across all seats |
+| POST | `/api/v1/admin/exam/stop-live` | Conclude Hall-Wide Exam | Concludes exam for all candidates, automatically triggering lockdown release on all machines |
+| POST | `/api/v1/admin/exam/passcode` | Update Exam Passcode | Rotates shared assessment batch authorization passcode |
 | POST | `/sessions` | Open session | Body: credential, device cert CN, attestation blob. Returns token, seat, exam metadata, **server-signed deadline** |
 | POST | `/sessions/{id}/heartbeat` | Liveness + state sync | Every 10 s. Returns exam state, pending commands (e.g. `SUSPEND`) |
 | GET | `/sessions/{id}/deadline` | Re-fetch signed deadline | After reconnect |

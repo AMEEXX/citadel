@@ -83,15 +83,21 @@ fn resolve_server_endpoint(preferred_ip: Ipv4Addr, port: u16) -> Ipv4Addr {
     loopback
 }
 
-fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16) -> Result<bool, std::io::Error> {
+fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16, auth_token: Option<&str>) -> Result<bool, std::io::Error> {
     let addr = SocketAddr::from((server_ip, server_port));
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(300))?;
     let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
 
+    let query_str = if let Some(tok) = auth_token {
+        format!("?token={}", tok)
+    } else {
+        String::new()
+    };
+
     let req = format!(
-        "GET /api/v1/client/session-control HTTP/1.1\r\nHost: {}:{}\r\nConnection: close\r\n\r\n",
-        server_ip, server_port
+        "GET /api/v1/client/session-control{} HTTP/1.1\r\nHost: {}:{}\r\nConnection: close\r\n\r\n",
+        query_str, server_ip, server_port
     );
     stream.write_all(req.as_bytes())?;
 
@@ -351,7 +357,8 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         // Channel 3: Poll server session control status (checks if candidate logged out, disqualified, or exam ended)
         poll_counter += 1;
         if poll_counter % 2 == 0 {
-            if let Ok(should_exit) = poll_server_exit_status(server_ip, server_port) {
+            let auth_tok = guard.auth_token.as_deref();
+            if let Ok(should_exit) = poll_server_exit_status(server_ip, server_port, auth_tok) {
                 if should_exit {
                     log_event("[EXIT CHANNEL 3] Exam server instructed session termination! Initiating full laptop restoration...");
                     break;

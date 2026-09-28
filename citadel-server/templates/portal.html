@@ -1164,6 +1164,33 @@
     </div>
   </div>
 
+  <!-- EARLY SUBMISSION PROHIBITED MODAL (OBSIDIAN ATELIER) -->
+  <div id="modal-early-exit-locked" class="modal-overlay" style="display: none; z-index: 6500;">
+    <div class="modal-box" style="border-radius: var(--radius-sm); border: 1px solid var(--border-panel); max-width: 480px; padding: 28px 24px; text-align: center;">
+      <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.3); color: #f87171; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 10px; border-radius: 4px; margin-bottom: 16px; letter-spacing: 0.08em; text-transform: uppercase;">
+        <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #f87171;"></span>
+        EARLY SUBMISSION LOCKED
+      </div>
+      <h2 style="font-family: var(--font-headline); font-size: 22px; font-weight: var(--weight-medium); color: var(--text-bright); margin-bottom: 10px;">Early Submission Prohibited</h2>
+      <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5; margin-bottom: 22px;">
+        Under Citadel Examination Security Policy, candidates may only submit and conclude their session during the <strong>final 15 minutes</strong> of the assessment period.
+      </p>
+      <div style="background: var(--bg-surface-elevated); border: 1px solid var(--border-hair); border-radius: 4px; padding: 14px; margin-bottom: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left;">
+        <div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px;">Total Time Remaining</div>
+          <div id="early-lock-total-remaining" style="font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--text-bright);">01:15:00</div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px;">Unlocks In</div>
+          <div id="early-lock-countdown" style="font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: var(--accent-lang);">01:00:00</div>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end;">
+        <button class="btn-action btn-run" style="width: 100%; justify-content: center; height: 36px;" onclick="closeEarlySubmissionLockedModal()">Return to Assessment</button>
+      </div>
+    </div>
+  </div>
+
   <!-- END EXAM CONFIRMATION MODAL -->
   <div id="modal-end-exam" class="modal-overlay" style="display: none;">
     <div class="modal-box">
@@ -1201,16 +1228,30 @@
     </div>
   </div>
 
-  <!-- DISQUALIFIED OVERLAY -->
+  <!-- DISQUALIFIED OVERLAY (PERSISTENT LOCKDOWN UNTIL EXAM CONCLUDES FOR ALL) -->
   <div id="disqualified-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 7000;">
-    <div class="conclusion-card" style="border-color: #a03f40;">
-      <div style="font-size: 38px; color: #f17070; margin-bottom: 16px;">⚠️</div>
-      <h2 style="color: var(--accent-red);">Session Terminated / Disqualified</h2>
-      <p>
-        Your examination session has been terminated by the proctor. All lockdown restrictions are now being completely removed from your laptop.
+    <div class="conclusion-card" style="border-color: #a03f40; max-width: 520px; text-align: center;">
+      <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(248, 113, 113, 0.15); border: 1px solid #a03f40; color: #f87171; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; margin-bottom: 16px; letter-spacing: 0.08em; text-transform: uppercase;">
+        <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #f87171;"></span>
+        LOCKDOWN ENFORCED UNTIL EXAM CONCLUSION
+      </div>
+      <div style="font-size: 38px; color: #f87171; margin-bottom: 12px;">⚠️</div>
+      <h2 style="color: var(--accent-red); font-family: var(--font-headline); font-size: 24px; font-weight: 500; margin-bottom: 10px;">Session Terminated / Candidate Disqualified</h2>
+      <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5; margin-bottom: 20px;">
+        Your examination session has been disqualified due to security policy violations or proctor action. Under institutional regulations, <strong>all workstation actions remain locked</strong> until the examination officially concludes for all candidates.
       </p>
-      <div style="display: inline-block; background: #290b0b; border: 1px solid #a03f40; color: #f4c8c6; font-size: var(--text-sm); font-weight: var(--weight-semibold); padding: 6px 18px; border-radius: 4px; font-family: var(--font-mono);">
-        Workstation Restoration Active...
+      <div style="background: #140808; border: 1px solid #3d1616; border-radius: 4px; padding: 14px; margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left;">
+        <div>
+          <div style="font-size: 11px; color: #a17070; font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px;">Candidate ID</div>
+          <div id="disq-cand-id" style="font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: #fca5a5;">--</div>
+        </div>
+        <div>
+          <div style="font-size: 11px; color: #a17070; font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px;">Exam Lockout Remaining</div>
+          <div id="disq-timer-display" style="font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: #f87171;">--:--:--</div>
+        </div>
+      </div>
+      <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
+        Workstation will automatically unlock and close when the examination time expires for the hall.
       </div>
     </div>
   </div>
@@ -1346,6 +1387,8 @@
     let examStartedOnce = false;
     let remainingSeconds = 90 * 60;
     let timerInterval = null;
+    let isProductionMode = false;
+    let isDisqualified = false;
 
     // Code store: [question_id][language] -> string
     const questionCodeStore = {};
@@ -1876,6 +1919,10 @@ Score Awarded: ${data.score} pts`);
         if (!res.ok) return;
         const data = await res.json();
 
+        if (data.is_production !== undefined) {
+          isProductionMode = Boolean(data.is_production);
+        }
+
         const notStartedOverlay = document.getElementById('exam-not-started-overlay');
         const concludedOverlay = document.getElementById('exam-concluded-overlay');
 
@@ -1887,10 +1934,43 @@ Score Awarded: ${data.score} pts`);
           remainingSeconds = data.remaining_seconds;
           updateTimerUI(remainingSeconds);
 
+          if (isDisqualified) {
+            const disqTimer = document.getElementById('disq-timer-display');
+            if (disqTimer) {
+              const h = String(Math.floor(remainingSeconds / 3600)).padStart(2, '0');
+              const m = String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, '0');
+              const s = String(remainingSeconds % 60).padStart(2, '0');
+              disqTimer.innerText = `${h}:${m}:${s}`;
+            }
+          }
+
           if (questionsList.length === 0) {
             await fetchQuestions();
           }
         } else {
+          if (isDisqualified) {
+            // Exam has concluded for all candidates! Now safely release lockdown and close tab!
+            try {
+              fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+                },
+                body: JSON.stringify({
+                  auth_token: ACTIVE_AUTH_TOKEN,
+                  candidate_id: CANDIDATE_ID,
+                  reason: 'Exam concluded for all candidates'
+                })
+              }).catch(() => {});
+            } catch(e) {}
+            setTimeout(() => {
+              try { window.close(); } catch(e) {}
+              try { window.open('', '_self').close(); } catch(e) {}
+            }, 800);
+            return;
+          }
+
           if (examStartedOnce || data.ended_at) {
             // Exam was live and has ended
             if (notStartedOverlay) notStartedOverlay.style.display = 'none';
@@ -1937,20 +2017,77 @@ Score Awarded: ${data.score} pts`);
       if (remainingSeconds > 0 && examStartedOnce) {
         remainingSeconds--;
         updateTimerUI(remainingSeconds);
+        updateEarlyLockModalTimers();
+
+        if (isDisqualified) {
+          const disqTimer = document.getElementById('disq-timer-display');
+          if (disqTimer) {
+            const h = String(Math.floor(remainingSeconds / 3600)).padStart(2, '0');
+            const m = String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, '0');
+            const s = String(remainingSeconds % 60).padStart(2, '0');
+            disqTimer.innerText = `${h}:${m}:${s}`;
+          }
+        }
+
+        if (isProductionMode && remainingSeconds <= 900) {
+          const earlyModal = document.getElementById('modal-early-exit-locked');
+          if (earlyModal && earlyModal.style.display === 'flex') {
+            earlyModal.style.display = 'none';
+          }
+        }
       }
     }
 
     // =========================================================================
-    // END EXAM FLOW
+    // END EXAM FLOW & 15-MINUTE PRODUCTION RULE
     // =========================================================================
     function openEndExamModal() {
+      // In Production Mode, early departure is strictly prohibited until final 15 minutes (900 seconds)
+      if (isProductionMode && remainingSeconds > 900) {
+        showEarlySubmissionLockedModal();
+        return;
+      }
       document.getElementById('modal-end-exam').style.display = 'flex';
     }
+
     function closeEndExamModal() {
       document.getElementById('modal-end-exam').style.display = 'none';
     }
 
+    function showEarlySubmissionLockedModal() {
+      updateEarlyLockModalTimers();
+      const modal = document.getElementById('modal-early-exit-locked');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closeEarlySubmissionLockedModal() {
+      const modal = document.getElementById('modal-early-exit-locked');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function updateEarlyLockModalTimers() {
+      const totalEl = document.getElementById('early-lock-total-remaining');
+      const countEl = document.getElementById('early-lock-countdown');
+      if (totalEl) {
+        const h = String(Math.floor(remainingSeconds / 3600)).padStart(2, '0');
+        const m = String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, '0');
+        const s = String(remainingSeconds % 60).padStart(2, '0');
+        totalEl.innerText = `${h}:${m}:${s}`;
+      }
+      if (countEl) {
+        const unlockSecs = Math.max(0, remainingSeconds - 900);
+        const m = String(Math.floor(unlockSecs / 60)).padStart(2, '0');
+        const s = String(unlockSecs % 60).padStart(2, '0');
+        countEl.innerText = `${m}:${s}`;
+      }
+    }
+
     async function executeEndExam() {
+      if (isProductionMode && remainingSeconds > 900) {
+        showEarlySubmissionLockedModal();
+        return;
+      }
+
       const confirmBtn = document.getElementById('btn-confirm-end');
       if (confirmBtn) {
         confirmBtn.disabled = true;
@@ -1969,11 +2106,18 @@ Score Awarded: ${data.score} pts`);
         });
       } catch (e) {}
 
-      // 2. Direct loopback notification to local citadel-client
+      // 2. Direct loopback notification to local citadel-client (with auth token)
       try {
         await fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
           method: 'POST',
-          mode: 'no-cors'
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+          },
+          body: JSON.stringify({
+            auth_token: ACTIVE_AUTH_TOKEN,
+            candidate_id: CANDIDATE_ID
+          })
         });
       } catch (e) {}
 
@@ -2021,30 +2165,22 @@ Score Awarded: ${data.score} pts`);
     }
 
     function triggerDisqualification() {
+      if (isDisqualified) return;
+      isDisqualified = true;
+
       const overlay = document.getElementById('disqualified-overlay');
       if (overlay) {
         overlay.style.display = 'flex';
       }
-      try {
-        fetch('/api/v1/client/kill-all-lockdown', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidate_id: CANDIDATE_ID,
-            reason: 'Candidate Disqualified by Proctor'
-          })
-        }).catch(() => {});
-      } catch (e) {}
-      try {
-        fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
-          method: 'POST',
-          mode: 'no-cors'
-        }).catch(() => {});
-      } catch (e) {}
-      setTimeout(() => {
-        try { window.close(); } catch(e) {}
-        try { window.open('', '_self').close(); } catch(e) {}
-      }, 1000);
+      const candEl = document.getElementById('disq-cand-id');
+      if (candEl) {
+        candEl.innerText = CANDIDATE_ID || 'Active Candidate';
+      }
+
+      // STRICT INTEGRITY ENFORCEMENT:
+      // In both production and testing mode, a disqualified candidate CANNOT leave the lockdown app.
+      // Lockdown remains 100% active until the scheduled exam time has expired for all candidates.
+      // checkExamStatus() will automatically close the tab and release the workstation once data.is_live becomes false.
     }
 
     function escapeHtml(str) {
