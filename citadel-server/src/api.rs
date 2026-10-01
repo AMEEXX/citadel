@@ -823,7 +823,23 @@ async fn submit_code_handler(
         }).into_response();
     }
 
-    let cand_id = payload.candidate_id.clone().unwrap_or_else(|| "CAND-DEFAULT".to_string());
+    let cand_id = payload.candidate_id.clone().unwrap_or_else(|| "CAND-DEFAULT".to_string()).trim().to_string();
+
+    // Verify candidate against roster
+    {
+        let roster = state.roster.read().unwrap();
+        if !roster.candidates.is_empty() {
+            if let Err((status, code, msg)) = check_candidate_roster(&cand_id, &roster) {
+                return (
+                    status,
+                    Json(serde_json::json!({
+                        "error": code,
+                        "message": msg
+                    })),
+                ).into_response();
+            }
+        }
+    }
 
     // 1. Check if candidate is disqualified
     {
@@ -962,10 +978,38 @@ async fn submit_code_handler(
 async fn heartbeat_handler(
     State(state): State<AppState>,
     Json(req): Json<HeartbeatRequest>,
-) -> Json<HeartbeatResponse> {
+) -> impl IntoResponse {
+    let cid = req.candidate_id.trim();
+    if cid.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({
+                "error": "MISSING_IDENTIFIER",
+                "message": "Candidate identifier is required."
+            })),
+        ).into_response();
+    }
+
+    // Verify candidate is enrolled in roster
+    {
+        let roster = state.roster.read().unwrap();
+        if !roster.candidates.is_empty() {
+            if let Err((status, code, msg)) = check_candidate_roster(cid, &roster) {
+                return (
+                    status,
+                    Json(serde_json::json!({
+                        "error": code,
+                        "message": msg,
+                        "status": "Unauthorized"
+                    })),
+                ).into_response();
+            }
+        }
+    }
+
     let mut cands = state.candidates.lock().unwrap();
-    let entry = cands.entry(req.candidate_id.clone()).or_insert_with(|| CandidateSession {
-        candidate_id: req.candidate_id.clone(),
+    let entry = cands.entry(cid.to_string()).or_insert_with(|| CandidateSession {
+        candidate_id: cid.to_string(),
         name: None,
         ip_address: "127.0.0.1".to_string(),
         active_question: req.active_question,
@@ -987,9 +1031,12 @@ async fn heartbeat_handler(
         }
     }
 
-    Json(HeartbeatResponse {
-        status: entry.status.clone(),
-    })
+    (
+        StatusCode::OK,
+        Json(HeartbeatResponse {
+            status: entry.status.clone(),
+        }),
+    ).into_response()
 }
 
 async fn logout_handler(
@@ -1460,9 +1507,9 @@ async fn admin_metrics_handler(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
     State(state): State<AppState>,
-) -> Result<Json<ProctorDashboardData>, StatusCode> {
+) -> Response {
     if !is_admin_authorized(&headers, &query, &state) {
-        return Err(StatusCode::FORBIDDEN);
+        return StatusCode::FORBIDDEN.into_response();
     }
 
     let mut cands_lock = state.candidates.lock().unwrap();
@@ -1502,32 +1549,38 @@ async fn admin_metrics_handler(
         .filter(|s| s.status == "Accepted")
         .count();
 
-    Ok(Json(ProctorDashboardData {
-        total_candidates,
-        active_candidates,
-        flagged_candidates,
-        logged_out_candidates,
-        disqualified_candidates,
-        disconnected_candidates,
-        total_submissions: subs_lock.len(),
-        error_submissions_count,
-        passed_submissions_count,
-        candidates,
-        recent_violations: viols_lock.iter().rev().take(50).cloned().collect(),
-        recent_submissions: subs_lock.iter().rev().take(50).cloned().collect(),
-        questions: questions_lock.clone(),
-        exam_live: exam_live_lock.clone(),
-        is_production: state.is_production.load(Ordering::SeqCst),
-    }))
+    (
+        [
+            (axum::http::header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+            (axum::http::header::PRAGMA, "no-cache"),
+        ],
+        Json(ProctorDashboardData {
+            total_candidates,
+            active_candidates,
+            flagged_candidates,
+            logged_out_candidates,
+            disqualified_candidates,
+            disconnected_candidates,
+            total_submissions: subs_lock.len(),
+            error_submissions_count,
+            passed_submissions_count,
+            candidates,
+            recent_violations: viols_lock.iter().rev().take(50).cloned().collect(),
+            recent_submissions: subs_lock.iter().rev().take(50).cloned().collect(),
+            questions: questions_lock.clone(),
+            exam_live: exam_live_lock.clone(),
+            is_production: state.is_production.load(Ordering::SeqCst),
+        }),
+    ).into_response()
 }
 
 async fn proctor_metrics_handler(
     headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
     State(state): State<AppState>,
-) -> Result<Json<ProctorDashboardData>, StatusCode> {
+) -> Response {
     if !is_admin_authorized(&headers, &query, &state) {
-        return Err(StatusCode::FORBIDDEN);
+        return StatusCode::FORBIDDEN.into_response();
     }
     admin_metrics_handler(headers, Query(query), State(state)).await
 }
@@ -2002,6 +2055,54 @@ async fn admin_set_passcode_handler(
     Ok(Json(ExamPasscodeResponse { passcode: p.clone() }))
 }
 
+
+pub fn check_candidate_roster(
+    candidate_id: &str,
+    roster: &crate::persistence::ExamRoster,
+) -> Result<crate::persistence::RosterEntry, (StatusCode, &'static str, String)> {
+    let cid = candidate_id.trim();
+    if cid.is_empty() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "MISSING_IDENTIFIER",
+            "Candidate Roll Number or Email Address is required to sign in.".to_string(),
+        ));
+    }
+
+    if roster.candidates.is_empty() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            "ROSTER_EMPTY",
+            "Assessment roster is empty. No candidates are enrolled for this examination session. Please contact the exam administrator.".to_string(),
+        ));
+    }
+
+    let entry_opt = roster.candidates.iter().find(|c| {
+        c.email.eq_ignore_ascii_case(cid)
+            || c.roll_number.as_deref().map(|r| r.eq_ignore_ascii_case(cid)).unwrap_or(false)
+            || c.email.split('@').next().map(|u| u.eq_ignore_ascii_case(cid)).unwrap_or(false)
+    });
+
+    match entry_opt {
+        None => Err((
+            StatusCode::FORBIDDEN,
+            "ROSTER_NOT_FOUND",
+            format!("Candidate ID / Email '{}' is not registered in the exam roster. Access denied.", cid),
+        )),
+        Some(entry) => {
+            if !entry.allowed {
+                Err((
+                    StatusCode::FORBIDDEN,
+                    "ACCESS_REVOKED",
+                    format!("Candidature for '{}' has been revoked or excluded from this exam by the proctor.", cid),
+                ))
+            } else {
+                Ok(entry.clone())
+            }
+        }
+    }
+}
+
 async fn candidate_login_handler(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -2056,39 +2157,24 @@ async fn candidate_login_handler(
         }
     }
 
-    // 3. Validate against Roster (if roster is populated)
+    // 3. Validate against Roster (strictly enforced in BOTH testing and production)
     let mut resolved_display_name = payload.name.clone().unwrap_or_else(|| candidate_id.clone());
     {
         let roster = state.roster.read().unwrap();
-        if !roster.candidates.is_empty() {
-            let entry_opt = roster.candidates.iter().find(|c| {
-                c.email.eq_ignore_ascii_case(&candidate_id)
-                    || c.roll_number.as_deref().map(|r| r.eq_ignore_ascii_case(&candidate_id)).unwrap_or(false)
-            });
-
-            match entry_opt {
-                None => {
-                    return (
-                        StatusCode::FORBIDDEN,
-                        Json(serde_json::json!({
-                            "error": "ROSTER_NOT_FOUND",
-                            "message": format!("Email address / ID '{}' is not registered in the proctor's exam roster.", candidate_id)
-                        })),
-                    ).into_response();
-                }
-                Some(entry) => {
-                    if !entry.allowed {
-                        return (
-                            StatusCode::FORBIDDEN,
-                            Json(serde_json::json!({
-                                "error": "ACCESS_REVOKED",
-                                "message": "Your candidature has been revoked or excluded from this exam by the proctor."
-                            })),
-                        ).into_response();
-                    }
-                    if !entry.name.is_empty() {
-                        resolved_display_name = entry.name.clone();
-                    }
+        match check_candidate_roster(&candidate_id, &roster) {
+            Err((status, code, msg)) => {
+                eprintln!("[CITADEL ROSTER SECURITY] Candidate login REJECTED for '{}': {} ({})", candidate_id, code, msg);
+                return (
+                    status,
+                    Json(serde_json::json!({
+                        "error": code,
+                        "message": msg
+                    })),
+                ).into_response();
+            }
+            Ok(entry) => {
+                if !entry.name.is_empty() {
+                    resolved_display_name = entry.name.clone();
                 }
             }
         }
@@ -2174,15 +2260,25 @@ async fn candidate_login_handler(
         let resume_state = existing.to_resume_state();
         let display_name = existing.name.clone();
 
-        return Json(CandidateLoginResponse {
+        let mut resp = Json(CandidateLoginResponse {
             status: "resumed".to_string(),
-            session_token: token,
-            candidate_id: candidate_id,
+            session_token: token.clone(),
+            candidate_id: candidate_id.clone(),
             name: display_name,
             is_production: is_prod,
             resume_state: Some(resume_state),
             server_time: now.to_rfc3339(),
         }).into_response();
+
+        let cookie_val = format!("citadel_auth_token={}; Path=/; SameSite=Lax; Max-Age=28800", token);
+        if let Ok(v) = cookie_val.parse() {
+            resp.headers_mut().insert(header::SET_COOKIE, v);
+        }
+        let cand_cookie = format!("citadel_candidate_id={}; Path=/; SameSite=Lax; Max-Age=28800", candidate_id);
+        if let Ok(v) = cand_cookie.parse() {
+            resp.headers_mut().append(header::SET_COOKIE, v);
+        }
+        return resp;
     }
 
     // New candidate session
@@ -2228,15 +2324,25 @@ async fn candidate_login_handler(
     cand_states.insert(candidate_id.clone(), new_state.clone());
     let _ = save_candidate_state(&state.state_dir, &new_state);
 
-    Json(CandidateLoginResponse {
+    let mut resp = Json(CandidateLoginResponse {
         status: "created".to_string(),
-        session_token: token,
-        candidate_id: candidate_id,
+        session_token: token.clone(),
+        candidate_id: candidate_id.clone(),
         name: resolved_display_name,
         is_production: is_prod,
         resume_state: None,
         server_time: now.to_rfc3339(),
-    }).into_response()
+    }).into_response();
+
+    let cookie_val = format!("citadel_auth_token={}; Path=/; SameSite=Lax; Max-Age=28800", token);
+    if let Ok(v) = cookie_val.parse() {
+        resp.headers_mut().insert(header::SET_COOKIE, v);
+    }
+    let cand_cookie = format!("citadel_candidate_id={}; Path=/; SameSite=Lax; Max-Age=28800", candidate_id);
+    if let Ok(v) = cand_cookie.parse() {
+        resp.headers_mut().append(header::SET_COOKIE, v);
+    }
+    resp
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -2266,6 +2372,22 @@ async fn state_sync_handler(
     let cid = payload.candidate_id.trim();
     if cid.is_empty() {
         return StatusCode::BAD_REQUEST.into_response();
+    }
+
+    // Verify candidate against roster
+    {
+        let roster = state.roster.read().unwrap();
+        if !roster.candidates.is_empty() {
+            if let Err((status, code, msg)) = check_candidate_roster(cid, &roster) {
+                return (
+                    status,
+                    Json(serde_json::json!({
+                        "error": code,
+                        "message": msg
+                    })),
+                ).into_response();
+            }
+        }
     }
 
     let mut cand_states = state.candidate_states.lock().unwrap();

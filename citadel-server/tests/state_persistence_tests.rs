@@ -159,6 +159,31 @@ async fn test_state_sync_and_session_resumption() {
 
     let candidate_email = "devin.miller@tech.org";
 
+    // 0. Enroll candidate in roster
+    let roster_payload = json!({
+        "exam_id": "OA-EXAM-2026",
+        "candidates": [
+            {
+                "email": candidate_email,
+                "name": "Devin Miller",
+                "section": "A",
+                "allowed": true
+            }
+        ]
+    });
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/roster/upload?key=citadel-recruiter-key-2026")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&roster_payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
     // 1. Candidate logs in with email + passcode
     let res = app
         .clone()

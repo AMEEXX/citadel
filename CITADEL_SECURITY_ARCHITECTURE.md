@@ -774,11 +774,19 @@ External font dependencies (e.g., `fonts.googleapis.com`) fail catastrophically 
 
 ## 18. Roster Synchronization & Resilient Session Resumption Engine
 
-### 18.1 Proctor Roster Management
+### 18.1 Proctor Roster Management & Strict Whitelist Enforcement
 The appliance supports automated candidate enrollment via `roster.csv`:
 - Endpoints: `POST /api/v1/admin/roster/upload`, `POST /api/v1/admin/roster/add`, `GET /api/v1/admin/roster`, and `DELETE /api/v1/admin/roster/:roll`.
 - In-memory state synchronized atomically to disk (`roster.json`).
-- Candidates must match approved roster entries and active exam passcodes to sign in.
+- **Hardened Zero-Trust Identity Pipeline**:
+  - **Identical Enforcement across Testing Mode & Production Mode**: Under NO circumstances can an unenrolled, random, or revoked candidate enter the exam, view problem statements, send heartbeats, or submit code.
+  - **Portal Modal Async Verification**: The candidate entry modal (`portal.html`) executes a real-time `POST /api/v1/auth/login` handshake before admitting the candidate. Storing arbitrary values in `localStorage` is completely neutralized — on page load, `initCandidateId()` re-validates credentials with the server.
+  - **Strict Denial Matrix**:
+    - Empty Roster -> `403 Forbidden` (`ROSTER_EMPTY`).
+    - Unregistered Identifier -> `403 Forbidden` (`ROSTER_NOT_FOUND`).
+    - Revoked Candidate (`allowed: false`) -> `403 Forbidden` (`ACCESS_REVOKED`).
+    - Incorrect Exam Passcode -> `401 Unauthorized` (`INVALID_PASSCODE`).
+  - **Multi-Point Backend Perimeter Defense**: `candidate_login_handler`, `heartbeat_handler`, `submit_code_handler`, and `candidate_state_sync_handler` all mandate verified roster enrollment, preventing DOM or direct API bypass.
 
 ### 18.2 Session Resumption & Crash Resilience
 - State engine writes candidate snapshots to `state/candidates/{id}.json` upon every code autosave, question switch, test case execution, and heartbeat.

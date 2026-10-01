@@ -663,7 +663,8 @@
       gap: 4px;
       align-items: flex-end;
     }
-  </style>
+  @keyframes cit-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
   <link rel="stylesheet" href="/static/citadel-skin.css">
 </head>
 <body class="app-recruiter">
@@ -726,7 +727,10 @@
     <div id="view-candidates" class="card">
       <div class="card-head">
         <div class="card-title">Live Candidate Fleet (Click any candidate row to view detailed profile)</div>
-        <button class="btn-sm" onclick="fetchMetrics()">Refresh Fleet</button>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="fleet-last-updated" style="font-size: 11px; color: var(--text-dim); font-family: var(--font-mono);"></span>
+          <button id="btn-refresh-fleet" class="btn-sm" onclick="manualRefreshFleet()">↻ Refresh Fleet</button>
+        </div>
       </div>
       <table>
         <thead>
@@ -807,7 +811,7 @@
           </tr>
         </thead>
         <tbody id="roster-table-body">
-          <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No candidates in roster. (Testing mode accepts all IDs until roster is populated).</td></tr>
+          <tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No candidates in roster. Only candidates explicitly enrolled here are permitted to enter.</td></tr>
         </tbody>
       </table>
     </div>
@@ -1009,9 +1013,51 @@
       })));
     }
 
-    async function fetchMetrics() {
+    let isFetchingMetrics = false;
+
+    async function manualRefreshFleet() {
+      const btn = document.getElementById('btn-refresh-fleet');
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="display:inline-block; animation: cit-spin 0.6s linear infinite; margin-right: 4px;">↻</span> Refreshing...';
+      }
+      const tbody = document.getElementById('candidate-table-body');
+      if (tbody) {
+        tbody.style.opacity = '0.45';
+        tbody.style.transition = 'opacity 0.15s ease';
+      }
+
+      await fetchMetrics(true);
+
+      if (tbody) {
+        tbody.style.opacity = '1.0';
+      }
+
+      if (btn) {
+        btn.innerHTML = '✓ Refreshed';
+        btn.style.borderColor = 'rgba(111, 222, 167, 0.6)';
+        btn.style.color = '#6fdea7';
+        setTimeout(() => {
+          btn.innerHTML = '↻ Refresh Fleet';
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }, 1200);
+      }
+    }
+
+    async function fetchMetrics(isManual = false) {
+      if (isFetchingMetrics && !isManual) return;
+      isFetchingMetrics = true;
       try {
-        const res = await fetch(`/api/v1/admin/metrics?key=${AUTH_KEY}`);
+        const timestamp = Date.now();
+        const res = await fetch(`/api/v1/admin/metrics?key=${encodeURIComponent(AUTH_KEY)}&_t=${timestamp}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
         if (!res.ok) {
           console.error("Failed to fetch metrics: " + res.status);
           const tbody = document.getElementById('candidate-table-body');
@@ -1021,6 +1067,12 @@
           return;
         }
         const data = await res.json();
+
+        // Update timestamp display
+        const lastUpdatedEl = document.getElementById('fleet-last-updated');
+        if (lastUpdatedEl) {
+          lastUpdatedEl.innerText = 'Updated ' + new Date().toLocaleTimeString();
+        }
 
         // 1. Metric stat cards
         setStat('stat-total', data.total_candidates);
@@ -1076,6 +1128,8 @@
         }
       } catch (e) {
         console.error("fetchMetrics error:", e);
+      } finally {
+        isFetchingMetrics = false;
       }
     }
 
@@ -1259,7 +1313,7 @@
         const candidates = data.candidates || [];
 
         if (candidates.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No candidates enrolled in roster. In testing mode, all candidates can join until roster is configured.</td></tr>';
+          tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-muted); padding: 24px;">No candidates enrolled in roster. Assessment access is locked until candidates are registered.</td></tr>';
           return;
         }
 

@@ -1274,15 +1274,30 @@
     </div>
   </div>
 
-  <!-- CANDIDATE ID MODAL -->
-  <div id="candidate-id-modal" class="modal-overlay" style="display: flex; background: #000000; z-index: 6000;">
-    <div class="conclusion-card" style="max-width: 420px;">
-      <h2>Candidate Registration</h2>
-      <p>
-        Please enter your Candidate ID or Roll Number to begin your assessment session.
+  <!-- CANDIDATE IDENTITY VERIFICATION MODAL -->
+  <div id="candidate-id-modal" class="modal-overlay" style="display: flex; background: rgba(0, 0, 0, 0.94); backdrop-filter: blur(8px); z-index: 6000;">
+    <div class="conclusion-card" style="max-width: 440px; text-align: left; padding: 28px; border: 1px solid var(--border-subtle); background: #121110; box-shadow: 0 16px 48px rgba(0,0,0,0.85);">
+      <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+        <span style="font-size: 22px;">🛡️</span>
+        <h2 style="margin: 0; font-size: var(--text-lg); font-weight: var(--weight-medium); color: var(--text-primary); letter-spacing: -0.01em;">Identity Verification</h2>
+      </div>
+      <p style="font-size: var(--text-xs); color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
+        Enter your enrolled College Email or Roll Number and Exam Passcode to unlock your assessment environment. Only whitelisted candidates can proceed.
       </p>
-      <input type="text" id="candidate-id-input" class="candidate-reg-input" placeholder="e.g. 2026-CS-042 or College ID" onkeydown="if(event.key==='Enter') saveCandidateId()">
-      <button id="btn-register-join" class="candidate-reg-btn" onclick="saveCandidateId()">Register & Join</button>
+
+      <div id="candidate-login-error" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; border-radius: 4px; padding: 10px 14px; margin-bottom: 16px; font-size: var(--text-xs); color: #fca5a5; line-height: 1.45;"></div>
+
+      <div style="margin-bottom: 14px;">
+        <label style="display: block; font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Candidate Identifier (Email / Roll No)</label>
+        <input type="text" id="candidate-id-input" class="candidate-reg-input" style="margin-bottom: 0; text-align: left;" placeholder="e.g. amitkumarhota@gmail.com or 2026-CS-042" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') saveCandidateId()">
+      </div>
+
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Exam Passcode</label>
+        <input type="text" id="candidate-passcode-input" class="candidate-reg-input" style="margin-bottom: 0; text-align: left;" placeholder="Passcode from proctor (e.g. CITADEL2026)" value="CITADEL2026" autocomplete="off" spellcheck="false" onkeydown="if(event.key==='Enter') saveCandidateId()">
+      </div>
+
+      <button id="btn-register-join" class="candidate-reg-btn" onclick="saveCandidateId()" style="font-weight: var(--weight-medium); letter-spacing: 0.02em;">Verify & Enter Assessment</button>
     </div>
   </div>
 
@@ -1326,51 +1341,206 @@
     };
 
     // =========================================================================
-    // PERSISTENT CANDIDATE IDENTITY (localStorage across sessions & reloads)
+    // PERSISTENT CANDIDATE IDENTITY & ROSTER WHITELIST VERIFICATION
     // =========================================================================
     let CANDIDATE_ID = localStorage.getItem('citadel_candidate_id');
     const overlayCandIdEl = document.getElementById('overlay-cand-id');
-    
-    function initCandidateId() {
+
+    function showLoginError(msg) {
+      const errEl = document.getElementById('candidate-login-error');
+      if (errEl) {
+        errEl.innerHTML = `<span style="font-weight: 600; color: #ef4444;">⚠️ Access Denied:</span> ${msg}`;
+        errEl.style.display = 'block';
+      }
+    }
+
+    function clearLoginError() {
+      const errEl = document.getElementById('candidate-login-error');
+      if (errEl) {
+        errEl.style.display = 'none';
+        errEl.innerHTML = '';
+      }
+    }
+
+    async function initCandidateId() {
       const input = document.getElementById('candidate-id-input');
+      const passInput = document.getElementById('candidate-passcode-input');
       const modal = document.getElementById('candidate-id-modal');
+
       if (!CANDIDATE_ID) {
         if (modal) modal.style.display = 'flex';
         if (input) setTimeout(() => input.focus(), 150);
-      } else {
+        return;
+      }
+
+      // Pre-validate existing stored candidate ID with server to ensure they are still enrolled and not revoked/disqualified
+      const storedPass = sessionStorage.getItem('citadel_candidate_passcode') || (passInput ? passInput.value.trim() : 'CITADEL2026');
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+          },
+          body: JSON.stringify({
+            email: CANDIDATE_ID,
+            roll_number: CANDIDATE_ID,
+            passcode: storedPass,
+            client_version: 'citadel-portal-v2'
+          })
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          CANDIDATE_ID = data.candidate_id || CANDIDATE_ID;
+          if (data.session_token) {
+            sessionStorage.setItem('citadel_auth_token', data.session_token);
+          }
+          if (modal) modal.style.display = 'none';
+          if (overlayCandIdEl) {
+            overlayCandIdEl.innerText = data.name ? `${data.name} (${CANDIDATE_ID})` : CANDIDATE_ID;
+          }
+          if (data.resume_state) {
+            if (data.resume_state.remaining_seconds && !examStartedOnce) {
+              remainingSeconds = data.resume_state.remaining_seconds;
+            }
+            if (data.resume_state.active_language) {
+              currentLang = data.resume_state.active_language;
+            }
+            if (data.resume_state.code_store) {
+              for (const [qid, langMap] of Object.entries(data.resume_state.code_store)) {
+                if (!questionCodeStore[qid]) questionCodeStore[qid] = {};
+                for (const [l, c] of Object.entries(langMap)) {
+                  questionCodeStore[qid][l] = c;
+                }
+              }
+            }
+          }
+          checkExamStatus();
+          if (questionsList.length === 0) {
+            fetchQuestions();
+          }
+        } else {
+          // Stored candidate ID is not valid in roster or was revoked!
+          console.warn("[CITADEL] Stored candidate ID invalid in roster:", CANDIDATE_ID);
+          localStorage.removeItem('citadel_candidate_id');
+          const badId = CANDIDATE_ID;
+          CANDIDATE_ID = null;
+          if (modal) modal.style.display = 'flex';
+          const data = await res.json().catch(() => ({}));
+          showLoginError(data.message || `Candidate ID '${badId}' is not registered in the exam roster.`);
+          if (input) {
+            input.value = badId;
+            setTimeout(() => input.focus(), 150);
+          }
+        }
+      } catch (err) {
+        console.error("[CITADEL] Failed to verify candidate on init:", err);
+        if (modal) modal.style.display = 'flex';
+      }
+    }
+
+    window.saveCandidateId = async function() {
+      clearLoginError();
+      const input = document.getElementById('candidate-id-input');
+      const passInput = document.getElementById('candidate-passcode-input');
+      const btn = document.getElementById('btn-register-join');
+
+      const val = input ? input.value.trim() : '';
+      const passcode = passInput ? passInput.value.trim() : '';
+
+      if (!val || val.length === 0) {
+        showLoginError("Please enter your registered College Email or Roll Number.");
+        if (input) input.focus();
+        return;
+      }
+      if (!passcode || passcode.length === 0) {
+        showLoginError("Please enter the Exam Passcode announced by your proctor.");
+        if (passInput) passInput.focus();
+        return;
+      }
+
+      if (btn) {
+        btn.disabled = true;
+        btn.innerText = "Verifying Roster Whitelist...";
+      }
+
+      try {
+        const res = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+          },
+          body: JSON.stringify({
+            email: val,
+            roll_number: val,
+            passcode: passcode,
+            client_version: 'citadel-portal-v2'
+          })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const errMsg = data.message || `Candidate '${val}' is not enrolled in the exam roster.`;
+          showLoginError(errMsg);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerText = "Verify & Enter Assessment";
+          }
+          return;
+        }
+
+        // Whitelisted roster entry confirmed!
+        CANDIDATE_ID = data.candidate_id || val;
+        localStorage.setItem('citadel_candidate_id', CANDIDATE_ID);
+        sessionStorage.setItem('citadel_candidate_passcode', passcode);
+
+        if (data.session_token) {
+          sessionStorage.setItem('citadel_auth_token', data.session_token);
+        }
+
+        const modal = document.getElementById('candidate-id-modal');
         if (modal) modal.style.display = 'none';
-        if (overlayCandIdEl) overlayCandIdEl.innerText = CANDIDATE_ID;
+
+        const notStarted = document.getElementById('exam-not-started-overlay');
+        if (notStarted) notStarted.style.display = 'none';
+
+        if (overlayCandIdEl) {
+          overlayCandIdEl.innerText = data.name ? `${data.name} (${CANDIDATE_ID})` : CANDIDATE_ID;
+        }
+
+        // If candidate has resume state from previous session
+        if (data.resume_state) {
+          if (data.resume_state.remaining_seconds && !examStartedOnce) {
+            remainingSeconds = data.resume_state.remaining_seconds;
+          }
+          if (data.resume_state.active_language) {
+            currentLang = data.resume_state.active_language;
+          }
+          if (data.resume_state.code_store) {
+            for (const [qid, langMap] of Object.entries(data.resume_state.code_store)) {
+              if (!questionCodeStore[qid]) questionCodeStore[qid] = {};
+              for (const [l, c] of Object.entries(langMap)) {
+                questionCodeStore[qid][l] = c;
+              }
+            }
+          }
+        }
+
+        sendHeartbeat();
         checkExamStatus();
         if (questionsList.length === 0) {
           fetchQuestions();
         }
-      }
-    }
-
-    window.saveCandidateId = function() {
-      const input = document.getElementById('candidate-id-input');
-      const val = input ? input.value.trim() : '';
-      if (!val || val.length === 0) {
-        alert("Please enter your College ID or Roll Number to begin.");
-        if (input) input.focus();
-        return;
-      }
-      CANDIDATE_ID = val;
-      localStorage.setItem('citadel_candidate_id', CANDIDATE_ID);
-
-      const modal = document.getElementById('candidate-id-modal');
-      if (modal) modal.style.display = 'none';
-
-      const notStarted = document.getElementById('exam-not-started-overlay');
-      if (notStarted) notStarted.style.display = 'none';
-
-      if (overlayCandIdEl) overlayCandIdEl.innerText = CANDIDATE_ID;
-
-      // Immediately register session, check status, and load questions
-      sendHeartbeat();
-      checkExamStatus();
-      if (questionsList.length === 0) {
-        fetchQuestions();
+      } catch (err) {
+        showLoginError("Connection failed. Could not verify with exam server.");
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerText = "Verify & Enter Assessment";
+        }
       }
     };
 
