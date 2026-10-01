@@ -1,17 +1,17 @@
-# Graph Report - citadel-design  (2026-09-28)
+# Graph Report - citadel-design  (2026-10-01)
 
 ## Corpus Check
-- 79 files · ~240,520 words
+- 80 files · ~242,636 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 15 file(s) not represented in the graph (top: (none) 4, .woff2 4, .bat 3)
 
 ## Summary
-- 1345 nodes · 2528 edges · 114 communities (71 shown, 43 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 170 edges (avg confidence: 0.85)
+- 1354 nodes · 2554 edges · 115 communities (71 shown, 44 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 173 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `78b050e1`
+- Built from commit: `f6c5b24d`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -75,7 +75,7 @@
 - guard-net
 - render_gatekeeper_html
 - AGENTS.md
-- AtomicBool
+- Arc
 - HDESK
 - LRESULT
 - Send
@@ -96,17 +96,17 @@
 - is_elevated
 - KioskProcess
 - LPARAM
+- AtomicBool
 - Mutex
-- Option
 - 11. Network Security Architecture & Cryptographic Client Handshake
 - citadel-server
 - ProcessWatchdog
 - QuestionSummary
 - render_portal_html
-- Result
+- Option
 - 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
+- Result
 - Self
-- String
 - TaskbarLock
 - TouchpadLock
 - 15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion
@@ -124,19 +124,20 @@
 - Ipv4Addr
 - HashMap
 - Path
-- PathBuf
+- String
 - Router
 - Vec
+- PathBuf
 
 ## God Nodes (most connected - your core abstractions)
-1. `AppState` - 67 edges
+1. `AppState` - 68 edges
 2. `is_admin_authorized()` - 31 edges
 3. `ClientLockdownGuard` - 29 edges
 4. `build_app()` - 25 edges
 5. `o()` - 23 edges
 6. `Citadel Client - Security Architecture and Implementation Reference` - 19 edges
-7. `main()` - 19 edges
-8. `e()` - 19 edges
+7. `e()` - 19 edges
+8. `main()` - 19 edges
 9. `WfpEngine` - 18 edges
 10. `f()` - 16 edges
 
@@ -147,19 +148,19 @@
   guard-verify/src/bin/loopback_scan_test.rs → guard-svc/src/llm_detect.rs
 - `main()` --calls--> `scan_loopback_listeners()`  [INFERRED]
   guard-verify/src/bin/loopback_scan_test.rs → guard-svc/src/llm_detect.rs
-- `main()` --calls--> `emergency_restore_system()`  [INFERRED]
-  citadel-client/src/main.rs → citadel-client/src/crash_handler.rs
 - `main()` --calls--> `is_emergency_override_triggered()`  [INFERRED]
   citadel-client/src/main.rs → citadel-client/src/hotkey_lock.rs
+- `main()` --calls--> `build_app()`  [INFERRED]
+  citadel-server/src/main.rs → citadel-server/src/api.rs
 
 ## Import Cycles
 - None detected.
 
-## Communities (114 total, 43 thin omitted)
+## Communities (115 total, 44 thin omitted)
 
 ### Community 0 - "api.rs"
 Cohesion: 0.08
-Nodes (123): CandidateResumeState, CandidateState, AddTestCasePayload, admin_add_hidden_case_handler(), admin_add_roster_candidate_handler(), admin_add_sample_case_handler(), admin_candidate_profile_handler(), admin_clear_flag_candidate_handler() (+115 more)
+Nodes (121): AtomicBool, CandidateResumeState, CandidateState, AddTestCasePayload, admin_add_hidden_case_handler(), admin_add_roster_candidate_handler(), admin_add_sample_case_handler(), admin_candidate_profile_handler() (+113 more)
 
 ### Community 1 - "kiosk_window.rs"
 Cohesion: 0.09
@@ -167,15 +168,15 @@ Nodes (33): ClipboardGuard, find_all_descendants(), find_browser_executable(), f
 
 ### Community 2 - "hotkey_lock.rs"
 Cohesion: 0.06
-Nodes (37): AtomicU32, AtomicU64, check_escape_rapid_press(), EMERGENCY_OVERRIDE_TRIGGERED, ESC_TAP_COUNT, evaluate_keystroke(), HEALTH_CHECK_VK, HEALTH_PONG_RECEIVED (+29 more)
+Nodes (38): AtomicU32, AtomicU64, check_escape_rapid_press(), EMERGENCY_OVERRIDE_TRIGGERED, ESC_TAP_COUNT, evaluate_keystroke(), HEALTH_CHECK_VK, HEALTH_PONG_RECEIVED (+30 more)
 
 ### Community 3 - "4. How Restrictions Work - Layer by Layer"
 Cohesion: 0.18
 Nodes (11): 4.10 Foreground Lock (ForegroundLock), 4.1 Keyboard Shortcut Blocking (hotkey_lock.rs), 4.2 Task Manager Disable, 4.3 Win Key Disable, 4.4 Sign-Out / Lock / Shutdown Disable, 4.5 Taskbar Hiding (TaskbarLock), 4.6 Explorer Shell Kill (ExplorerLock) - ELEVATED ONLY, 4.7 Network Lockdown - WFP (Windows Filtering Platform) - ELEVATED ONLY (+3 more)
 
 ### Community 4 - "api_tests.rs"
-Cohesion: 0.09
-Nodes (38): Arc, axum, bodyext, citadel_server, build_app(), build_app_with_state(), BOGUS_PYTHON_CODE, CORRECT_PYTHON_TWO_SUM (+30 more)
+Cohesion: 0.08
+Nodes (45): Arc, axum, bodyext, citadel_server, build_app(), build_app_with_state(), BOGUS_PYTHON_CODE, CORRECT_PYTHON_TWO_SUM (+37 more)
 
 ### Community 5 - "ClientLockdownGuard"
 Cohesion: 0.13
@@ -186,8 +187,8 @@ Cohesion: 0.20
 Nodes (31): a(), b(), c(), d(), e(), f(), C(), k() (+23 more)
 
 ### Community 7 - "judge.rs"
-Cohesion: 0.12
-Nodes (36): Child, clean_compiler_errors(), create_temp_box(), evaluate_submission(), finalize_result(), JudgeResult, normalize_output(), Duration (+28 more)
+Cohesion: 0.18
+Nodes (26): Child, clean_compiler_errors(), create_temp_box(), evaluate_submission(), finalize_result(), JudgeResult, normalize_output(), Duration (+18 more)
 
 ### Community 8 - "01 — Software Design Document"
 Cohesion: 0.06
@@ -198,8 +199,8 @@ Cohesion: 0.05
 Nodes (36): 03 — LLD: Lockdown Client, 10. Implementation Reference & Production Hardening Guide, 11.1 Threat: Degraded / "Less Control" Execution, 11.2 Inviolable Invariant: Zero Degraded Fallback, 11. Mandatory UAC Elevation & Zero-Fallback Startup Architecture, 12.1 High-DPI Per-Monitor v2 Native Rendering, 12.2 Local Lockdown Controller (`http://127.0.0.1:8444`), 12.3 Supervision Loop & Persistent Disqualification Retention (+28 more)
 
 ### Community 10 - "persistence.rs"
-Cohesion: 0.17
-Nodes (27): Self, atomic_write_json(), CandidateResumeState, CandidateState, ensure_directories(), ExamRoster, load_all_candidate_states(), load_candidate_state() (+19 more)
+Cohesion: 0.11
+Nodes (39): exam_info_handler(), atomic_write_json(), CandidateResumeState, CandidateState, ensure_directories(), ExamRoster, load_all_candidate_states(), load_candidate_state() (+31 more)
 
 ### Community 11 - "guard-svc/src/main.rs"
 Cohesion: 0.18
@@ -207,7 +208,7 @@ Nodes (15): atomic, guard_svc, Result, write_custom_log(), write_guard_log(), ge
 
 ### Community 12 - "WfpEngine"
 Cohesion: 0.13
-Nodes (18): Display, fmt, Formatter, CITADEL_SUBLAYER_GUID, Drop, Error, HANDLE, Ipv4Addr (+10 more)
+Nodes (19): core, Display, fmt, Formatter, CITADEL_SUBLAYER_GUID, Drop, Error, HANDLE (+11 more)
 
 ### Community 13 - "02 — High-Level Design"
 Cohesion: 0.07
@@ -250,16 +251,16 @@ Cohesion: 0.10
 Nodes (19): 11 — LLD: Admin Console and Operations, 1. Admin console structure, 1. Security Lockdown Mode Switch, 2.1 Live Console Controls & Security Mode Gating, 2. Live Ops screen, 2. Real-Time Exam Live State Switch, 3. Exam lifecycle runbook, 4. Operator CLI (+11 more)
 
 ### Community 23 - "crash_handler.rs"
-Cohesion: 0.17
-Nodes (15): console_ctrl_handler(), emergency_restore_system(), install_crash_safety(), BOOL, Vec, to_wide(), core, generic_all (+7 more)
+Cohesion: 0.15
+Nodes (17): console_ctrl_handler(), emergency_restore_system(), install_crash_safety(), BOOL, Vec, to_wide(), Path, commandext (+9 more)
 
 ### Community 24 - "pre_flight.rs"
-Cohesion: 0.17
-Nodes (20): DesktopEnumContext, DetectedApplication, enforce_clean_environment(), get_pid_to_exe_map(), HashMap, HashSet, String, Vec (+12 more)
+Cohesion: 0.19
+Nodes (18): DesktopEnumContext, DetectedApplication, enforce_clean_environment(), get_pid_to_exe_map(), HashMap, HashSet, String, Vec (+10 more)
 
 ### Community 25 - "SecureDesktop"
-Cohesion: 0.18
-Nodes (10): Drop, HDESK, Path, Result, Self, String, Vec, SecureDesktop (+2 more)
+Cohesion: 0.20
+Nodes (9): Drop, HDESK, Result, Self, String, Vec, SecureDesktop, to_wide_null() (+1 more)
 
 ### Community 26 - "13 — Security Threat Model"
 Cohesion: 0.11
@@ -274,8 +275,8 @@ Cohesion: 0.10
 Nodes (20): 1. Executive Summary, 2. Feature Comparison Matrix, 3. Mandatory UAC Elevation & Zero-Fallback Enforcement, 4. Network & API Access Control: Testing vs. Production Gating, 5.1 The 15-Minute Early Exit Rule (Production vs Testing), 5. Early Exam Exit & Conclusion Lifecycle, 6. Persistent Disqualification Lockdown Retention, 7. How to Run in Testing Mode (Safe for You) (+12 more)
 
 ### Community 29 - "citadel-client/src/main.rs"
-Cohesion: 0.22
-Nodes (17): Box, citadel_client, is_emergency_override_triggered(), ensure_explorer_running(), log_event(), main(), poll_server_exit_status(), probe_server_is_production() (+9 more)
+Cohesion: 0.26
+Nodes (15): Box, citadel_client, ensure_explorer_running(), log_event(), main(), poll_server_exit_status(), probe_server_is_production(), prompt_elevation_retry_cancel() (+7 more)
 
 ### Community 30 - "10 — LLD: Integrity Analytics and Proctoring"
 Cohesion: 0.12
@@ -283,7 +284,7 @@ Nodes (15): 10 — LLD: Integrity Analytics and Proctoring, 1.1 Event catalogue,
 
 ### Community 31 - "ExplorerLock"
 Cohesion: 0.16
-Nodes (10): ExplorerLock, Arc, AtomicBool, Drop, JoinHandle, Option, Self, command (+2 more)
+Nodes (10): ExplorerLock, Arc, AtomicBool, Drop, JoinHandle, Option, Self, closehandle (+2 more)
 
 ### Community 32 - "selora"
 Cohesion: 0.13
@@ -318,8 +319,8 @@ Cohesion: 0.21
 Nodes (9): RegistryLock, Drop, Option, Result, Self, String, Vec, SavedRegEntry (+1 more)
 
 ### Community 40 - "recovery.rs"
-Cohesion: 0.36
-Nodes (9): is_process_running(), kill_processes_by_name(), main(), restore_registry_policies(), restore_services(), restore_taskbars(), Vec, to_wide() (+1 more)
+Cohesion: 0.31
+Nodes (10): is_process_running(), kill_processes_by_name(), main(), restore_registry_policies(), restore_services(), restore_taskbars(), Vec, to_wide() (+2 more)
 
 ### Community 41 - "guard-svc/src/lib.rs"
 Cohesion: 0.17
@@ -439,27 +440,27 @@ Nodes (3): 17.1 Zero-Layout-Shift Position Contract, 17.2 Air-Gapped Typography 
 
 ### Community 103 - "18. Roster Synchronization & Resilient Session Resumption Engine"
 Cohesion: 0.67
-Nodes (3): 18.1 Proctor Roster Management, 18.2 Session Resumption & Crash Resilience, 18. Roster Synchronization & Resilient Session Resumption Engine
+Nodes (3): 18.1 Proctor Roster Management & Strict Whitelist Enforcement, 18.2 Session Resumption & Crash Resilience, 18. Roster Synchronization & Resilient Session Resumption Engine
 
 ## Knowledge Gaps
-- **412 isolated node(s):** `CITADEL Guard, Shell, and Forge — the Safe Exam Browser replacement`, `1. Why this component exists`, `2. Process architecture and trust boundaries`, `3.1 Module responsibilities`, `3.2 Guard state machine` (+407 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 632 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **43 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **412 isolated node(s):** `What Safe Exam Browser (SEB) Actually Does`, `BUG #1 (FIXED): Silent UAC Bypass`, `BUG #2 (FIXED): Empty Guard Constructor`, `BUG #3 (FIXED): Security Gated Behind Elevation Check`, `BUG #4 (FIXED): Missing Application Manifest` (+407 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 633 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **44 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **Why does `ClientLockdownGuard` connect `ClientLockdownGuard` to `.new_with_mode`, `kiosk_window.rs`, `hotkey_lock.rs`?**
-  _High betweenness centrality (0.017) - this node is a cross-community bridge._
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
 - **Why does `build_app()` connect `api_tests.rs` to `api.rs`, `persistence.rs`, `net`?**
+  _High betweenness centrality (0.017) - this node is a cross-community bridge._
+- **Why does `WfpEngine` connect `WfpEngine` to `LocalControlServer`?**
   _High betweenness centrality (0.013) - this node is a cross-community bridge._
-- **What connects `CITADEL Guard, Shell, and Forge — the Safe Exam Browser replacement`, `1. Why this component exists`, `2. Process architecture and trust boundaries` to the rest of the system?**
+- **What connects `What Safe Exam Browser (SEB) Actually Does`, `BUG #1 (FIXED): Silent UAC Bypass`, `BUG #2 (FIXED): Empty Guard Constructor` to the rest of the system?**
   _412 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `api.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.07555555555555556 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07815368476265408 - nodes in this community are weakly interconnected._
 - **Should `kiosk_window.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.08665269042627533 - nodes in this community are weakly interconnected._
 - **Should `hotkey_lock.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.06382978723404255 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06207482993197279 - nodes in this community are weakly interconnected._
