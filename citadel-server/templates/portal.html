@@ -226,12 +226,12 @@
       font-weight: 600;
       font-size: 12px;
       padding: 5px 12px;
-      border-radius: 4px;
+      border-radius: 0px;
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
       align-items: center;
-      gap: 4px;
+      gap: 6px;
       transition: all 0.15s;
       line-height: normal;
     }
@@ -246,7 +246,7 @@
       border: 1px solid rgba(241, 112, 112, 0.3);
       color: #f47a79;
       padding: 5px 12px;
-      border-radius: 4px;
+      border-radius: 0px;
       font-size: 12px;
       font-weight: 600;
     }
@@ -1063,7 +1063,12 @@
         </svg>
         <span id="timer-display">01:30:00</span>
       </div>
-      <button class="btn-sm btn-danger btn-end-exam" id="btn-end-exam" onclick="openEndExamModal()">End Exam</button>
+      <button class="btn-end-exam" id="btn-end-exam" onclick="openEndExamModal()">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
+          <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
+        </svg>
+        <span>End Exam</span>
+      </button>
     </div>
   </header>
 
@@ -1230,7 +1235,7 @@
       </div>
       <div class="modal-actions">
         <button class="btn-action btn-run" onclick="closeEndExamModal()">Continue Exam</button>
-        <button class="btn-sm btn-danger btn-end-exam" id="btn-confirm-end" onclick="executeEndExam()">Confirm & End Exam</button>
+        <button class="btn-action btn-end-exam" id="btn-confirm-end" onclick="executeEndExam()">Confirm & End Exam</button>
       </div>
     </div>
   </div>
@@ -1274,7 +1279,7 @@
         </div>
       </div>
       <div style="margin-bottom: 16px;">
-        <button onclick="executeDisqualifiedExit()" class="btn-sm btn-danger btn-end-exam" style="padding: 8px 22px; font-size: 13px; margin: 0 auto; display: inline-flex;">
+        <button onclick="executeDisqualifiedExit()" class="btn-action btn-end-exam" style="padding: 8px 22px; font-size: 13px; margin: 0 auto; display: inline-flex; border-radius: 0px;">
           Exit & Close Workstation
         </button>
       </div>

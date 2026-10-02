@@ -71,25 +71,29 @@
 }
 .app-portal .timer-container.timer-danger { animation: cit-breathe 1.6s ease-in-out infinite; }
 
-/* End Exam — exact match to Revoke Access & Disqualify (.btn-sm.btn-danger) */
+/* End Exam — boxxy sharp rectangle (border-radius: 0px) with Revoke Access / Disqualify red aesthetics */
 .app-portal .btn-end-exam,
 .app-portal .btn-danger {
   background: rgba(241, 112, 112, 0.12) !important;
   border: 1px solid rgba(241, 112, 112, 0.3) !important;
   color: #f47a79 !important;
   padding: 5px 12px !important;
-  border-radius: 4px !important;
+  border-radius: 0px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   cursor: pointer !important;
   text-decoration: none !important;
   display: inline-flex !important;
   align-items: center !important;
-  gap: 4px !important;
+  gap: 6px !important;
   transition: all 0.15s !important;
   line-height: normal !important;
   box-shadow: none !important;
   transform: none !important;
+}
+.app-portal .btn-end-exam svg {
+  flex-shrink: 0;
+  color: inherit;
 }
 .app-portal .btn-end-exam:hover,
 .app-portal .btn-danger:hover {
@@ -113,13 +117,13 @@
   color: #f47a79 !important;
   animation: none !important;
 }
-/* The modal's "Confirm & End Exam" also matches .btn-sm.btn-danger */
+/* The modal's "Confirm & End Exam" also boxxy sharp rectangle */
 .app-portal #btn-confirm-end {
   background: rgba(241, 112, 112, 0.12) !important;
   border: 1px solid rgba(241, 112, 112, 0.3) !important;
   color: #f47a79 !important;
   padding: 5px 12px !important;
-  border-radius: 4px !important;
+  border-radius: 0px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
 }
