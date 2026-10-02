@@ -538,7 +538,7 @@ The client embeds a local control microserver on port 8444:
 - Subnet CORS Authorization: Replaced rigid single-host CORS with subnet-aware validation (`127.0.0.1`, `localhost`, `172.*`, `192.168.*`, `10.*`) allowing campus Wi-Fi network deployments.
 - Workstation Protection: Enforces `WORKSTATION_BLOCKED` validation when exam or candidate is disqualified, rejecting local bypass commands.
 
-### 12.3 Supervision Loop & Persistent Disqualification Retention
+### 12.3 Supervision Loop & Immediate Disqualification Exit Flow
 - The background thread `poll_server_exit_status()` repeatedly queries `GET /api/v1/client/session-control?token=<auth_token>`.
-- If a candidate is disqualified, the server returns `{ should_exit: false, status: "Disqualified" }`. The client maintains all Win32 hooks and locks until the entire exam concludes.
-- When the exam ends for all candidates, `{ should_exit: true }` triggers clean drop of `ClientLockdownGuard` and window closure.
+- If a candidate is disqualified, the server returns `{ should_exit: true, status: "Disqualified" }`.
+- In both Production and Testing modes, disqualifying a candidate removes them immediately from the exam, cleanly dropping `ClientLockdownGuard`, restoring all hooks and Explorer, and terminating the kiosk.

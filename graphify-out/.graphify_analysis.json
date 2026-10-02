@@ -1,7 +1,6 @@
 {
   "communities": {
     "0": [
-      "atomicbool",
       "candidateresumestate",
       "candidatestate",
       "citadel_server_src_api",
@@ -43,9 +42,7 @@
       "citadel_server_src_api_clienthandshakerequest",
       "citadel_server_src_api_clienthandshakeresponse",
       "citadel_server_src_api_createquestionpayload",
-      "citadel_server_src_api_disconnect_watchdog_loop",
       "citadel_server_src_api_download_client_handler",
-      "citadel_server_src_api_exam_info_handler",
       "citadel_server_src_api_exam_status_handler",
       "citadel_server_src_api_examlivestate",
       "citadel_server_src_api_exampasscoderesponse",
@@ -75,8 +72,10 @@
       "citadel_server_src_api_reporteventrequest",
       "citadel_server_src_api_restorequery",
       "citadel_server_src_api_rosteruploadpayload",
+      "citadel_server_src_api_rs_arc",
+      "citadel_server_src_api_rs_atomicbool",
+      "citadel_server_src_api_rs_mutex",
       "citadel_server_src_api_rs_option",
-      "citadel_server_src_api_rs_pathbuf",
       "citadel_server_src_api_rs_result",
       "citadel_server_src_api_rs_string",
       "citadel_server_src_api_serve_ace_bundle_handler",
@@ -109,13 +108,11 @@
       "cors",
       "datetime",
       "default",
-      "examinfo",
       "examroster",
       "hashmap",
       "headermap",
       "intoresponse",
       "json",
-      "mutex",
       "path",
       "query",
       "question",
@@ -136,6 +133,7 @@
       "citadel_server",
       "citadel_server_src_api_build_app",
       "citadel_server_src_api_build_app_with_state",
+      "citadel_server_src_api_disconnect_watchdog_loop",
       "citadel_server_src_api_rs_router",
       "citadel_server_tests_api_tests",
       "citadel_server_tests_api_tests_bogus_python_code",
@@ -149,6 +147,7 @@
       "citadel_server_tests_api_tests_test_candidate_explicit_logout_metrics",
       "citadel_server_tests_api_tests_test_candidate_focus_loss_flags_candidate",
       "citadel_server_tests_api_tests_test_client_session_control_and_end_exam_lifecycle",
+      "citadel_server_tests_api_tests_test_disqualification_immediately_signals_client_exit_in_both_modes",
       "citadel_server_tests_api_tests_test_exam_info_endpoint",
       "citadel_server_tests_api_tests_test_exam_not_live_blocks_candidate_access",
       "citadel_server_tests_api_tests_test_final_submission_evaluates_hidden_cases",
@@ -291,7 +290,6 @@
       "citadel_client_tests_hotkey_filter_test_test_print_screen_and_apps_suppressed",
       "citadel_client_tests_hotkey_filter_test_test_proctor_emergency_override",
       "citadel_client_tests_hotkey_filter_test_test_windows_keys_and_combinations_suppressed",
-      "foundation",
       "getcurrentthreadid",
       "hdesk",
       "keyboardandmouse",
@@ -301,97 +299,49 @@
       "wparam"
     ],
     "4": [
-      "citadel_client_src_lib",
-      "citadel_client_src_security_coordinator",
-      "citadel_client_src_security_coordinator_bluetoothlock",
-      "citadel_client_src_security_coordinator_bluetoothlock_acquire",
-      "citadel_client_src_security_coordinator_bluetoothlock_drop",
-      "citadel_client_src_security_coordinator_bluetoothlock_restore",
-      "citadel_client_src_security_coordinator_clientlockdownguard",
-      "citadel_client_src_security_coordinator_clientlockdownguard_drop",
-      "citadel_client_src_security_coordinator_clientlockdownguard_get_violations",
-      "citadel_client_src_security_coordinator_clientlockdownguard_launch_browser",
-      "citadel_client_src_security_coordinator_clientlockdownguard_new",
-      "citadel_client_src_security_coordinator_clientlockdownguard_new_with_mode",
-      "citadel_client_src_security_coordinator_clientlockdownguard_restore_all",
-      "citadel_client_src_security_coordinator_clientlockdownguard_secure_desktop_name",
-      "citadel_client_src_security_coordinator_clientlockdownguard_server_endpoint",
-      "citadel_client_src_security_coordinator_elevate_self",
-      "citadel_client_src_security_coordinator_is_elevated",
-      "citadel_client_src_security_coordinator_perform_client_handshake",
-      "citadel_client_src_security_coordinator_rs_arc",
-      "citadel_client_src_security_coordinator_rs_atomicbool",
-      "citadel_client_src_security_coordinator_rs_drop",
-      "citadel_client_src_security_coordinator_rs_ipv4addr",
-      "citadel_client_src_security_coordinator_rs_joinhandle",
-      "citadel_client_src_security_coordinator_rs_mutex",
-      "citadel_client_src_security_coordinator_rs_option",
-      "citadel_client_src_security_coordinator_rs_result",
-      "citadel_client_src_security_coordinator_rs_self",
-      "citadel_client_src_security_coordinator_rs_string",
-      "citadel_client_src_security_coordinator_rs_vec",
-      "citadel_client_tests_security_lifecycle_test",
-      "citadel_client_tests_security_lifecycle_test_test_destructive_lifecycle_opt_in_only",
-      "citadel_client_tests_security_lifecycle_test_test_elevation_check_safe",
-      "citadel_client_tests_security_lifecycle_test_test_mandatory_elevation_zero_fallback",
-      "citadel_client_tests_security_lifecycle_test_test_security_coordinator_endpoint",
-      "explorerlock",
-      "install_crash_safety",
-      "is_elevated",
-      "localcontrolserver",
-      "registrylock",
-      "securedesktop",
-      "security",
-      "shellexecutew",
-      "sw_shownormal",
-      "wfpengine"
+      "child",
+      "citadel_server_src_api_exam_info_handler",
+      "citadel_server_src_judge",
+      "citadel_server_src_judge_clean_compiler_errors",
+      "citadel_server_src_judge_create_temp_box",
+      "citadel_server_src_judge_evaluate_submission",
+      "citadel_server_src_judge_finalize_result",
+      "citadel_server_src_judge_judgeresult",
+      "citadel_server_src_judge_normalize_output",
+      "citadel_server_src_judge_rs_duration",
+      "citadel_server_src_judge_rs_option",
+      "citadel_server_src_judge_rs_path",
+      "citadel_server_src_judge_rs_pathbuf",
+      "citadel_server_src_judge_rs_result",
+      "citadel_server_src_judge_rs_string",
+      "citadel_server_src_judge_rs_vec",
+      "citadel_server_src_judge_run_cpp",
+      "citadel_server_src_judge_run_java",
+      "citadel_server_src_judge_run_python",
+      "citadel_server_src_judge_sanitize_python_traceback",
+      "citadel_server_src_judge_testcasediff",
+      "citadel_server_src_judge_wait_timeout",
+      "citadel_server_src_questions",
+      "citadel_server_src_questions_examinfo",
+      "citadel_server_src_questions_get_all_questions",
+      "citadel_server_src_questions_get_exam_info",
+      "citadel_server_src_questions_get_question_summaries",
+      "citadel_server_src_questions_question",
+      "citadel_server_src_questions_questionsummary",
+      "citadel_server_src_questions_rs_hashmap",
+      "citadel_server_src_questions_rs_option",
+      "citadel_server_src_questions_rs_string",
+      "citadel_server_src_questions_rs_vec",
+      "citadel_server_src_questions_sanitize_for_candidate",
+      "citadel_server_src_questions_testcase",
+      "examinfo",
+      "exitstatus",
+      "fs",
+      "process",
+      "serde",
+      "time"
     ],
     "5": [
-      "bool",
-      "citadel_client_src_policy",
-      "citadel_client_src_policy_is_windows_system_process",
-      "citadel_client_src_policy_lockdownmode",
-      "citadel_client_src_policy_lockdownmode_is_production",
-      "citadel_client_src_policy_lockdownmode_is_testing",
-      "citadel_client_src_policy_lockdownpolicy",
-      "citadel_client_src_policy_lockdownpolicy_is_process_allowed",
-      "citadel_client_src_policy_lockdownpolicy_new",
-      "citadel_client_src_policy_prohibited_processes",
-      "citadel_client_src_policy_rs_hashset",
-      "citadel_client_src_policy_rs_option",
-      "citadel_client_src_policy_rs_self",
-      "citadel_client_src_pre_flight",
-      "citadel_client_src_pre_flight_desktopenumcontext",
-      "citadel_client_src_pre_flight_detectedapplication",
-      "citadel_client_src_pre_flight_enforce_clean_environment",
-      "citadel_client_src_pre_flight_enum_desktop_windows_proc",
-      "citadel_client_src_pre_flight_get_pid_to_exe_map",
-      "citadel_client_src_pre_flight_rs_hashmap",
-      "citadel_client_src_pre_flight_rs_hashset",
-      "citadel_client_src_pre_flight_rs_lparam",
-      "citadel_client_src_pre_flight_rs_string",
-      "citadel_client_src_pre_flight_rs_vec",
-      "citadel_client_src_pre_flight_scan_prohibited_processes",
-      "citadel_client_src_pre_flight_scan_running_applications",
-      "citadel_client_src_pre_flight_show_dialog",
-      "citadel_client_src_pre_flight_terminate_detected_applications",
-      "citadel_client_src_pre_flight_terminate_prohibited_processes",
-      "citadel_server_src_ui_render_gatekeeper_html",
-      "citadel_server_src_ui_rs_string",
-      "citadel_server_templates_gatekeeper_html",
-      "citadel_server_tests_device_detection_tests_test_ui_gatekeeper_and_mobile_blocked_rendering",
-      "collections",
-      "guard_verify_src_bin_fake_capture_excluded_window",
-      "guard_verify_src_bin_fake_capture_excluded_window_main",
-      "hwnd",
-      "messagebox_result",
-      "messagebox_style",
-      "osstringext",
-      "prohibited_processes",
-      "w",
-      "windowsandmessaging"
-    ],
-    "6": [
       "citadel_server_static_ace_bundle",
       "citadel_server_static_ace_bundle_a",
       "citadel_server_static_ace_bundle_b",
@@ -434,90 +384,7 @@
       "citadel_server_static_ace_bundle_x",
       "citadel_server_static_ace_bundle_y"
     ],
-    "7": [
-      "box",
-      "build_app",
-      "citadel_client",
-      "citadel_client_src_main",
-      "citadel_client_src_main_ensure_explorer_running",
-      "citadel_client_src_main_log_event",
-      "citadel_client_src_main_main",
-      "citadel_client_src_main_poll_server_exit_status",
-      "citadel_client_src_main_probe_server_is_production",
-      "citadel_client_src_main_prompt_elevation_retry_cancel",
-      "citadel_client_src_main_prompt_proctor_pin_authorization",
-      "citadel_client_src_main_prompt_server_endpoint_gui",
-      "citadel_client_src_main_read_embedded_server_endpoint",
-      "citadel_client_src_main_read_file_server_endpoint",
-      "citadel_client_src_main_resolve_server_endpoint",
-      "citadel_client_src_main_rs_option",
-      "citadel_client_src_main_rs_result",
-      "citadel_client_src_main_show_error_message",
-      "citadel_server_src_main",
-      "citadel_server_src_main_discover_lan_ips",
-      "citadel_server_src_main_main",
-      "citadel_server_src_main_rs_box",
-      "citadel_server_src_main_rs_error",
-      "citadel_server_src_main_rs_result",
-      "citadel_server_src_main_rs_vec",
-      "error",
-      "guard_verify_src_bin_check_deny_all",
-      "guard_verify_src_bin_check_deny_all_main",
-      "guard_verify_src_bin_test_college_lan_isolation",
-      "guard_verify_src_bin_test_college_lan_isolation_main",
-      "guard_verify_src_bin_test_college_lan_isolation_rs_duration",
-      "guard_verify_src_bin_test_college_lan_isolation_rs_joinhandle",
-      "guard_verify_src_bin_test_college_lan_isolation_start_mock_server",
-      "guard_verify_src_bin_test_college_lan_isolation_try_connect",
-      "io",
-      "ipaddr",
-      "ipv4addr",
-      "net",
-      "pathbuf",
-      "socketaddr"
-    ],
-    "8": [
-      "child",
-      "citadel_server_src_judge",
-      "citadel_server_src_judge_clean_compiler_errors",
-      "citadel_server_src_judge_create_temp_box",
-      "citadel_server_src_judge_evaluate_submission",
-      "citadel_server_src_judge_finalize_result",
-      "citadel_server_src_judge_judgeresult",
-      "citadel_server_src_judge_normalize_output",
-      "citadel_server_src_judge_rs_duration",
-      "citadel_server_src_judge_rs_option",
-      "citadel_server_src_judge_rs_path",
-      "citadel_server_src_judge_rs_pathbuf",
-      "citadel_server_src_judge_rs_result",
-      "citadel_server_src_judge_rs_string",
-      "citadel_server_src_judge_rs_vec",
-      "citadel_server_src_judge_run_cpp",
-      "citadel_server_src_judge_run_java",
-      "citadel_server_src_judge_run_python",
-      "citadel_server_src_judge_sanitize_python_traceback",
-      "citadel_server_src_judge_testcasediff",
-      "citadel_server_src_judge_wait_timeout",
-      "citadel_server_src_questions",
-      "citadel_server_src_questions_examinfo",
-      "citadel_server_src_questions_get_all_questions",
-      "citadel_server_src_questions_get_exam_info",
-      "citadel_server_src_questions_get_question_summaries",
-      "citadel_server_src_questions_question",
-      "citadel_server_src_questions_questionsummary",
-      "citadel_server_src_questions_rs_hashmap",
-      "citadel_server_src_questions_rs_option",
-      "citadel_server_src_questions_rs_string",
-      "citadel_server_src_questions_rs_vec",
-      "citadel_server_src_questions_sanitize_for_candidate",
-      "citadel_server_src_questions_testcase",
-      "exitstatus",
-      "fs",
-      "process",
-      "serde",
-      "time"
-    ],
-    "9": [
+    "6": [
       "03_lld_lockdown_client",
       "03_lld_lockdown_client_03_lld_lockdown_client",
       "03_lld_lockdown_client_10_implementation_reference_production_hardening_guide",
@@ -556,7 +423,46 @@
       "03_lld_lockdown_client_citadel_guard_shell_and_forge_the_safe_exam_browser_replacement",
       "03_lld_lockdown_client_protocol_details"
     ],
-    "10": [
+    "7": [
+      "citadel_client_src_lib",
+      "citadel_client_src_security_coordinator",
+      "citadel_client_src_security_coordinator_bluetoothlock",
+      "citadel_client_src_security_coordinator_bluetoothlock_acquire",
+      "citadel_client_src_security_coordinator_bluetoothlock_drop",
+      "citadel_client_src_security_coordinator_bluetoothlock_restore",
+      "citadel_client_src_security_coordinator_clientlockdownguard",
+      "citadel_client_src_security_coordinator_clientlockdownguard_drop",
+      "citadel_client_src_security_coordinator_clientlockdownguard_get_violations",
+      "citadel_client_src_security_coordinator_clientlockdownguard_launch_browser",
+      "citadel_client_src_security_coordinator_clientlockdownguard_new",
+      "citadel_client_src_security_coordinator_clientlockdownguard_new_with_mode",
+      "citadel_client_src_security_coordinator_clientlockdownguard_restore_all",
+      "citadel_client_src_security_coordinator_clientlockdownguard_secure_desktop_name",
+      "citadel_client_src_security_coordinator_clientlockdownguard_server_endpoint",
+      "citadel_client_src_security_coordinator_elevate_self",
+      "citadel_client_src_security_coordinator_perform_client_handshake",
+      "citadel_client_src_security_coordinator_rs_arc",
+      "citadel_client_src_security_coordinator_rs_atomicbool",
+      "citadel_client_src_security_coordinator_rs_drop",
+      "citadel_client_src_security_coordinator_rs_ipv4addr",
+      "citadel_client_src_security_coordinator_rs_joinhandle",
+      "citadel_client_src_security_coordinator_rs_mutex",
+      "citadel_client_src_security_coordinator_rs_option",
+      "citadel_client_src_security_coordinator_rs_result",
+      "citadel_client_src_security_coordinator_rs_self",
+      "citadel_client_src_security_coordinator_rs_string",
+      "citadel_client_src_security_coordinator_rs_vec",
+      "explorerlock",
+      "install_crash_safety",
+      "localcontrolserver",
+      "registrylock",
+      "securedesktop",
+      "security",
+      "shellexecutew",
+      "sw_shownormal",
+      "wfpengine"
+    ],
+    "8": [
       "01_sdd_software_design_document",
       "01_sdd_software_design_document_01_software_design_document",
       "01_sdd_software_design_document_10_traceability_summary",
@@ -591,9 +497,10 @@
       "01_sdd_software_design_document_tr_8_verdict_feedback_granularity",
       "01_sdd_software_design_document_tr_9_rust_vs_go_for_the_appliance"
     ],
-    "11": [
+    "9": [
       "citadel_server_src_api_appstate_default",
       "citadel_server_src_api_appstate_new_with_dir",
+      "citadel_server_src_api_rs_self",
       "citadel_server_src_persistence",
       "citadel_server_src_persistence_atomic_write_json",
       "citadel_server_src_persistence_candidateresumestate",
@@ -622,11 +529,10 @@
       "citadel_server_src_persistence_test_filename_sanitization",
       "citadel_server_src_persistence_test_parse_roster_csv",
       "citadel_server_src_persistence_test_state_persistence_lifecycle",
-      "self",
       "super",
       "t"
     ],
-    "12": [
+    "10": [
       "core",
       "display",
       "fmt",
@@ -660,7 +566,7 @@
       "rpc_c_authn_winnt",
       "windowsfilteringplatform"
     ],
-    "13": [
+    "11": [
       "02_hld_high_level_design",
       "02_hld_high_level_design_02_high_level_design",
       "02_hld_high_level_design_1_system_context",
@@ -692,7 +598,7 @@
       "02_hld_high_level_design_t4_liveboot_any_size_highest_assurance",
       "02_hld_high_level_design_t5_multi_venue_federated_v2"
     ],
-    "14": [
+    "12": [
       "07_lld_content_authoring_upload_and_distribution",
       "07_lld_content_authoring_upload_and_distribution_07_lld_content_authoring_upload_and_distribution",
       "07_lld_content_authoring_upload_and_distribution_1_pipeline_overview",
@@ -722,7 +628,7 @@
       "07_lld_content_authoring_upload_and_distribution_8_question_bank_management",
       "07_lld_content_authoring_upload_and_distribution_9_failure_modes"
     ],
-    "15": [
+    "13": [
       "08_lld_load_balancing_caching_and_scale",
       "08_lld_load_balancing_caching_and_scale_08_lld_load_balancing_caching_and_workload_distribution",
       "08_lld_load_balancing_caching_and_scale_10_capacity_ceilings_and_the_path_beyond",
@@ -752,7 +658,7 @@
       "08_lld_load_balancing_caching_and_scale_8_database_load_management",
       "08_lld_load_balancing_caching_and_scale_9_scale_summary"
     ],
-    "16": [
+    "14": [
       "04_lld_network_routing_and_lan",
       "04_lld_network_routing_and_lan_04_lld_network_routing_and_lan",
       "04_lld_network_routing_and_lan_10_summary_of_network_design_decisions",
@@ -781,7 +687,36 @@
       "04_lld_network_routing_and_lan_does_local_routing_belong_inside_the_app_and_will_a_placement_cell_router_survive_600_candidates",
       "04_lld_network_routing_and_lan_why_owning_l3_is_the_right_call"
     ],
-    "17": [
+    "15": [
+      "box",
+      "citadel_client",
+      "citadel_client_src_main",
+      "citadel_client_src_main_ensure_explorer_running",
+      "citadel_client_src_main_log_event",
+      "citadel_client_src_main_main",
+      "citadel_client_src_main_poll_server_exit_status",
+      "citadel_client_src_main_probe_server_is_production",
+      "citadel_client_src_main_prompt_elevation_retry_cancel",
+      "citadel_client_src_main_prompt_proctor_pin_authorization",
+      "citadel_client_src_main_prompt_server_endpoint_gui",
+      "citadel_client_src_main_read_embedded_server_endpoint",
+      "citadel_client_src_main_read_file_server_endpoint",
+      "citadel_client_src_main_resolve_server_endpoint",
+      "citadel_client_src_main_rs_option",
+      "citadel_client_src_main_rs_result",
+      "citadel_client_src_main_show_error_message",
+      "citadel_client_src_security_coordinator_is_elevated",
+      "citadel_client_tests_security_lifecycle_test",
+      "citadel_client_tests_security_lifecycle_test_test_destructive_lifecycle_opt_in_only",
+      "citadel_client_tests_security_lifecycle_test_test_elevation_check_safe",
+      "citadel_client_tests_security_lifecycle_test_test_mandatory_elevation_zero_fallback",
+      "citadel_client_tests_security_lifecycle_test_test_security_coordinator_endpoint",
+      "error",
+      "ipv4addr",
+      "is_elevated",
+      "pathbuf"
+    ],
+    "16": [
       "17_implementation_plan_p0_spike",
       "17_implementation_plan_p0_spike_17_implementation_plan_phase_0_lockdown_spike_weeks_1_6",
       "17_implementation_plan_p0_spike_8_master_validation_checklist_traces_every_doc_14_2_exit_criterion_to_its_exact_test",
@@ -807,6 +742,33 @@
       "17_implementation_plan_p0_spike_week_5_local_llm_detection_m2_m5",
       "17_implementation_plan_p0_spike_week_6_red_team_week",
       "17_implementation_plan_p0_spike_written_in_the_task_contract_standard_doc_16_read_doc_16_first_this_document_assumes_it"
+    ],
+    "17": [
+      "atomicusize",
+      "get_iso8601_timestamp",
+      "guard_svc_src_llm_detect",
+      "guard_svc_src_llm_detect_excludedwindowviolation",
+      "guard_svc_src_llm_detect_excludedwindowviolation_to_log_line",
+      "guard_svc_src_llm_detect_get_injected_keystroke_count",
+      "guard_svc_src_llm_detect_injected_keystroke_count",
+      "guard_svc_src_llm_detect_is_capture_excluded_affinity",
+      "guard_svc_src_llm_detect_is_injected_keystroke_flag",
+      "guard_svc_src_llm_detect_keyboard_hook_proc",
+      "guard_svc_src_llm_detect_keystrokeviolation",
+      "guard_svc_src_llm_detect_keystrokeviolation_to_log_line",
+      "guard_svc_src_llm_detect_rs_lparam",
+      "guard_svc_src_llm_detect_rs_lresult",
+      "guard_svc_src_llm_detect_rs_string",
+      "guard_svc_src_llm_detect_scan_capture_exclusion_windows",
+      "guard_svc_src_llm_detect_take_injected_keystroke_violations",
+      "guard_svc_src_llm_detect_violationevent",
+      "guard_svc_src_llm_detect_violationevent_to_log_line",
+      "guard_svc_tests_injection_flag_check",
+      "guard_svc_tests_injection_flag_check_test_injection_flag_hardware_keystrokes",
+      "guard_svc_tests_injection_flag_check_test_injection_flag_synthetic_injected",
+      "guard_svc_tests_injection_flag_check_test_injection_privacy_log_format",
+      "iphelper",
+      "winsock"
     ],
     "18": [
       "05_lld_exam_appliance_and_api",
@@ -861,32 +823,6 @@
       "06_lld_judge_and_sandbox_verdict_determination"
     ],
     "20": [
-      "citadel_client_src_local_control",
-      "citadel_client_src_local_control_extract_header",
-      "citadel_client_src_local_control_handle_request",
-      "citadel_client_src_local_control_is_origin_allowed",
-      "citadel_client_src_local_control_localcontrolserver",
-      "citadel_client_src_local_control_localcontrolserver_drop",
-      "citadel_client_src_local_control_localcontrolserver_is_exit_requested",
-      "citadel_client_src_local_control_localcontrolserver_set_auth_token",
-      "citadel_client_src_local_control_localcontrolserver_start",
-      "citadel_client_src_local_control_localcontrolserver_start_with_token",
-      "citadel_client_src_local_control_localcontrolserver_stop",
-      "citadel_client_src_local_control_rs_arc",
-      "citadel_client_src_local_control_rs_atomicbool",
-      "citadel_client_src_local_control_rs_mutex",
-      "citadel_client_src_local_control_rs_option",
-      "citadel_client_src_local_control_rs_result",
-      "citadel_client_src_local_control_rs_self",
-      "citadel_client_src_local_control_rs_string",
-      "citadel_client_src_local_control_workstation_blocked",
-      "citadel_client_src_local_control_workstation_blocked_reason",
-      "drop",
-      "joinhandle",
-      "sync",
-      "tcpstream"
-    ],
-    "21": [
       "portal_test",
       "portal_test_applylanguagepalette",
       "portal_test_autosubmittimeup",
@@ -912,7 +848,7 @@
       "portal_test_updatecasepills",
       "portal_test_updatetimer"
     ],
-    "22": [
+    "21": [
       "production_vs_testing_lockdown_modes",
       "production_vs_testing_lockdown_modes_1_executive_summary",
       "production_vs_testing_lockdown_modes_2_feature_comparison_matrix",
@@ -938,6 +874,29 @@
       "production_vs_testing_lockdown_modes_via_command_line",
       "production_vs_testing_lockdown_modes_via_environment_variable"
     ],
+    "22": [
+      "citadel_client_src_pre_flight",
+      "citadel_client_src_pre_flight_desktopenumcontext",
+      "citadel_client_src_pre_flight_detectedapplication",
+      "citadel_client_src_pre_flight_enforce_clean_environment",
+      "citadel_client_src_pre_flight_get_pid_to_exe_map",
+      "citadel_client_src_pre_flight_rs_hashmap",
+      "citadel_client_src_pre_flight_rs_hashset",
+      "citadel_client_src_pre_flight_rs_string",
+      "citadel_client_src_pre_flight_rs_vec",
+      "citadel_client_src_pre_flight_scan_prohibited_processes",
+      "citadel_client_src_pre_flight_scan_running_applications",
+      "citadel_client_src_pre_flight_show_dialog",
+      "citadel_client_src_pre_flight_terminate_detected_applications",
+      "citadel_client_src_pre_flight_terminate_prohibited_processes",
+      "collections",
+      "commandext",
+      "foundation",
+      "messagebox_result",
+      "messagebox_style",
+      "osstringext",
+      "prohibited_processes"
+    ],
     "23": [
       "11_lld_admin_console_and_operations",
       "11_lld_admin_console_and_operations_11_lld_admin_console_and_operations",
@@ -961,27 +920,49 @@
       "11_lld_admin_console_and_operations_t_end_close"
     ],
     "24": [
-      "citadel_client_src_secure_desktop_rs_drop",
-      "citadel_client_src_secure_desktop_rs_hdesk",
-      "citadel_client_src_secure_desktop_rs_path",
-      "citadel_client_src_secure_desktop_rs_result",
-      "citadel_client_src_secure_desktop_rs_self",
-      "citadel_client_src_secure_desktop_rs_string",
-      "citadel_client_src_secure_desktop_rs_vec",
-      "citadel_client_src_secure_desktop_securedesktop",
-      "citadel_client_src_secure_desktop_securedesktop_create",
-      "citadel_client_src_secure_desktop_securedesktop_create_and_switch",
-      "citadel_client_src_secure_desktop_securedesktop_drop",
-      "citadel_client_src_secure_desktop_securedesktop_handle",
-      "citadel_client_src_secure_desktop_securedesktop_is_switched",
-      "citadel_client_src_secure_desktop_securedesktop_launch_on_desktop",
-      "citadel_client_src_secure_desktop_securedesktop_name",
-      "citadel_client_src_secure_desktop_securedesktop_restore",
-      "citadel_client_src_secure_desktop_securedesktop_switch_to_secure",
-      "citadel_client_src_secure_desktop_to_wide_null",
-      "process_information"
+      "citadel_client_src_local_control_extract_header",
+      "citadel_client_src_local_control_handle_request",
+      "citadel_client_src_local_control_localcontrolserver",
+      "citadel_client_src_local_control_localcontrolserver_drop",
+      "citadel_client_src_local_control_localcontrolserver_is_exit_requested",
+      "citadel_client_src_local_control_localcontrolserver_set_auth_token",
+      "citadel_client_src_local_control_localcontrolserver_start",
+      "citadel_client_src_local_control_localcontrolserver_start_with_token",
+      "citadel_client_src_local_control_localcontrolserver_stop",
+      "citadel_client_src_local_control_rs_arc",
+      "citadel_client_src_local_control_rs_atomicbool",
+      "citadel_client_src_local_control_rs_mutex",
+      "citadel_client_src_local_control_rs_option",
+      "citadel_client_src_local_control_rs_result",
+      "citadel_client_src_local_control_rs_self",
+      "citadel_client_src_local_control_rs_string",
+      "citadel_client_src_local_control_workstation_blocked_reason",
+      "drop",
+      "joinhandle",
+      "tcpstream"
     ],
     "25": [
+      "citadel_client_src_crash_handler",
+      "citadel_client_src_crash_handler_console_ctrl_handler",
+      "citadel_client_src_crash_handler_emergency_restore_system",
+      "citadel_client_src_crash_handler_install_crash_safety",
+      "citadel_client_src_crash_handler_rs_bool",
+      "citadel_client_src_crash_handler_rs_vec",
+      "citadel_client_src_crash_handler_to_wide",
+      "citadel_client_src_registry_lock",
+      "citadel_client_src_secure_desktop",
+      "citadel_client_src_secure_desktop_rs_path",
+      "generic_all",
+      "osstr",
+      "osstrext",
+      "pcwstr",
+      "registry",
+      "setconsolectrlhandler",
+      "stationsanddesktops",
+      "sw_maximize",
+      "threading"
+    ],
+    "26": [
       "13_security_threat_model",
       "13_security_threat_model_13_security_threat_model",
       "13_security_threat_model_1_assets_and_adversaries",
@@ -1001,7 +982,7 @@
       "13_security_threat_model_spoofing",
       "13_security_threat_model_tampering"
     ],
-    "26": [
+    "27": [
       "15_senior_review_and_hardened_lockdown_v2",
       "15_senior_review_and_hardened_lockdown_v2_15_senior_engineering_review_hardened_lockdown_v2",
       "15_senior_review_and_hardened_lockdown_v2_1_executive_verdict",
@@ -1021,26 +1002,27 @@
       "15_senior_review_and_hardened_lockdown_v2_9_honest_closing_verdict",
       "15_senior_review_and_hardened_lockdown_v2_a_hostile_review_of_docs_03_and_13_with_a_revised_default_deny_spec"
     ],
-    "27": [
-      "arc",
-      "atomic",
-      "guard_svc",
-      "guard_svc_src_lib_rs_result",
-      "guard_svc_src_lib_write_custom_log",
-      "guard_svc_src_lib_write_guard_log",
-      "guard_svc_src_main",
-      "guard_svc_src_main_get_target_server",
-      "guard_svc_src_main_main",
-      "guard_svc_src_main_my_service_main",
-      "guard_svc_src_main_rs_error",
-      "guard_svc_src_main_rs_ipv4addr",
-      "guard_svc_src_main_rs_result",
-      "guard_svc_src_main_rs_vec",
-      "guard_svc_src_main_run_service",
-      "osstring",
-      "windows_service"
-    ],
     "28": [
+      "citadel_client_src_secure_desktop_rs_drop",
+      "citadel_client_src_secure_desktop_rs_hdesk",
+      "citadel_client_src_secure_desktop_rs_result",
+      "citadel_client_src_secure_desktop_rs_self",
+      "citadel_client_src_secure_desktop_rs_string",
+      "citadel_client_src_secure_desktop_rs_vec",
+      "citadel_client_src_secure_desktop_securedesktop",
+      "citadel_client_src_secure_desktop_securedesktop_create",
+      "citadel_client_src_secure_desktop_securedesktop_create_and_switch",
+      "citadel_client_src_secure_desktop_securedesktop_drop",
+      "citadel_client_src_secure_desktop_securedesktop_handle",
+      "citadel_client_src_secure_desktop_securedesktop_is_switched",
+      "citadel_client_src_secure_desktop_securedesktop_launch_on_desktop",
+      "citadel_client_src_secure_desktop_securedesktop_name",
+      "citadel_client_src_secure_desktop_securedesktop_restore",
+      "citadel_client_src_secure_desktop_securedesktop_switch_to_secure",
+      "citadel_client_src_secure_desktop_to_wide_null",
+      "process_information"
+    ],
+    "29": [
       "10_lld_integrity_analytics_and_proctoring",
       "10_lld_integrity_analytics_and_proctoring_10_lld_integrity_analytics_and_proctoring",
       "10_lld_integrity_analytics_and_proctoring_1_1_event_catalogue",
@@ -1058,25 +1040,43 @@
       "10_lld_integrity_analytics_and_proctoring_7_privacy_and_data_protection",
       "10_lld_integrity_analytics_and_proctoring_8_detection_limits_stated_honestly"
     ],
-    "29": [
-      "atomicusize",
+    "30": [
+      "arc",
+      "guard_svc",
+      "guard_svc_src_lib_rs_result",
+      "guard_svc_src_lib_write_custom_log",
+      "guard_svc_src_lib_write_guard_log",
+      "guard_svc_src_main",
+      "guard_svc_src_main_get_target_server",
+      "guard_svc_src_main_main",
+      "guard_svc_src_main_my_service_main",
+      "guard_svc_src_main_rs_error",
+      "guard_svc_src_main_rs_ipv4addr",
+      "guard_svc_src_main_rs_result",
+      "guard_svc_src_main_rs_vec",
+      "guard_svc_src_main_run_service",
+      "osstring",
+      "windows_service"
+    ],
+    "31": [
+      "atomic",
+      "citadel_client_src_local_control",
+      "citadel_client_src_local_control_is_origin_allowed",
+      "citadel_client_src_local_control_workstation_blocked",
       "duration",
-      "get_iso8601_timestamp",
-      "guard_svc_src_llm_detect",
-      "guard_svc_src_llm_detect_get_injected_keystroke_count",
-      "guard_svc_src_llm_detect_injected_keystroke_count",
-      "guard_svc_src_llm_detect_install_keyboard_hook",
-      "guard_svc_src_llm_detect_is_capture_excluded_affinity",
+      "guard_verify_src_bin_check_deny_all",
+      "guard_verify_src_bin_check_deny_all_main",
       "guard_verify_src_bin_fake_injected_keystrokes",
       "guard_verify_src_bin_fake_injected_keystrokes_main",
       "guard_verify_src_bin_loopback_scan_test",
       "guard_verify_src_bin_loopback_scan_test_main",
-      "iphelper",
+      "io",
+      "net",
+      "sync",
       "tcplistener",
-      "thread",
-      "winsock"
+      "thread"
     ],
-    "30": [
+    "32": [
       "format_log_line",
       "guard_svc_src_lib",
       "guard_svc_src_lib_format_log_line",
@@ -1094,7 +1094,7 @@
       "openoptions",
       "write"
     ],
-    "31": [
+    "33": [
       "citadel_client_src_explorer_lock",
       "citadel_client_src_explorer_lock_explorerlock",
       "citadel_client_src_explorer_lock_explorerlock_acquire",
@@ -1111,7 +1111,7 @@
       "command",
       "toolhelp"
     ],
-    "32": [
+    "34": [
       "opencode_opencode",
       "opencode_opencode_claude_sonnet_5_name",
       "opencode_opencode_gpt_6_astra_name",
@@ -1128,7 +1128,7 @@
       "opencode_opencode_selora_npm",
       "opencode_opencode_selora_options"
     ],
-    "33": [
+    "35": [
       "09_lld_reliability_failover_and_dr",
       "09_lld_reliability_failover_and_dr_09_lld_reliability_failover_and_disaster_recovery",
       "09_lld_reliability_failover_and_dr_1_the_durability_chain",
@@ -1144,23 +1144,7 @@
       "09_lld_reliability_failover_and_dr_6_health_monitoring",
       "09_lld_reliability_failover_and_dr_7_chaos_testing_programme"
     ],
-    "34": [
-      "citadel_client_src_crash_handler",
-      "citadel_client_src_crash_handler_console_ctrl_handler",
-      "citadel_client_src_crash_handler_emergency_restore_system",
-      "citadel_client_src_crash_handler_install_crash_safety",
-      "citadel_client_src_crash_handler_rs_bool",
-      "citadel_client_src_crash_handler_rs_vec",
-      "citadel_client_src_crash_handler_to_wide",
-      "citadel_client_src_registry_lock",
-      "commandext",
-      "osstr",
-      "osstrext",
-      "pcwstr",
-      "registry",
-      "setconsolectrlhandler"
-    ],
-    "35": [
+    "36": [
       "opencode",
       "opencode_claude_sonnet_5_name",
       "opencode_gpt_6_astra_name",
@@ -1176,7 +1160,7 @@
       "opencode_selora_npm",
       "opencode_selora_options"
     ],
-    "36": [
+    "37": [
       "opencode_plugins_graphify",
       "opencode_plugins_graphify_graphifyplugin",
       "opencode_plugins_graphify_rationale_4",
@@ -1191,7 +1175,7 @@
       "scripts_sync_archify_projectroot",
       "scripts_sync_archify_statichtmlpath"
     ],
-    "37": [
+    "38": [
       "14_implementation_roadmap",
       "14_implementation_roadmap_10_first_90_days",
       "14_implementation_roadmap_14_implementation_roadmap",
@@ -1205,7 +1189,21 @@
       "14_implementation_roadmap_8_what_to_cut_if_you_must",
       "14_implementation_roadmap_9_critical_path_and_its_risks"
     ],
-    "38": [
+    "39": [
+      "citadel_client_src_policy",
+      "citadel_client_src_policy_is_windows_system_process",
+      "citadel_client_src_policy_lockdownmode",
+      "citadel_client_src_policy_lockdownmode_is_production",
+      "citadel_client_src_policy_lockdownmode_is_testing",
+      "citadel_client_src_policy_lockdownpolicy",
+      "citadel_client_src_policy_lockdownpolicy_is_process_allowed",
+      "citadel_client_src_policy_lockdownpolicy_new",
+      "citadel_client_src_policy_prohibited_processes",
+      "citadel_client_src_policy_rs_hashset",
+      "citadel_client_src_policy_rs_option",
+      "citadel_client_src_policy_rs_self"
+    ],
+    "40": [
       "citadel_client_src_registry_lock_registrylock",
       "citadel_client_src_registry_lock_registrylock_acquire",
       "citadel_client_src_registry_lock_registrylock_drop",
@@ -1219,21 +1217,7 @@
       "citadel_client_src_registry_lock_savedregentry",
       "citadel_client_src_registry_lock_to_wide"
     ],
-    "39": [
-      "guard_svc_src_llm_detect_is_injected_keystroke_flag",
-      "guard_svc_src_llm_detect_keyboard_hook_proc",
-      "guard_svc_src_llm_detect_keyboardhookhandle",
-      "guard_svc_src_llm_detect_keyboardhookhandle_cleanup",
-      "guard_svc_src_llm_detect_keyboardhookhandle_drop",
-      "guard_svc_src_llm_detect_keyboardhookhandle_stop",
-      "guard_svc_src_llm_detect_rs_drop",
-      "guard_svc_src_llm_detect_rs_joinhandle",
-      "guard_svc_src_llm_detect_rs_lparam",
-      "guard_svc_src_llm_detect_rs_lresult",
-      "guard_svc_src_llm_detect_rs_wparam",
-      "guard_svc_src_llm_detect_scan_capture_exclusion_windows"
-    ],
-    "40": [
+    "41": [
       "citadel_security_architecture_4_10_foreground_lock_foregroundlock",
       "citadel_security_architecture_4_1_keyboard_shortcut_blocking_hotkey_lock_rs",
       "citadel_security_architecture_4_2_task_manager_disable",
@@ -1246,20 +1230,20 @@
       "citadel_security_architecture_4_9_clipboard_wiper_clipboardguard",
       "citadel_security_architecture_4_how_restrictions_work_layer_by_layer"
     ],
-    "41": [
-      "guard_svc_src_llm_detect_excludedwindowviolation",
-      "guard_svc_src_llm_detect_excludedwindowviolation_to_log_line",
-      "guard_svc_src_llm_detect_keystrokeviolation",
-      "guard_svc_src_llm_detect_keystrokeviolation_to_log_line",
+    "42": [
+      "guard_svc_src_llm_detect_install_keyboard_hook",
+      "guard_svc_src_llm_detect_keyboardhookhandle",
+      "guard_svc_src_llm_detect_keyboardhookhandle_cleanup",
+      "guard_svc_src_llm_detect_keyboardhookhandle_drop",
+      "guard_svc_src_llm_detect_keyboardhookhandle_stop",
+      "guard_svc_src_llm_detect_rs_drop",
+      "guard_svc_src_llm_detect_rs_joinhandle",
       "guard_svc_src_llm_detect_rs_mutex",
       "guard_svc_src_llm_detect_rs_option",
-      "guard_svc_src_llm_detect_rs_string",
-      "guard_svc_src_llm_detect_take_injected_keystroke_violations",
-      "guard_svc_src_llm_detect_violation_sink",
-      "guard_svc_src_llm_detect_violationevent",
-      "guard_svc_src_llm_detect_violationevent_to_log_line"
+      "guard_svc_src_llm_detect_rs_wparam",
+      "guard_svc_src_llm_detect_violation_sink"
     ],
-    "42": [
+    "43": [
       "16_implementation_playbook_task_contract_standard",
       "16_implementation_playbook_task_contract_standard_16_implementation_playbook_the_task_contract_standard",
       "16_implementation_playbook_task_contract_standard_1_why_this_exists_the_failure_modes_it_prevents",
@@ -1271,7 +1255,7 @@
       "16_implementation_playbook_task_contract_standard_7_why_only_phase_0_is_written_in_full_right_now",
       "16_implementation_playbook_task_contract_standard_read_this_before_writing_or_executing_a_single_task_from_doc_17_onward"
     ],
-    "43": [
+    "44": [
       "citadel_client_src_bin_recovery",
       "citadel_client_src_bin_recovery_is_process_running",
       "citadel_client_src_bin_recovery_kill_processes_by_name",
@@ -1283,7 +1267,7 @@
       "citadel_client_src_bin_recovery_to_wide",
       "enablewindow"
     ],
-    "44": [
+    "45": [
       "package",
       "package_name",
       "package_private",
@@ -1295,7 +1279,7 @@
       "package_type",
       "package_version"
     ],
-    "45": [
+    "46": [
       "upgradation",
       "upgradation_1_dual_mode_security_outside_access_protection_testing_vs_production_done_verified",
       "upgradation_2_pre_launch_application_termination_strict_rescan_done_heavily_tested",
@@ -1307,7 +1291,7 @@
       "upgradation_completed_verified_deliverables",
       "upgradation_next_tasks_enhancements"
     ],
-    "46": [
+    "47": [
       "00_readme_index",
       "00_readme_index_citadel_offline_secure_assessment_platform",
       "00_readme_index_design_document_suite_index",
@@ -1318,7 +1302,7 @@
       "00_readme_index_the_headline_capacity_answer",
       "00_readme_index_what_citadel_is"
     ],
-    "47": [
+    "48": [
       "12_capacity_planning_and_bom",
       "12_capacity_planning_and_bom_12_capacity_planning_and_bill_of_materials",
       "12_capacity_planning_and_bom_1_sizing_master_table",
@@ -1329,7 +1313,18 @@
       "12_capacity_planning_and_bom_6_unit_economics_indicative",
       "12_capacity_planning_and_bom_7_what_to_buy_first_for_a_pilot"
     ],
-    "48": [
+    "49": [
+      "build_app",
+      "citadel_server_src_main",
+      "citadel_server_src_main_discover_lan_ips",
+      "citadel_server_src_main_main",
+      "citadel_server_src_main_rs_box",
+      "citadel_server_src_main_rs_error",
+      "citadel_server_src_main_rs_result",
+      "citadel_server_src_main_rs_vec",
+      "ipaddr"
+    ],
+    "50": [
       "citadel_security_architecture",
       "citadel_security_architecture_1_how_real_lockdown_browsers_work_seb_msb_research",
       "citadel_security_architecture_5_startup_sequence",
@@ -1340,7 +1335,17 @@
       "citadel_security_architecture_citadel_client_security_architecture_and_implementation_reference",
       "citadel_security_architecture_what_safe_exam_browser_seb_actually_does"
     ],
-    "49": [
+    "51": [
+      "bool",
+      "citadel_client_src_pre_flight_enum_desktop_windows_proc",
+      "citadel_client_src_pre_flight_rs_lparam",
+      "guard_verify_src_bin_fake_capture_excluded_window",
+      "guard_verify_src_bin_fake_capture_excluded_window_main",
+      "hwnd",
+      "w",
+      "windowsandmessaging"
+    ],
+    "52": [
       "citadel_security_architecture_2_root_cause_of_all_failures_the_complete_diagnosis",
       "citadel_security_architecture_bug_1_fixed_silent_uac_bypass",
       "citadel_security_architecture_bug_2_fixed_empty_guard_constructor",
@@ -1350,7 +1355,7 @@
       "citadel_security_architecture_sub_cause_a_gpu_flags_cause_immediate_exit_primary",
       "citadel_security_architecture_sub_cause_b_edge_multi_process_delegation_secondary"
     ],
-    "50": [
+    "53": [
       "golden_rule_architecture",
       "golden_rule_architecture_1_the_golden_rule_non_negotiable",
       "golden_rule_architecture_2_why_registry_policy_locks_were_neutralized",
@@ -1360,7 +1365,7 @@
       "golden_rule_architecture_the_failure_mode_of_windows_policies",
       "golden_rule_architecture_the_self_contained_sandbox_model"
     ],
-    "51": [
+    "54": [
       "guard_svc_src_llm_detect_check_listener_violations",
       "guard_svc_tests_loopback_allowlist",
       "guard_svc_tests_loopback_allowlist_test_allowlist_flags_unauthorized_ipv4_ports",
@@ -1369,7 +1374,7 @@
       "guard_svc_tests_loopback_allowlist_test_allowlist_permits_designated_ports",
       "guard_svc_tests_loopback_allowlist_test_violation_log_line_format"
     ],
-    "52": [
+    "55": [
       "guard_svc_src_llm_detect_listeningsocket",
       "guard_svc_src_llm_detect_rs_ipaddr",
       "guard_svc_src_llm_detect_rs_result",
@@ -1378,295 +1383,297 @@
       "guard_svc_src_llm_detect_scan_ipv6_loopback_listeners",
       "guard_svc_src_llm_detect_scan_loopback_listeners"
     ],
-    "53": [
-      "citadel_client_src_secure_desktop",
-      "generic_all",
-      "stationsanddesktops",
-      "sw_maximize",
-      "threading"
+    "56": [
+      "guard_verify_src_bin_test_college_lan_isolation",
+      "guard_verify_src_bin_test_college_lan_isolation_main",
+      "guard_verify_src_bin_test_college_lan_isolation_rs_duration",
+      "guard_verify_src_bin_test_college_lan_isolation_rs_joinhandle",
+      "guard_verify_src_bin_test_college_lan_isolation_start_mock_server",
+      "guard_verify_src_bin_test_college_lan_isolation_try_connect",
+      "socketaddr"
     ],
-    "54": [
+    "57": [
       "citadel_security_architecture_11_1_the_threat_unauthorized_lan_queries_device_bypass",
       "citadel_security_architecture_11_2_dual_mode_security_architecture",
       "citadel_security_architecture_11_3_handshake_protocol_specification",
       "citadel_security_architecture_11_4_live_mode_toggling_via_recruiter_console",
       "citadel_security_architecture_11_network_security_architecture_cryptographic_client_handshake"
     ],
-    "55": [
+    "58": [
       "citadel_security_architecture_19_1_threat_model_secondary_mobile_devices_localhost_resolution_gaps",
       "citadel_security_architecture_19_2_device_detection_enforcement_architecture_testing_vs_production",
       "citadel_security_architecture_19_3_multi_network_dynamic_endpoint_discovery_pe_watermarking",
       "citadel_security_architecture_19_device_detection_multi_network_endpoint_discovery_laptop_workstation_gating",
       "citadel_security_architecture_enforcement_implementation"
     ],
-    "56": [
+    "59": [
       "citadel_security_architecture_12_1_the_failure_mode_of_static_process_blacklists",
       "citadel_security_architecture_12_2_the_citadel_dual_layer_detection_architecture",
       "citadel_security_architecture_12_3_automated_termination_and_interactive_rescan_pipeline",
       "citadel_security_architecture_12_pre_launch_application_termination_desktop_window_enumeration_strict_rescan_verification"
     ],
-    "57": [
+    "60": [
       "citadel_security_architecture_15_1_threat_audit_the_premature_disqualification_escape_hole",
       "citadel_security_architecture_15_2_invariant_lockdown_persists_until_hall_exam_ends",
       "citadel_security_architecture_15_3_server_state_immutability",
       "citadel_security_architecture_15_persistent_disqualification_lockdown_retention_automated_exam_conclusion"
     ],
-    "58": [
+    "61": [
       "citadel_security_architecture_3_fix_plan_for_bug_5",
       "citadel_security_architecture_fix_a_remove_gpu_killing_flags_from_browser_launch_args",
       "citadel_security_architecture_fix_b_fix_process_liveness_detection",
       "citadel_security_architecture_fix_c_use_writable_profile_path"
     ],
-    "59": [
+    "62": [
+      "citadel_server_src_ui_render_gatekeeper_html",
+      "citadel_server_src_ui_rs_string",
+      "citadel_server_templates_gatekeeper_html",
+      "citadel_server_tests_device_detection_tests_test_ui_gatekeeper_and_mobile_blocked_rendering"
+    ],
+    "63": [
       "guard_net",
       "guard_net_tests_wfp_policy",
       "guard_net_tests_wfp_policy_test_citadel_sublayer_guid_format",
       "guard_net_tests_wfp_policy_test_wfp_error_display"
     ],
-    "60": [
+    "64": [
       "guard_svc_tests_capture_affinity_check",
       "guard_svc_tests_capture_affinity_check_test_affinity_allowed_cases",
       "guard_svc_tests_capture_affinity_check_test_affinity_violation_cases",
       "guard_svc_tests_capture_affinity_check_test_excluded_window_log_format"
     ],
-    "61": [
-      "guard_svc_tests_injection_flag_check",
-      "guard_svc_tests_injection_flag_check_test_injection_flag_hardware_keystrokes",
-      "guard_svc_tests_injection_flag_check_test_injection_flag_synthetic_injected",
-      "guard_svc_tests_injection_flag_check_test_injection_privacy_log_format"
-    ],
-    "62": [
+    "65": [
       "pkg_citadel_client",
       "pkg_guard_net",
       "pkg_guard_svc",
       "pkg_guard_verify"
     ],
-    "63": [
+    "66": [
       "citadel_security_architecture_10_1_why_the_previous_lockdown_stranded_the_machine",
       "citadel_security_architecture_10_2_the_permanent_fail_safe_architecture",
       "citadel_security_architecture_10_fail_safe_protections_dedicated_recovery_utility"
     ],
-    "64": [
+    "67": [
       "citadel_security_architecture_13_1_threat_architectural_audit",
       "citadel_security_architecture_13_2_the_4_layer_zero_fallback_elevation_architecture",
       "citadel_security_architecture_13_mandatory_uac_administrator_elevation_zero_fallback_architecture"
     ],
-    "65": [
+    "68": [
       "citadel_security_architecture_14_15_minute_early_completion_enforcement_in_production_mode",
       "citadel_security_architecture_14_1_operational_threat_integrity_rationale",
       "citadel_security_architecture_14_2_dual_mode_architecture_production_vs_testing"
     ],
-    "66": [
+    "69": [
       "citadel_security_architecture_16_1_root_cause_of_blurry_zoom_call_ui",
       "citadel_security_architecture_16_2_implementation_manifest_per_monitor_v2_integration",
       "citadel_security_architecture_16_high_dpi_per_monitor_v2_manifest_native_rendering_architecture"
     ],
-    "67": [
+    "70": [
       "citadel_security_architecture_17_1_zero_layout_shift_position_contract",
       "citadel_security_architecture_17_2_air_gapped_typography_architecture",
       "citadel_security_architecture_17_obsidian_atelier_v1_design_system_self_hosted_offline_typography"
     ],
-    "68": [
+    "71": [
       "citadel_security_architecture_18_1_proctor_roster_management_strict_whitelist_enforcement",
       "citadel_security_architecture_18_2_session_resumption_crash_resilience",
       "citadel_security_architecture_18_roster_synchronization_resilient_session_resumption_engine"
     ],
-    "69": [
+    "72": [
       "agents",
       "agents_graphify"
     ],
-    "70": [
+    "73": [
       "citadel_client_build",
       "citadel_client_build_main"
     ],
-    "71": [
-      "citadel_client_src_hotkey_lock_rs_hdesk"
-    ],
-    "72": [
-      "citadel_client_src_hotkey_lock_rs_lresult"
-    ],
-    "73": [
-      "citadel_client_src_hotkey_lock_rs_send"
-    ],
     "74": [
-      "citadel_client_src_hotkey_lock_rs_wparam"
+      "atomicbool"
     ],
     "75": [
-      "citadel_client_src_kiosk_window_rs_handle"
+      "citadel_client_src_hotkey_lock_rs_hdesk"
     ],
     "76": [
-      "citadel_client_src_kiosk_window_rs_hashmap"
+      "citadel_client_src_hotkey_lock_rs_lresult"
     ],
     "77": [
-      "citadel_client_src_local_control_rs_drop"
+      "citadel_client_src_hotkey_lock_rs_send"
     ],
     "78": [
-      "citadel_client_src_local_control_rs_joinhandle"
+      "citadel_client_src_hotkey_lock_rs_wparam"
     ],
     "79": [
-      "citadel_client_src_main_rs_box"
+      "citadel_client_src_kiosk_window_rs_handle"
     ],
     "80": [
-      "citadel_client_src_main_rs_error"
+      "citadel_client_src_kiosk_window_rs_hashmap"
     ],
     "81": [
-      "citadel_client_src_main_rs_ipv4addr"
+      "citadel_client_src_local_control_rs_drop"
     ],
     "82": [
-      "citadel_client_src_pre_flight_rs_bool"
+      "citadel_client_src_local_control_rs_joinhandle"
     ],
     "83": [
-      "citadel_server_src_api_rs_arc"
+      "citadel_client_src_main_rs_box"
     ],
     "84": [
-      "citadel_server_src_api_rs_atomicbool"
+      "citadel_client_src_main_rs_error"
     ],
     "85": [
-      "citadel_server_src_api_rs_hashmap"
+      "citadel_client_src_main_rs_ipv4addr"
     ],
     "86": [
-      "citadel_server_src_api_rs_mutex"
+      "citadel_client_src_pre_flight_rs_bool"
     ],
     "87": [
-      "citadel_server_src_api_rs_path"
+      "citadel_server_src_api_rs_hashmap"
     ],
     "88": [
-      "citadel_server_src_api_rs_self"
+      "citadel_server_src_api_rs_path"
     ],
     "89": [
-      "citadel_server_src_api_rs_vec"
+      "citadel_server_src_api_rs_pathbuf"
     ],
     "90": [
-      "citadel_server_src_main_rs_ipaddr"
+      "citadel_server_src_api_rs_vec"
     ],
     "91": [
-      "clientlockdownguard"
+      "citadel_server_src_main_rs_ipaddr"
     ],
     "92": [
-      "clipboardguard"
+      "clientlockdownguard"
     ],
     "93": [
-      "foregroundlock"
+      "clipboardguard"
     ],
     "94": [
-      "getasynckeystate"
+      "foregroundlock"
     ],
     "95": [
-      "hashset"
+      "getasynckeystate"
     ],
     "96": [
-      "hotkeylockhandle"
+      "hashset"
     ],
     "97": [
-      "kioskprocess"
+      "hotkeylockhandle"
     ],
     "98": [
-      "lparam"
+      "kioskprocess"
     ],
     "99": [
-      "option"
+      "lparam"
     ],
     "100": [
-      "pkg_citadel_server"
+      "mutex"
     ],
     "101": [
-      "processwatchdog"
+      "option"
     ],
     "102": [
-      "questionsummary"
+      "pkg_citadel_server"
     ],
     "103": [
-      "render_portal_html"
+      "processwatchdog"
     ],
     "104": [
-      "result"
+      "questionsummary"
     ],
     "105": [
-      "router"
+      "render_portal_html"
     ],
     "106": [
-      "string"
+      "result"
     ],
     "107": [
-      "taskbarlock"
+      "router"
     ],
     "108": [
+      "self"
+    ],
+    "109": [
+      "string"
+    ],
+    "110": [
+      "taskbarlock"
+    ],
+    "111": [
       "touchpadlock"
     ]
   },
   "cohesion": {
-    "0": 0.07468011811023623,
-    "1": 0.07062146892655367,
+    "0": 0.07767741935483871,
+    "1": 0.06821787414066631,
     "2": 0.08665269042627533,
-    "3": 0.060408163265306125,
-    "4": 0.0919661733615222,
-    "5": 0.07087486157253599,
-    "6": 0.20365853658536584,
-    "7": 0.09230769230769231,
-    "8": 0.12010796221322537,
-    "9": 0.05405405405405406,
-    "10": 0.06060606060606061,
-    "11": 0.17613636363636365,
-    "12": 0.12701612903225806,
-    "13": 0.06666666666666667,
-    "14": 0.07142857142857142,
-    "15": 0.07142857142857142,
-    "16": 0.07407407407407407,
-    "17": 0.08,
+    "3": 0.06207482993197279,
+    "4": 0.11097560975609756,
+    "5": 0.20365853658536584,
+    "6": 0.05405405405405406,
+    "7": 0.11411411411411411,
+    "8": 0.06060606060606061,
+    "9": 0.17613636363636365,
+    "10": 0.12701612903225806,
+    "11": 0.06666666666666667,
+    "12": 0.07142857142857142,
+    "13": 0.07142857142857142,
+    "14": 0.07407407407407407,
+    "15": 0.15669515669515668,
+    "16": 0.08,
+    "17": 0.11,
     "18": 0.08333333333333333,
     "19": 0.08333333333333333,
-    "20": 0.17028985507246377,
-    "21": 0.15579710144927536,
-    "22": 0.08333333333333333,
+    "20": 0.15579710144927536,
+    "21": 0.08333333333333333,
+    "22": 0.16666666666666666,
     "23": 0.1,
-    "24": 0.18128654970760233,
-    "25": 0.1111111111111111,
+    "24": 0.2,
+    "25": 0.15789473684210525,
     "26": 0.1111111111111111,
-    "27": 0.16911764705882354,
-    "28": 0.125,
-    "29": 0.15833333333333333,
-    "30": 0.16666666666666666,
-    "31": 0.1619047619047619,
-    "32": 0.13333333333333333,
-    "33": 0.14285714285714285,
-    "34": 0.21978021978021978,
+    "27": 0.1111111111111111,
+    "28": 0.19607843137254902,
+    "29": 0.125,
+    "30": 0.18333333333333332,
+    "31": 0.15833333333333333,
+    "32": 0.16666666666666666,
+    "33": 0.1619047619047619,
+    "34": 0.13333333333333333,
     "35": 0.14285714285714285,
-    "36": 0.16666666666666666,
+    "36": 0.14285714285714285,
     "37": 0.16666666666666666,
-    "38": 0.21212121212121213,
-    "39": 0.21212121212121213,
-    "40": 0.18181818181818182,
-    "41": 0.23636363636363636,
-    "42": 0.2,
-    "43": 0.35555555555555557,
-    "44": 0.2,
+    "38": 0.16666666666666666,
+    "39": 0.24242424242424243,
+    "40": 0.21212121212121213,
+    "41": 0.18181818181818182,
+    "42": 0.21818181818181817,
+    "43": 0.2,
+    "44": 0.35555555555555557,
     "45": 0.2,
-    "46": 0.2222222222222222,
+    "46": 0.2,
     "47": 0.2222222222222222,
     "48": 0.2222222222222222,
     "49": 0.25,
-    "50": 0.25,
-    "51": 0.47619047619047616,
-    "52": 0.5714285714285714,
-    "53": 0.4,
-    "54": 0.4,
-    "55": 0.4,
-    "56": 0.5,
-    "57": 0.5,
-    "58": 0.5,
+    "50": 0.2222222222222222,
+    "51": 0.25,
+    "52": 0.25,
+    "53": 0.25,
+    "54": 0.47619047619047616,
+    "55": 0.5714285714285714,
+    "56": 0.47619047619047616,
+    "57": 0.4,
+    "58": 0.4,
     "59": 0.5,
     "60": 0.5,
     "61": 0.5,
-    "62": 0.8333333333333334,
-    "63": 0.6666666666666666,
-    "64": 0.6666666666666666,
-    "65": 0.6666666666666666,
+    "62": 0.5,
+    "63": 0.5,
+    "64": 0.5,
+    "65": 0.8333333333333334,
     "66": 0.6666666666666666,
     "67": 0.6666666666666666,
     "68": 0.6666666666666666,
-    "69": 1.0,
-    "70": 1.0,
-    "71": 1.0,
+    "69": 0.6666666666666666,
+    "70": 0.6666666666666666,
+    "71": 0.6666666666666666,
     "72": 1.0,
     "73": 1.0,
     "74": 1.0,
@@ -1703,7 +1710,10 @@
     "105": 1.0,
     "106": 1.0,
     "107": 1.0,
-    "108": 1.0
+    "108": 1.0,
+    "109": 1.0,
+    "110": 1.0,
+    "111": 1.0
   },
   "gods": [
     {
@@ -1724,7 +1734,7 @@
     {
       "id": "citadel_server_src_api_build_app",
       "label": "build_app()",
-      "degree": 25
+      "degree": 26
     },
     {
       "id": "citadel_server_static_ace_bundle_o",
@@ -1767,7 +1777,7 @@
       ],
       "confidence": "INFERRED",
       "relation": "calls",
-      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; peripheral node `main()` unexpectedly reaches hub `install_keyboard_hook()`"
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities; peripheral node `main()` unexpectedly reaches hub `install_keyboard_hook()`"
     },
     {
       "source": "main()",
@@ -1818,16 +1828,16 @@
     {
       "type": "bridge_node",
       "question": "Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?",
-      "why": "High betweenness centrality (0.035) - this node is a cross-community bridge."
+      "why": "High betweenness centrality (0.036) - this node is a cross-community bridge."
     },
     {
       "type": "bridge_node",
-      "question": "Why does `WfpEngine` connect `WfpEngine` to `LocalControlServer`?",
-      "why": "High betweenness centrality (0.017) - this node is a cross-community bridge."
+      "question": "Why does `build_app()` connect `api_tests.rs` to `api.rs`, `persistence.rs`, `main`?",
+      "why": "High betweenness centrality (0.019) - this node is a cross-community bridge."
     },
     {
       "type": "bridge_node",
-      "question": "Why does `ClientLockdownGuard` connect `ClientLockdownGuard` to `kiosk_window.rs`, `hotkey_lock.rs`?",
+      "question": "Why does `WfpEngine` connect `WfpEngine` to `local_control.rs`?",
       "why": "High betweenness centrality (0.015) - this node is a cross-community bridge."
     },
     {
@@ -1838,12 +1848,12 @@
     {
       "type": "low_cohesion",
       "question": "Should `api.rs` be split into smaller, more focused modules?",
-      "why": "Cohesion score 0.07468011811023623 - nodes in this community are weakly interconnected."
+      "why": "Cohesion score 0.07767741935483871 - nodes in this community are weakly interconnected."
     },
     {
       "type": "low_cohesion",
       "question": "Should `api_tests.rs` be split into smaller, more focused modules?",
-      "why": "Cohesion score 0.07062146892655367 - nodes in this community are weakly interconnected."
+      "why": "Cohesion score 0.06821787414066631 - nodes in this community are weakly interconnected."
     },
     {
       "type": "low_cohesion",

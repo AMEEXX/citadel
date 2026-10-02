@@ -861,6 +861,23 @@ async fn test_admin_disqualification_and_submission_block() {
     let sub_data: SubmissionResponse = serde_json::from_slice(&sub_body).unwrap();
     assert_eq!(sub_data.status, "Disqualified");
     assert_eq!(sub_data.score, 0);
+
+    // Verify session control instructs immediate exit on disqualification (both production and testing mode)
+    let ctrl_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/client/session-control?candidate_id={}", cand_id))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(ctrl_res.status(), StatusCode::OK);
+    let ctrl_body = ctrl_res.into_body().collect().await.unwrap().to_bytes();
+    let ctrl_val: serde_json::Value = serde_json::from_slice(&ctrl_body).unwrap();
+    assert_eq!(ctrl_val["should_exit"], true);
+    assert_eq!(ctrl_val["status"], "Disqualified");
 }
 
 #[tokio::test]
@@ -1221,4 +1238,196 @@ async fn test_offline_self_hosted_fonts_and_citadel_skin_served() {
     assert!(recruiter.contains("/static/fonts/citadel-fonts.css"));
     assert!(recruiter.contains("/static/citadel-skin.css"));
     assert!(recruiter.contains("class=\"app-recruiter\""));
+}
+
+#[tokio::test]
+async fn test_disqualification_immediately_signals_client_exit_in_both_modes() {
+    let app = build_app();
+    set_exam_live(&app).await;
+
+    // 1. In Testing Mode (is_production = false):
+    let cand_testing = "cand-disq-immediate-test-01";
+
+    // Enroll candidate in roster
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/roster/add?key=citadel-recruiter-key-2026")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "email": cand_testing,
+                    "name": "Testing Candidate 01",
+                    "allowed": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrity/heartbeat")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "candidate_id": cand_testing,
+                    "active_question": 1,
+                    "is_window_focused": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Prior to disqualification, session-control returns should_exit: false
+    let pre_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/client/session-control?candidate_id={}", cand_testing))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pre_res.status(), StatusCode::OK);
+    let pre_body = pre_res.into_body().collect().await.unwrap().to_bytes();
+    let pre_val: serde_json::Value = serde_json::from_slice(&pre_body).unwrap();
+    assert_eq!(pre_val["should_exit"], false);
+
+    // Proctor disqualifies candidate in Testing Mode
+    let disq_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/admin/candidates/{}/disqualify?key=citadel-recruiter-key-2026", cand_testing))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(disq_res.status(), StatusCode::OK);
+
+    // Immediately after disqualification, session-control returns should_exit: true
+    let post_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/client/session-control?candidate_id={}", cand_testing))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_res.status(), StatusCode::OK);
+    let post_body = post_res.into_body().collect().await.unwrap().to_bytes();
+    let post_val: serde_json::Value = serde_json::from_slice(&post_body).unwrap();
+    assert_eq!(post_val["should_exit"], true);
+    assert_eq!(post_val["status"], "Disqualified");
+
+    // 2. In Production Mode:
+    let mode_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/mode/set?key=citadel-recruiter-key-2026")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "production": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(mode_res.status(), StatusCode::OK);
+
+    let cand_prod = "cand-disq-immediate-prod-02";
+
+    // Enroll candidate in roster
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/roster/add?key=citadel-recruiter-key-2026")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "email": cand_prod,
+                    "name": "Production Candidate 02",
+                    "allowed": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let _ = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/integrity/heartbeat")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({
+                    "candidate_id": cand_prod,
+                    "active_question": 1,
+                    "is_window_focused": true
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Prior to disqualification, session-control returns should_exit: false
+    let pre_prod_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/client/session-control?candidate_id={}", cand_prod))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(pre_prod_res.status(), StatusCode::OK);
+    let pre_prod_body = pre_prod_res.into_body().collect().await.unwrap().to_bytes();
+    let pre_prod_val: serde_json::Value = serde_json::from_slice(&pre_prod_body).unwrap();
+    assert_eq!(pre_prod_val["should_exit"], false);
+
+    // Proctor disqualifies candidate in Production Mode
+    let disq_prod_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(format!("/api/v1/admin/candidates/{}/disqualify?key=citadel-recruiter-key-2026", cand_prod))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(disq_prod_res.status(), StatusCode::OK);
+
+    // In Production Mode, session-control ALSO returns should_exit: true immediately!
+    let post_prod_res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/api/v1/client/session-control?candidate_id={}", cand_prod))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(post_prod_res.status(), StatusCode::OK);
+    let post_prod_body = post_prod_res.into_body().collect().await.unwrap().to_bytes();
+    let post_prod_val: serde_json::Value = serde_json::from_slice(&post_prod_body).unwrap();
+    assert_eq!(post_prod_val["should_exit"], true);
+    assert_eq!(post_prod_val["status"], "Disqualified");
 }

@@ -1192,13 +1192,33 @@ async fn client_session_control_handler(
     };
 
     if let Some(ref cid) = target_cid {
+        // 1. Check roster status: If revoked or unauthorized, exit immediately
+        {
+            let roster = state.roster.read().unwrap();
+            if !roster.candidates.is_empty() {
+                if let Err((_status, code, _msg)) = check_candidate_roster(cid, &roster) {
+                    return Json(SessionControlResponse {
+                        should_exit: true,
+                        reason: format!("Candidate access revoked in roster ({})", code),
+                        status: "Disqualified".to_string(),
+                    });
+                }
+            }
+        }
+
         let cands = state.candidates.lock().unwrap();
-        if let Some(cand) = cands.get(cid) {
-            // Disqualified candidates MUST remain locked on screen until exam is over for all candidates!
+        let cand_opt = cands.get(cid).or_else(|| {
+            cands.iter().find(|(k, _)| k.eq_ignore_ascii_case(cid)).map(|(_, c)| c)
+        });
+
+        if let Some(cand) = cand_opt {
+            // Disqualified candidates MUST exit immediately and have workstation restored!
+            // Regardless of whether in Production or Testing mode and irrespective of remaining exam time,
+            // when a candidate is disqualified or removed, release lockdown and remove candidate out immediately.
             if cand.status == "Disqualified" {
                 return Json(SessionControlResponse {
-                    should_exit: false,
-                    reason: "Candidate disqualified: lockdown enforced until exam conclusion for all candidates".to_string(),
+                    should_exit: true,
+                    reason: "Candidate disqualified: session terminated and workstation unlocked immediately".to_string(),
                     status: "Disqualified".to_string(),
                 });
             }
@@ -1667,19 +1687,31 @@ async fn admin_disqualify_candidate_handler(
         return StatusCode::FORBIDDEN;
     }
 
+    let mut actual_id = id.clone();
+    let mut found = false;
+
     let mut cands = state.candidates.lock().unwrap();
     if let Some(cand) = cands.get_mut(&id) {
         cand.status = "Disqualified".to_string();
         cand.last_seen = chrono::Utc::now().to_rfc3339();
-        
+        found = true;
+    } else if let Some((k, cand)) = cands.iter_mut().find(|(k, _)| k.eq_ignore_ascii_case(&id)) {
+        cand.status = "Disqualified".to_string();
+        cand.last_seen = chrono::Utc::now().to_rfc3339();
+        actual_id = k.clone();
+        found = true;
+    }
+
+    if found {
         let mut c_states = state.candidate_states.lock().unwrap();
-        if let Some(cand_st) = c_states.get_mut(&id) {
+        if let Some(cand_st) = c_states.get_mut(&actual_id) {
             cand_st.status = "Disqualified".to_string();
             cand_st.last_seen = chrono::Utc::now().to_rfc3339();
             let _ = save_candidate_state(&state.state_dir, cand_st);
         }
 
-        // Candidate will receive Disqualified on their next heartbeat and terminate locally
+        // Candidate will receive Disqualified on their next heartbeat or session-control poll
+        // and will exit and restore their laptop immediately in both Production and Testing modes.
         StatusCode::OK
     } else {
         StatusCode::NOT_FOUND

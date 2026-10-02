@@ -31,7 +31,7 @@ CITADEL is designed with two distinct operational modes to eliminate testing fri
 | **Kernel WFP Network Firewall** | 🟢 **Internet Preserved** (Local 127.0.0.1) | 🔴 **Zero-Internet** (All public web dropped) |
 | **Process Watchdog** | 🟢 Whitelists recovery tools & cmd | 🔴 Strict cheat tool & shell killer |
 | **Early Exam Exit Rule** | 🟢 **Allowed Anytime** (Tester/student can end early) | 🔴 **Strictly Prohibited >15m Remaining** (Hard lock until 15m left) |
-| **Disqualification Lockdown** | 🔒 **Persistent Lockdown** (Cannot exit until hall exam ends) | 🔒 **Persistent Lockdown** (Cannot exit until hall exam ends) |
+| **Disqualification Flow** | 🚪 **Immediate Removal & Restoration** (Workstation unlocked, candidate exited) | 🚪 **Immediate Removal & Restoration** (Workstation unlocked, candidate exited) |
 | **Single-Session Device Lock** | 🟢 Can re-open & re-test freely | 🔴 **Single-login locked** on submit |
 | **Rapid Escape Triggers** | 5x Escape / Ctrl+Shift+Alt+Q | Proctor override only (Ctrl+Shift+Alt+F12) |
 | **Exit Mechanism** | 🟢 **End Exam** button restores system | 🔴 **End Exam** unlocked only within final 15m |
@@ -115,47 +115,42 @@ In campus examination settings, allowing candidates to exit prematurely creates 
 
 ---
 
-## 6. Persistent Disqualification Lockdown Retention
+## 6. Immediate Disqualification Removal & Laptop Restoration
 
-A critical flaw in standard lockdown software is that disqualifying a candidate immediately exits the lockdown or enables normal Windows usage, allowing the disqualified candidate to use their computer, access unauthorized files, or disturb peers while the exam is still underway.
-
-CITADEL guarantees **Persistent Workstation Containment** across **both Production and Testing Modes**:
+In accordance with the updated operational design flow, when a proctor or recruiter disqualifies a candidate or revokes their access:
 
 ```
-[Proctor / Watchdog Flags Violation]
+[Proctor / Watchdog Flags Violation or Proctor Clicks Disqualify]
                   │
                   ▼
-   POST /api/v1/admin/candidates/:id/disqualify
+   POST /api/v1/admin/candidates/:id/disqualify  (or Roster Revoke)
                   │
                   ├── Server marks CandidateState status = 'Disqualified'
                   ├── Event streamed via SSE /api/events to Recruiter Console
                   ▼
-[Candidate Workstation Heartbeat / Polling]
+[Candidate Workstation Heartbeat / Supervision Polling (<= 1.0s)]
                   │
                   ▼
    1. Active exam UI immediately disabled
-   2. #disqualified-overlay engages full-screen:
-      - 'SESSION TERMINATED / CANDIDATE DISQUALIFIED'
-      - Candidate Identifier & Security Incident Badge
-      - Notice: 'LOCKDOWN ENFORCED UNTIL EXAM CONCLUSION'
-      - Real-time countdown displaying time remaining until hall exam ends
-   3. Workstation remains 100% LOCKED (Alt+Tab, Win keys, task switching BLOCKED)
-   4. Local Exit APIs (/api/v1/client/end-exam) reject termination (WORKSTATION_BLOCKED)
-   5. GET /api/v1/client/session-control returns should_exit = FALSE
+   2. #disqualified-overlay engages briefly:
+      - 'EXAM SESSION TERMINATED'
+      - Notice: 'Workstation restrictions have been released and your system is restored.'
+   3. GET /api/v1/client/session-control returns should_exit = TRUE
+   4. Local Exit Endpoint (/api/v1/client/end-exam) initiates immediate restoration
                   │
                   ▼
-[Designated Exam Time Expires or Proctor Ends Exam (POST /admin/exam/stop-live)]
+[Workstation Releases Lockdown Immediately & Restores Windows Desktop Cleanly]
                   │
-                  ├── Server sets live.is_live = false (or elapsed >= total_duration)
-                  ├── GET /api/v1/client/session-control returns should_exit = TRUE
+                  ├── Low-level hooks dropped & Explorer restored
+                  ├── Kiosk browser terminated
                   ▼
-[Workstation Automatically Releases Lockdown & Restores Windows Desktop Cleanly]
+[Candidate Exits Exam Application Immediately (Irrespective of remaining time)]
 ```
 
 ### Key Behavioral Invariants:
-1. **No Early Release for Disqualified Candidates**: Even if a candidate is disqualified in the 10th minute of a 2-hour exam, their machine remains locked down until the 2-hour mark (e.g. 5:00 PM) when all other candidates finish.
-2. **Automated Hall-Wide Unlock**: When the scheduled exam concludes (or the proctor clicks "Conclude Exam for All" in the Recruiter Console), all disqualified workstations automatically close the kiosk window, drop low-level hooks, restore Explorer/Taskbar, and return to the normal Windows desktop.
-3. **Applies to Both Modes**: This persistent containment rule is enforced in both Testing and Production modes to ensure fidelity during verification trials.
+1. **Immediate Candidate Removal**: No matter what mode (Production or Testing) and irrespective of remaining exam time, disqualifying a candidate removes them from the exam immediately. Lockdown is NOT imposed until the exam ends.
+2. **Instant Laptop Restoration**: All Win32 hooks, registry policies, and taskbar blocks are dropped immediately, restoring the candidate's laptop to its normal operating state.
+3. **Submission Invalidation**: The candidate's status remains `Disqualified` on the server, permanently preventing any subsequent code submission or evaluation.
 
 ---
 

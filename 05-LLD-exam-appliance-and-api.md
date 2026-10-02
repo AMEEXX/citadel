@@ -124,8 +124,8 @@ Base: `https://10.10.0.1:8443/v1`. All mutating requests carry `Idempotency-Key`
 | GET | `/api/v1/proctor/metrics` | Proctor Dashboard Data API | Returns real-time metrics, active candidate sessions, and threat telemetry events |
 | POST | `/api/v1/integrity/heartbeat` | Candidate Heartbeat | Ingests candidate focus status and active question index every 15s |
 | POST | `/api/v1/integrity/event` | Integrity Threat Ingestion | Ingests focus-loss, window minimization, clipboard attempts, and process violations |
-| POST | `/api/v1/proctor/candidates/:id/disqualify` | Candidate Disqualification | Remote disqualification command from proctor console; retains lockdown until hall exam concludes |
-| GET | `/api/v1/client/session-control` | Client Session Supervisor | Polled by client; returns `{should_exit, reason, status}`. Retains lockdown for Disqualified candidates until hall-wide exam conclusion |
+| POST | `/api/v1/proctor/candidates/:id/disqualify` | Candidate Disqualification | Remote disqualification command from proctor console; terminates session and unlocks workstation immediately |
+| GET | `/api/v1/client/session-control` | Client Session Supervisor | Polled by client; returns `{should_exit, reason, status}`. Returns should_exit: true on disqualification for immediate removal |
 | POST | `/api/v1/client/kill-all-lockdown` | Workstation Exit Trigger | Enforces 15m rule in Production (403 if >15m left); permitted in Testing mode |
 | POST | `/api/v1/integrity/logout` | Session Finalization / Logout | Enforces 15m rule in Production; preserves Disqualified status against reset |
 | GET | `/api/v1/exam/status` | Live Exam Status & Timing | Returns `{is_live, elapsed_seconds, total_seconds, remaining_seconds, early_exit_min_remaining_seconds: 900}` |

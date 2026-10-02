@@ -1217,30 +1217,31 @@
     </div>
   </div>
 
-  <!-- DISQUALIFIED OVERLAY (PERSISTENT LOCKDOWN UNTIL EXAM CONCLUDES FOR ALL) -->
+  <!-- DISQUALIFIED OVERLAY (SESSION TERMINATED / WORKSTATION UNLOCKED) -->
   <div id="disqualified-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 7000;">
     <div class="conclusion-card" style="border-color: #a03f40; max-width: 520px; text-align: center;">
       <div style="display: inline-flex; align-items: center; gap: 6px; background: rgba(248, 113, 113, 0.15); border: 1px solid #a03f40; color: #f87171; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 4px 12px; border-radius: 4px; margin-bottom: 16px; letter-spacing: 0.08em; text-transform: uppercase;">
         <span style="display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #f87171;"></span>
-        LOCKDOWN ENFORCED UNTIL EXAM CONCLUSION
+        EXAM SESSION TERMINATED
       </div>
       <div style="font-size: 38px; color: #f87171; margin-bottom: 12px;">⚠️</div>
       <h2 style="color: var(--accent-red); font-family: var(--font-headline); font-size: 24px; font-weight: 500; margin-bottom: 10px;">Session Terminated / Candidate Disqualified</h2>
       <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5; margin-bottom: 20px;">
-        Your examination session has been disqualified due to security policy violations or proctor action. Under institutional regulations, <strong>all workstation actions remain locked</strong> until the examination officially concludes for all candidates.
+        Your examination session has been terminated by proctor action. Workstation restrictions have been released and your system is restored.
       </p>
-      <div style="background: #140808; border: 1px solid #3d1616; border-radius: 4px; padding: 14px; margin-bottom: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left;">
+      <div style="background: #140808; border: 1px solid #3d1616; border-radius: 4px; padding: 14px; margin-bottom: 16px; text-align: left;">
         <div>
           <div style="font-size: 11px; color: #a17070; font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px;">Candidate ID</div>
           <div id="disq-cand-id" style="font-family: var(--font-mono); font-size: 14px; font-weight: 600; color: #fca5a5;">--</div>
         </div>
-        <div>
-          <div style="font-size: 11px; color: #a17070; font-family: var(--font-mono); text-transform: uppercase; margin-bottom: 4px;">Exam Lockout Remaining</div>
-          <div id="disq-timer-display" style="font-family: var(--font-mono); font-size: 16px; font-weight: 600; color: #f87171;">--:--:--</div>
-        </div>
+      </div>
+      <div style="margin-bottom: 16px;">
+        <button onclick="executeDisqualifiedExit()" class="btn-action btn-end-exam" style="padding: 8px 22px; font-size: 13px; margin: 0 auto; display: inline-flex;">
+          Exit & Close Workstation
+        </button>
       </div>
       <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
-        Workstation will automatically unlock and close when the examination time expires for the hall.
+        Workstation unlocked. Closing assessment session...
       </div>
     </div>
   </div>
@@ -2211,13 +2212,8 @@ Score Awarded: ${data.score} pts`);
           updateTimerUI(remainingSeconds);
 
           if (isDisqualified) {
-            const disqTimer = document.getElementById('disq-timer-display');
-            if (disqTimer) {
-              const h = String(Math.floor(remainingSeconds / 3600)).padStart(2, '0');
-              const m = String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, '0');
-              const s = String(remainingSeconds % 60).padStart(2, '0');
-              disqTimer.innerText = `${h}:${m}:${s}`;
-            }
+            executeDisqualifiedExit();
+            return;
           }
 
           if (questionsList.length === 0) {
@@ -2225,25 +2221,7 @@ Score Awarded: ${data.score} pts`);
           }
         } else {
           if (isDisqualified) {
-            // Exam has concluded for all candidates! Now safely release lockdown and close tab!
-            try {
-              fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
-                },
-                body: JSON.stringify({
-                  auth_token: ACTIVE_AUTH_TOKEN,
-                  candidate_id: CANDIDATE_ID,
-                  reason: 'Exam concluded for all candidates'
-                })
-              }).catch(() => {});
-            } catch(e) {}
-            setTimeout(() => {
-              try { window.close(); } catch(e) {}
-              try { window.open('', '_self').close(); } catch(e) {}
-            }, 800);
+            executeDisqualifiedExit();
             return;
           }
 
@@ -2440,6 +2418,35 @@ Score Awarded: ${data.score} pts`);
       } catch (e) {}
     }
 
+    async function executeDisqualifiedExit() {
+      try {
+        await fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+          },
+          body: JSON.stringify({
+            auth_token: ACTIVE_AUTH_TOKEN,
+            candidate_id: CANDIDATE_ID,
+            reason: 'Candidate disqualified: immediate workstation restoration'
+          })
+        }).catch(() => {});
+      } catch(e) {}
+
+      try {
+        navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
+          candidate_id: CANDIDATE_ID,
+          reason: 'Candidate disqualified: session terminated'
+        }));
+      } catch(e) {}
+
+      setTimeout(() => {
+        try { window.close(); } catch(e) {}
+        try { window.open('', '_self').close(); } catch(e) {}
+      }, 500);
+    }
+
     function triggerDisqualification() {
       if (isDisqualified) return;
       isDisqualified = true;
@@ -2453,10 +2460,8 @@ Score Awarded: ${data.score} pts`);
         candEl.innerText = CANDIDATE_ID || 'Active Candidate';
       }
 
-      // STRICT INTEGRITY ENFORCEMENT:
-      // In both production and testing mode, a disqualified candidate CANNOT leave the lockdown app.
-      // Lockdown remains 100% active until the scheduled exam time has expired for all candidates.
-      // checkExamStatus() will automatically close the tab and release the workstation once data.is_live becomes false.
+      // In both production and testing mode, disqualifying a candidate removes them immediately
+      executeDisqualifiedExit();
     }
 
     function escapeHtml(str) {

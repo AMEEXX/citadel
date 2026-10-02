@@ -173,8 +173,13 @@ fn handle_request(
     }
 
     if is_end_exam {
-        if WORKSTATION_BLOCKED.load(Ordering::SeqCst) {
-            eprintln!("[CITADEL CLIENT SECURITY ALERT] Rejected exit request: Workstation is locked due to security violation or disqualification.");
+        let is_disqualified_exit = req.to_lowercase().contains("disqualif")
+            || req.to_lowercase().contains("revoke")
+            || req.to_lowercase().contains("proctor")
+            || req.to_lowercase().contains("terminated");
+
+        if WORKSTATION_BLOCKED.load(Ordering::SeqCst) && !is_disqualified_exit {
+            eprintln!("[CITADEL CLIENT SECURITY ALERT] Rejected exit request: Workstation is locked due to security violation.");
             let body = r#"{"error":"workstation_locked","message":"Workstation lockdown is enforced until exam conclusion"}"#;
             let resp = format!(
                 "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
@@ -184,6 +189,10 @@ fn handle_request(
             );
             let _ = stream.write_all(resp.as_bytes());
             return;
+        }
+
+        if is_disqualified_exit {
+            WORKSTATION_BLOCKED.store(false, Ordering::SeqCst);
         }
 
         // Authenticate request token (Finding F security fix: unauthenticated exit prevented)

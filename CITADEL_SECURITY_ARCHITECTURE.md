@@ -667,54 +667,56 @@ CITADEL implements a dual-mode threshold engine:
 
 ---
 
-## 15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion
+## 15. Disqualification Immediate Removal & Workstation Restoration Design Flow
 
-### 15.1 Threat Audit: The Premature Disqualification Escape Hole
-In traditional exam browsers, when a proctor flags or disqualifies a candidate, the software immediately terminates or exits to Windows. This creates a severe security vulnerability:
-- A disqualified student receives immediate access to their desktop, browser, and internet while peers in the same room are still actively taking the exam.
-- The student can take screenshots, broadcast answers, browse social media, or create noise in the exam hall.
+### 15.1 Design Evolution: Immediate Removal vs. Hall Lockout
+In the updated Citadel design flow, when a recruiter or proctor disqualifies or removes a candidate from the roster:
+- **No Protracted Lockdown**: The candidate is NOT kept trapped in lockdown until the overall exam time expires.
+- **Immediate Ejection**: The candidate is removed from the examination immediately, irrespective of the remaining exam time and irrespective of whether the system is running in **Production Mode** or **Testing Mode**.
+- **Full Workstation Restoration**: The client supervision loop detects the disqualification within 1 second, terminates the kiosk window, restores all low-level Win32 keyboard/display hooks, restores Explorer/Taskbar, deletes lockdown registry policies, and returns the workstation to the normal Windows desktop.
+- **Permanent Disqualification Record**: The candidate's status remains permanently locked as `"Disqualified"` on the server; all current and subsequent code submissions remain strictly rejected (0 points).
 
-### 15.2 Invariant: Lockdown Persists Until Hall Exam Ends
-CITADEL enforces an absolute security invariant across **both Testing and Production Modes**:
-> **A disqualified candidate's workstation MUST remain in complete lockdown until the designated exam time concludes for ALL candidates in the hall.**
+### 15.2 Disqualification Lifecycle Workflow
 
 ```
-[Proctor / Watchdog Flags Candidate]
+[Proctor / Recruiter Disqualifies or Revokes Candidate]
                  │
                  ▼
-  POST /api/v1/admin/candidates/:id/disqualify
+  POST /api/v1/admin/candidates/:id/disqualify  (or Roster Revoke)
                  │
                  ├── Sets CandidateState.status = "Disqualified"
                  ├── Emits SSE alert to Recruiter Console
                  ▼
-[Candidate Workstation Live Telemetry]
+[Candidate Workstation Heartbeat & Supervision Loop (<= 1.0s)]
                  │
                  ▼
   1. Active code editor & questions immediately unmounted
-  2. Full-screen #disqualified-overlay engages:
-     - Badge: "SESSION TERMINATED / CANDIDATE DISQUALIFIED"
-     - Candidate Identifier & Security Event Log
-     - Regulatory Notice: "LOCKDOWN ENFORCED UNTIL EXAM CONCLUSION"
-     - Real-time countdown timer to scheduled hall finish time
-  3. Win32 Low-Level Hooks (WH_KEYBOARD_LL) remain active
-  4. Alt+Tab, Windows keys, Task Manager, Explorer suppression remain active
-  5. Local Exit Controller (/api/v1/client/end-exam) enforces WORKSTATION_BLOCKED
-  6. Client Supervision Loop polls GET /api/v1/client/session-control -> should_exit: false
+  2. Full-screen #disqualified-overlay briefly notifies candidate:
+     - Badge: "EXAM SESSION TERMINATED"
+     - Title: "Session Terminated / Candidate Disqualified"
+     - Subtitle: "Workstation unlocked. Closing assessment session..."
+  3. Client Supervision Loop polls GET /api/v1/client/session-control:
+     - Server returns: { should_exit: true, status: "Disqualified" }
+  4. Local Exit Endpoint (/api/v1/client/end-exam) processes immediate release
                  │
                  ▼
-[Scheduled Exam Concludes for All Candidates (or Proctor ends hall exam)]
+[Automatic Complete Laptop Restoration (Immediate)]
                  │
-                 ├── Server marks live.is_live = false (or elapsed >= total_duration)
-                 ├── GET /api/v1/client/session-control returns should_exit: true
+                 ├── Kiosk browser process terminated
+                 ├── Low-Level Keyboard Hooks (WH_KEYBOARD_LL) unhooked
+                 ├── Taskbar, Alt+Tab, and Windows Key blocks unblocked
+                 ├── Windows Explorer shell ensured running
+                 ├── Emergency restore batch script invoked
+                 ├── Client process exits clean (0 active restrictions)
                  ▼
-[Workstation Automatically Drops Hooks, Restores Explorer, and Closes Kiosk Cleanly]
+[Candidate Workstation Unlocked & Candidate Removed from Exam Hall]
 ```
 
 ### 15.3 Server State Immutability
-To prevent bypass:
+To guarantee integrity:
 - Calling `/api/v1/integrity/logout` on a disqualified candidate will **never** overwrite or clear the `"Disqualified"` state.
-- `GET /api/v1/client/session-control` inspects the candidate's persistent state. While `state.is_live` is true and remaining exam time is greater than 0, it returns `should_exit: false`.
-- The moment the proctor concludes the hall-wide exam (`POST /api/v1/admin/exam/stop-live`) or total exam duration finishes, `should_exit: true` is broadcast, allowing all locked workstations to safely release simultaneously.
+- `GET /api/v1/client/session-control` returns `should_exit: true`, ensuring immediate client termination.
+- All subsequent attempts to submit code via `/api/v1/submissions` are unconditionally rejected with HTTP 200 `{ "status": "Disqualified", "score": 0 }`.
 
 ---
 
