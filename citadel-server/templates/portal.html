@@ -187,50 +187,31 @@
 
     .btn-end-exam {
       background: rgba(241, 112, 112, 0.12);
-      border: 1px solid rgba(241, 112, 112, 0.35);
+      border: 1px solid rgba(241, 112, 112, 0.3);
       color: #f47a79;
       font-family: var(--font-ui);
-      font-weight: var(--weight-semibold);
-      font-size: var(--text-xs);
-      padding: 5px 14px;
+      font-weight: 600;
+      font-size: 12px;
+      padding: 5px 12px;
       border-radius: 4px;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      transition: all 0.18s ease;
-      letter-spacing: 0.03em;
+      gap: 4px;
+      transition: all 0.15s;
     }
     .btn-end-exam:hover {
       background: #c4474b;
-      border-color: #f17070;
       color: #f2f0ec;
-      box-shadow: 0 0 14px rgba(244, 122, 121, 0.55), 0 0 4px rgba(241, 112, 112, 0.7);
-      transform: translateY(-0.5px);
-    }
-    .btn-end-exam:active {
-      background: #a8363a;
-      border-color: #e25858;
-      color: #ffffff;
-      box-shadow: 0 0 8px rgba(244, 122, 121, 0.4);
-      transform: translateY(0);
-    }
-    .btn-end-exam.urgent {
-      background: rgba(241, 112, 112, 0.25);
-      border-color: #f17070;
-      color: #f2f0ec;
-      animation: pulse-danger 2s infinite;
     }
     .btn-action.btn-end-exam {
-      border: 1px solid rgba(241, 112, 112, 0.35);
+      background: rgba(241, 112, 112, 0.12);
+      border: 1px solid rgba(241, 112, 112, 0.3);
+      color: #f47a79;
     }
     .btn-action.btn-end-exam:hover {
-      border-color: #f17070;
-    }
-
-    @keyframes pulse-danger {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 122, 121, 0.4); }
-      50% { box-shadow: 0 0 14px 4px rgba(244, 122, 121, 0.75); }
+      background: #c4474b;
+      color: #f2f0ec;
     }
 
     /* ─── MAIN WORKSPACE (SPLIT LAYOUT) ─── */
