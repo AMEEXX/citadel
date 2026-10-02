@@ -6896,14 +6896,14 @@
       "source_location": "L93"
     },
     {
-      "id": "production_vs_testing_lockdown_modes_6_persistent_disqualification_lockdown_retention",
-      "label": "6. Persistent Disqualification Lockdown Retention",
+      "id": "production_vs_testing_lockdown_modes_6_immediate_disqualification_removal_laptop_restoration",
+      "label": "6. Immediate Disqualification Removal & Laptop Restoration",
       "_origin": "ast",
       "community": 21,
       "community_name": "CITADEL \u2014 Production Mode vs. Testing Mode: Comprehensive Operational & Security Guide",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "6. persistent disqualification lockdown retention",
+      "norm_label": "6. immediate disqualification removal & laptop restoration",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
       "source_location": "L118"
     },
@@ -6917,7 +6917,7 @@
       "node_kind": "heading",
       "norm_label": "7. how to run in testing mode (safe for you)",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L162"
+      "source_location": "L157"
     },
     {
       "id": "production_vs_testing_lockdown_modes_8_how_to_engage_production_mode_exam_day",
@@ -6929,7 +6929,7 @@
       "node_kind": "heading",
       "norm_label": "8. how to engage production mode (exam day)",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L187"
+      "source_location": "L182"
     },
     {
       "id": "production_vs_testing_lockdown_modes_9_1_testing_mode_vs_production_mode_device_policy",
@@ -6941,7 +6941,7 @@
       "node_kind": "heading",
       "norm_label": "9.1 testing mode vs. production mode device policy",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L223"
+      "source_location": "L218"
     },
     {
       "id": "production_vs_testing_lockdown_modes_9_2_auto_configured_client_downloads_zero_config_network_connection",
@@ -6953,7 +6953,7 @@
       "node_kind": "heading",
       "norm_label": "9.2 auto-configured client downloads (zero-config network connection)",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L235"
+      "source_location": "L230"
     },
     {
       "id": "production_vs_testing_lockdown_modes_9_device_policy_endpoint_discovery_laptop_workstation_enforcement",
@@ -6965,7 +6965,7 @@
       "node_kind": "heading",
       "norm_label": "9. device policy & endpoint discovery: laptop workstation enforcement",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L221"
+      "source_location": "L216"
     },
     {
       "id": "production_vs_testing_lockdown_modes_9_emergency_recovery_tools",
@@ -6977,7 +6977,7 @@
       "node_kind": "heading",
       "norm_label": "9. emergency recovery tools",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L212"
+      "source_location": "L207"
     },
     {
       "id": "production_vs_testing_lockdown_modes_citadel_production_mode_vs_testing_mode_comprehensive_operational_security_guide",
@@ -7049,7 +7049,7 @@
       "node_kind": "heading",
       "norm_label": "key behavioral invariants:",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L155"
+      "source_location": "L150"
     },
     {
       "id": "production_vs_testing_lockdown_modes_option_a_lockdown_client_testing_mode",
@@ -7061,7 +7061,7 @@
       "node_kind": "heading",
       "norm_label": "option a: lockdown client (testing mode)",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L166"
+      "source_location": "L161"
     },
     {
       "id": "production_vs_testing_lockdown_modes_option_b_browser_direct_zero_lockdown",
@@ -7073,7 +7073,7 @@
       "node_kind": "heading",
       "norm_label": "option b: browser direct (zero lockdown)",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L175"
+      "source_location": "L170"
     },
     {
       "id": "production_vs_testing_lockdown_modes_via_command_line",
@@ -7085,7 +7085,7 @@
       "node_kind": "heading",
       "norm_label": "via command-line:",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L191"
+      "source_location": "L186"
     },
     {
       "id": "production_vs_testing_lockdown_modes_via_environment_variable",
@@ -7097,7 +7097,7 @@
       "node_kind": "heading",
       "norm_label": "via environment variable:",
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L196"
+      "source_location": "L191"
     },
     {
       "id": "citadel_client_src_pre_flight",
@@ -12588,7 +12588,7 @@
       "node_kind": "heading",
       "norm_label": "19.1 threat model: secondary mobile devices & localhost resolution gaps",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L803"
+      "source_location": "L805"
     },
     {
       "id": "citadel_security_architecture_19_2_device_detection_enforcement_architecture_testing_vs_production",
@@ -12600,7 +12600,7 @@
       "node_kind": "heading",
       "norm_label": "19.2 device detection & enforcement architecture (testing vs. production)",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L808"
+      "source_location": "L810"
     },
     {
       "id": "citadel_security_architecture_19_3_multi_network_dynamic_endpoint_discovery_pe_watermarking",
@@ -12612,7 +12612,7 @@
       "node_kind": "heading",
       "norm_label": "19.3 multi-network dynamic endpoint discovery & pe watermarking",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L829"
+      "source_location": "L831"
     },
     {
       "id": "citadel_security_architecture_19_device_detection_multi_network_endpoint_discovery_laptop_workstation_gating",
@@ -12624,7 +12624,7 @@
       "node_kind": "heading",
       "norm_label": "19. device detection, multi-network endpoint discovery & laptop workstation gating",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L801"
+      "source_location": "L803"
     },
     {
       "id": "citadel_security_architecture_enforcement_implementation",
@@ -12636,7 +12636,7 @@
       "node_kind": "heading",
       "norm_label": "enforcement implementation:",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L818"
+      "source_location": "L820"
     },
     {
       "id": "citadel_security_architecture_12_1_the_failure_mode_of_static_process_blacklists",
@@ -12783,14 +12783,14 @@
       "source_location": "L535"
     },
     {
-      "id": "03_lld_lockdown_client_12_3_supervision_loop_persistent_disqualification_retention",
-      "label": "12.3 Supervision Loop & Persistent Disqualification Retention",
+      "id": "03_lld_lockdown_client_12_3_supervision_loop_immediate_disqualification_exit_flow",
+      "label": "12.3 Supervision Loop & Immediate Disqualification Exit Flow",
       "_origin": "ast",
       "community": 6,
       "community_name": "03 \u2014 LLD: Lockdown Client",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "12.3 supervision loop & persistent disqualification retention",
+      "norm_label": "12.3 supervision loop & immediate disqualification exit flow",
       "source_file": "03-LLD-lockdown-client.md",
       "source_location": "L541"
     },
@@ -13131,50 +13131,50 @@
       "source_location": "L365"
     },
     {
-      "id": "citadel_security_architecture_15_1_threat_audit_the_premature_disqualification_escape_hole",
-      "label": "15.1 Threat Audit: The Premature Disqualification Escape Hole",
+      "id": "citadel_security_architecture_15_1_design_evolution_immediate_removal_vs_hall_lockout",
+      "label": "15.1 Design Evolution: Immediate Removal vs. Hall Lockout",
       "_origin": "ast",
       "community": 60,
-      "community_name": "15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion",
+      "community_name": "15. Disqualification Immediate Removal & Workstation Restoration Design Flow",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "15.1 threat audit: the premature disqualification escape hole",
+      "norm_label": "15.1 design evolution: immediate removal vs. hall lockout",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
       "source_location": "L672"
     },
     {
-      "id": "citadel_security_architecture_15_2_invariant_lockdown_persists_until_hall_exam_ends",
-      "label": "15.2 Invariant: Lockdown Persists Until Hall Exam Ends",
+      "id": "citadel_security_architecture_15_2_disqualification_lifecycle_workflow",
+      "label": "15.2 Disqualification Lifecycle Workflow",
       "_origin": "ast",
       "community": 60,
-      "community_name": "15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion",
+      "community_name": "15. Disqualification Immediate Removal & Workstation Restoration Design Flow",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "15.2 invariant: lockdown persists until hall exam ends",
+      "norm_label": "15.2 disqualification lifecycle workflow",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L677"
+      "source_location": "L679"
     },
     {
       "id": "citadel_security_architecture_15_3_server_state_immutability",
       "label": "15.3 Server State Immutability",
       "_origin": "ast",
       "community": 60,
-      "community_name": "15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion",
+      "community_name": "15. Disqualification Immediate Removal & Workstation Restoration Design Flow",
       "file_type": "document",
       "node_kind": "heading",
       "norm_label": "15.3 server state immutability",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L713"
+      "source_location": "L715"
     },
     {
-      "id": "citadel_security_architecture_15_persistent_disqualification_lockdown_retention_automated_exam_conclusion",
-      "label": "15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion",
+      "id": "citadel_security_architecture_15_disqualification_immediate_removal_workstation_restoration_design_flow",
+      "label": "15. Disqualification Immediate Removal & Workstation Restoration Design Flow",
       "_origin": "ast",
       "community": 60,
-      "community_name": "15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion",
+      "community_name": "15. Disqualification Immediate Removal & Workstation Restoration Design Flow",
       "file_type": "document",
       "node_kind": "heading",
-      "norm_label": "15. persistent disqualification lockdown retention & automated exam conclusion",
+      "norm_label": "15. disqualification immediate removal & workstation restoration design flow",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
       "source_location": "L670"
     },
@@ -13510,7 +13510,7 @@
       "node_kind": "heading",
       "norm_label": "16.1 root cause of blurry \"zoom call\" ui",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L723"
+      "source_location": "L725"
     },
     {
       "id": "citadel_security_architecture_16_2_implementation_manifest_per_monitor_v2_integration",
@@ -13522,7 +13522,7 @@
       "node_kind": "heading",
       "norm_label": "16.2 implementation: manifest per-monitor v2 integration",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L729"
+      "source_location": "L731"
     },
     {
       "id": "citadel_security_architecture_16_high_dpi_per_monitor_v2_manifest_native_rendering_architecture",
@@ -13534,7 +13534,7 @@
       "node_kind": "heading",
       "norm_label": "16. high-dpi per-monitor v2 manifest & native rendering architecture",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L721"
+      "source_location": "L723"
     },
     {
       "id": "citadel_client_src_lib",
@@ -13876,7 +13876,7 @@
       "node_kind": "heading",
       "norm_label": "17.1 zero-layout-shift position contract",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L760"
+      "source_location": "L762"
     },
     {
       "id": "citadel_security_architecture_17_2_air_gapped_typography_architecture",
@@ -13888,7 +13888,7 @@
       "node_kind": "heading",
       "norm_label": "17.2 air-gapped typography architecture",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L765"
+      "source_location": "L767"
     },
     {
       "id": "citadel_security_architecture_17_obsidian_atelier_v1_design_system_self_hosted_offline_typography",
@@ -13900,7 +13900,7 @@
       "node_kind": "heading",
       "norm_label": "17. obsidian atelier v1 design system & self-hosted offline typography",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L758"
+      "source_location": "L760"
     },
     {
       "id": "citadel_security_architecture_18_1_proctor_roster_management_strict_whitelist_enforcement",
@@ -13912,7 +13912,7 @@
       "node_kind": "heading",
       "norm_label": "18.1 proctor roster management & strict whitelist enforcement",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L777"
+      "source_location": "L779"
     },
     {
       "id": "citadel_security_architecture_18_2_session_resumption_crash_resilience",
@@ -13924,7 +13924,7 @@
       "node_kind": "heading",
       "norm_label": "18.2 session resumption & crash resilience",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L791"
+      "source_location": "L793"
     },
     {
       "id": "citadel_security_architecture_18_roster_synchronization_resilient_session_resumption_engine",
@@ -13936,7 +13936,7 @@
       "node_kind": "heading",
       "norm_label": "18. roster synchronization & resilient session resumption engine",
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L775"
+      "source_location": "L777"
     },
     {
       "id": "agents",
@@ -33853,7 +33853,7 @@
     },
     {
       "source": "03_lld_lockdown_client_12_high_dpi_per_monitor_v2_local_exit_lifecycle_control",
-      "target": "03_lld_lockdown_client_12_3_supervision_loop_persistent_disqualification_retention",
+      "target": "03_lld_lockdown_client_12_3_supervision_loop_immediate_disqualification_exit_flow",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -38186,8 +38186,8 @@
       "weight": 1.0
     },
     {
-      "source": "citadel_security_architecture_15_persistent_disqualification_lockdown_retention_automated_exam_conclusion",
-      "target": "citadel_security_architecture_15_1_threat_audit_the_premature_disqualification_escape_hole",
+      "source": "citadel_security_architecture_15_disqualification_immediate_removal_workstation_restoration_design_flow",
+      "target": "citadel_security_architecture_15_1_design_evolution_immediate_removal_vs_hall_lockout",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -38197,25 +38197,25 @@
       "weight": 1.0
     },
     {
-      "source": "citadel_security_architecture_15_persistent_disqualification_lockdown_retention_automated_exam_conclusion",
-      "target": "citadel_security_architecture_15_2_invariant_lockdown_persists_until_hall_exam_ends",
+      "source": "citadel_security_architecture_15_disqualification_immediate_removal_workstation_restoration_design_flow",
+      "target": "citadel_security_architecture_15_2_disqualification_lifecycle_workflow",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L677",
+      "source_location": "L679",
       "weight": 1.0
     },
     {
-      "source": "citadel_security_architecture_15_persistent_disqualification_lockdown_retention_automated_exam_conclusion",
+      "source": "citadel_security_architecture_15_disqualification_immediate_removal_workstation_restoration_design_flow",
       "target": "citadel_security_architecture_15_3_server_state_immutability",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L713",
+      "source_location": "L715",
       "weight": 1.0
     },
     {
@@ -38226,7 +38226,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L723",
+      "source_location": "L725",
       "weight": 1.0
     },
     {
@@ -38237,7 +38237,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L729",
+      "source_location": "L731",
       "weight": 1.0
     },
     {
@@ -38248,7 +38248,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L760",
+      "source_location": "L762",
       "weight": 1.0
     },
     {
@@ -38259,7 +38259,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L765",
+      "source_location": "L767",
       "weight": 1.0
     },
     {
@@ -38270,7 +38270,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L777",
+      "source_location": "L779",
       "weight": 1.0
     },
     {
@@ -38281,7 +38281,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L791",
+      "source_location": "L793",
       "weight": 1.0
     },
     {
@@ -38292,7 +38292,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L818",
+      "source_location": "L820",
       "weight": 1.0
     },
     {
@@ -38303,7 +38303,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L803",
+      "source_location": "L805",
       "weight": 1.0
     },
     {
@@ -38314,7 +38314,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L808",
+      "source_location": "L810",
       "weight": 1.0
     },
     {
@@ -38325,7 +38325,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L829",
+      "source_location": "L831",
       "weight": 1.0
     },
     {
@@ -38693,7 +38693,7 @@
     },
     {
       "source": "citadel_security_architecture_citadel_client_security_architecture_and_implementation_reference",
-      "target": "citadel_security_architecture_15_persistent_disqualification_lockdown_retention_automated_exam_conclusion",
+      "target": "citadel_security_architecture_15_disqualification_immediate_removal_workstation_restoration_design_flow",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -38710,7 +38710,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L721",
+      "source_location": "L723",
       "weight": 1.0
     },
     {
@@ -38721,7 +38721,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L758",
+      "source_location": "L760",
       "weight": 1.0
     },
     {
@@ -38732,7 +38732,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L775",
+      "source_location": "L777",
       "weight": 1.0
     },
     {
@@ -38765,7 +38765,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "CITADEL_SECURITY_ARCHITECTURE.md",
-      "source_location": "L801",
+      "source_location": "L803",
       "weight": 1.0
     },
     {
@@ -42432,14 +42432,14 @@
       "weight": 1.0
     },
     {
-      "source": "production_vs_testing_lockdown_modes_6_persistent_disqualification_lockdown_retention",
+      "source": "production_vs_testing_lockdown_modes_6_immediate_disqualification_removal_laptop_restoration",
       "target": "production_vs_testing_lockdown_modes_key_behavioral_invariants",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L155",
+      "source_location": "L150",
       "weight": 1.0
     },
     {
@@ -42450,7 +42450,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L166",
+      "source_location": "L161",
       "weight": 1.0
     },
     {
@@ -42461,7 +42461,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L175",
+      "source_location": "L170",
       "weight": 1.0
     },
     {
@@ -42472,7 +42472,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L191",
+      "source_location": "L186",
       "weight": 1.0
     },
     {
@@ -42483,7 +42483,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L196",
+      "source_location": "L191",
       "weight": 1.0
     },
     {
@@ -42494,7 +42494,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L223",
+      "source_location": "L218",
       "weight": 1.0
     },
     {
@@ -42505,12 +42505,12 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L235",
+      "source_location": "L230",
       "weight": 1.0
     },
     {
       "source": "production_vs_testing_lockdown_modes_citadel_production_mode_vs_testing_mode_comprehensive_operational_security_guide",
-      "target": "production_vs_testing_lockdown_modes_6_persistent_disqualification_lockdown_retention",
+      "target": "production_vs_testing_lockdown_modes_6_immediate_disqualification_removal_laptop_restoration",
       "relation": "contains",
       "_origin": "ast",
       "confidence": "EXTRACTED",
@@ -42527,7 +42527,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L162",
+      "source_location": "L157",
       "weight": 1.0
     },
     {
@@ -42549,7 +42549,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L187",
+      "source_location": "L182",
       "weight": 1.0
     },
     {
@@ -42560,7 +42560,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L212",
+      "source_location": "L207",
       "weight": 1.0
     },
     {
@@ -42571,7 +42571,7 @@
       "confidence": "EXTRACTED",
       "confidence_score": 1.0,
       "source_file": "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md",
-      "source_location": "L221",
+      "source_location": "L216",
       "weight": 1.0
     },
     {
@@ -46174,5 +46174,5 @@
     }
   ],
   "hyperedges": [],
-  "built_at_commit": "a0a11e4af85c39c38b3b9734a78e32c643e38c72"
+  "built_at_commit": "c7ca33eb374ee62ed503bcbb754491877bcb291d"
 }

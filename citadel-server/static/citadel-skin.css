@@ -71,22 +71,63 @@
 }
 .app-portal .timer-container.timer-danger { animation: cit-breathe 1.6s ease-in-out infinite; }
 
-/* End Exam — quiet neutral outline; Garnet only on intent */
-.app-portal .btn-end-exam {
-  background: transparent; border-color: var(--border-subtle);
-  color: var(--text-secondary); font-weight: 500; letter-spacing: .03em;
-  transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base), color var(--dur-base);
+/* End Exam — exact match to Revoke Access & Disqualify (.btn-sm.btn-danger) */
+.app-portal .btn-end-exam,
+.app-portal .btn-danger {
+  background: rgba(241, 112, 112, 0.12) !important;
+  border: 1px solid rgba(241, 112, 112, 0.3) !important;
+  color: #f47a79 !important;
+  padding: 5px 12px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  transition: all 0.15s !important;
+  line-height: normal !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
-.app-portal .btn-end-exam:hover  { background: #290b0b; border-color: #a03f40; color: #f47a79; box-shadow: none; transform: none; }
-.app-portal .btn-end-exam:active { background: #3a1011; border-color: #a03f40; color: #f4c8c6; }
-.app-portal .btn-end-exam.urgent { background: #290b0b; border-color: #a03f40; color: #f47a79; animation: none; position: relative; }
-.app-portal .btn-end-exam.urgent::after {
-  content: ''; position: absolute; inset: -1px; border: 1px solid #f47a79;
-  pointer-events: none; animation: cit-ring 2s var(--ease-out) infinite;
+.app-portal .btn-end-exam:hover,
+.app-portal .btn-danger:hover {
+  background: #c4474b !important;
+  border-color: rgba(241, 112, 112, 0.3) !important;
+  color: #f2f0ec !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
-/* The modal's "Confirm & End Exam" re-uses .btn-end-exam → make it the solid danger action */
-.app-portal #btn-confirm-end       { background: #af3c40; border-color: #c4474b; color: #f2f0ec; }
-.app-portal #btn-confirm-end:hover { background: #c4474b; border-color: #c4474b; color: #f2f0ec; }
+.app-portal .btn-end-exam:active,
+.app-portal .btn-danger:active {
+  background: #a8363a !important;
+  border-color: rgba(241, 112, 112, 0.3) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.app-portal .btn-end-exam.urgent {
+  background: rgba(241, 112, 112, 0.12) !important;
+  border-color: rgba(241, 112, 112, 0.3) !important;
+  color: #f47a79 !important;
+  animation: none !important;
+}
+/* The modal's "Confirm & End Exam" also matches .btn-sm.btn-danger */
+.app-portal #btn-confirm-end {
+  background: rgba(241, 112, 112, 0.12) !important;
+  border: 1px solid rgba(241, 112, 112, 0.3) !important;
+  color: #f47a79 !important;
+  padding: 5px 12px !important;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+}
+.app-portal #btn-confirm-end:hover {
+  background: #c4474b !important;
+  border-color: rgba(241, 112, 112, 0.3) !important;
+  color: #f2f0ec !important;
+}
 
 /* A3 — Question tabs: champagne underline that grows in */
 .app-portal .q-tab-btn { position: relative; border-bottom-color: transparent !important; letter-spacing: .06em; transition: color var(--dur-base) var(--ease-out); }

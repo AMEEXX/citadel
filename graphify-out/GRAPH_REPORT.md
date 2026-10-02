@@ -1,7 +1,9 @@
 # Graph Report - citadel-design  (2026-10-02)
 
 ## Corpus Check
-- cluster-only mode — file stats not available
+- 81 files · ~246,487 words
+- Verdict: corpus is large enough that graph structure adds value.
+- Unclassified: 15 file(s) not represented in the graph (top: (none) 4, .woff2 4, .bat 3)
 
 ## Summary
 - 1376 nodes · 2610 edges · 112 communities (70 shown, 42 thin omitted)
@@ -9,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `a0a11e4a`
+- Built from commit: `c7ca33eb`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -74,7 +76,7 @@
 - 11. Network Security Architecture & Cryptographic Client Handshake
 - 19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating
 - 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
-- 15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion
+- 15. Disqualification Immediate Removal & Workstation Restoration Design Flow
 - 3. Fix Plan for BUG #5
 - render_gatekeeper_html
 - wfp_policy.rs
@@ -180,7 +182,7 @@ Nodes (31): a(), b(), c(), d(), e(), f(), C(), k() (+23 more)
 
 ### Community 6 - "03 — LLD: Lockdown Client"
 Cohesion: 0.05
-Nodes (36): 03 — LLD: Lockdown Client, 10. Implementation Reference & Production Hardening Guide, 11.1 Threat: Degraded / "Less Control" Execution, 11.2 Inviolable Invariant: Zero Degraded Fallback, 11. Mandatory UAC Elevation & Zero-Fallback Startup Architecture, 12.1 High-DPI Per-Monitor v2 Native Rendering, 12.2 Local Lockdown Controller (`http://127.0.0.1:8444`), 12.3 Supervision Loop & Persistent Disqualification Retention (+28 more)
+Nodes (36): 03 — LLD: Lockdown Client, 10. Implementation Reference & Production Hardening Guide, 11.1 Threat: Degraded / "Less Control" Execution, 11.2 Inviolable Invariant: Zero Degraded Fallback, 11. Mandatory UAC Elevation & Zero-Fallback Startup Architecture, 12.1 High-DPI Per-Monitor v2 Native Rendering, 12.2 Local Lockdown Controller (`http://127.0.0.1:8444`), 12.3 Supervision Loop & Immediate Disqualification Exit Flow (+28 more)
 
 ### Community 7 - "ClientLockdownGuard"
 Cohesion: 0.11
@@ -240,7 +242,7 @@ Nodes (23): applyLanguagePalette(), autoSubmitTimeUp(), codeStore, confirmEndExa
 
 ### Community 21 - "CITADEL — Production Mode vs. Testing Mode: Comprehensive Operational & Security Guide"
 Cohesion: 0.08
-Nodes (23): 1. Executive Summary, 2. Feature Comparison Matrix, 3. Mandatory UAC Elevation & Zero-Fallback Enforcement, 4. Network & API Access Control: Testing vs. Production Gating, 5.1 The 15-Minute Early Exit Rule (Production vs Testing), 5. Early Exam Exit & Conclusion Lifecycle, 6. Persistent Disqualification Lockdown Retention, 7. How to Run in Testing Mode (Safe for You) (+15 more)
+Nodes (23): 1. Executive Summary, 2. Feature Comparison Matrix, 3. Mandatory UAC Elevation & Zero-Fallback Enforcement, 4. Network & API Access Control: Testing vs. Production Gating, 5.1 The 15-Minute Early Exit Rule (Production vs Testing), 5. Early Exam Exit & Conclusion Lifecycle, 6. Immediate Disqualification Removal & Laptop Restoration, 7. How to Run in Testing Mode (Safe for You) (+15 more)
 
 ### Community 22 - "pre_flight.rs"
 Cohesion: 0.17
@@ -394,9 +396,9 @@ Nodes (5): 19.1 Threat Model: Secondary Mobile Devices & Localhost Resolution Ga
 Cohesion: 0.50
 Nodes (4): 12.1 The Failure Mode of Static Process Blacklists, 12.2 The Citadel Dual-Layer Detection Architecture, 12.3 Automated Termination and Interactive Rescan Pipeline, 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
 
-### Community 60 - "15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion"
+### Community 60 - "15. Disqualification Immediate Removal & Workstation Restoration Design Flow"
 Cohesion: 0.50
-Nodes (4): 15.1 Threat Audit: The Premature Disqualification Escape Hole, 15.2 Invariant: Lockdown Persists Until Hall Exam Ends, 15.3 Server State Immutability, 15. Persistent Disqualification Lockdown Retention & Automated Exam Conclusion
+Nodes (4): 15.1 Design Evolution: Immediate Removal vs. Hall Lockout, 15.2 Disqualification Lifecycle Workflow, 15.3 Server State Immutability, 15. Disqualification Immediate Removal & Workstation Restoration Design Flow
 
 ### Community 61 - "3. Fix Plan for BUG #5"
 Cohesion: 0.50
@@ -435,20 +437,20 @@ Cohesion: 0.67
 Nodes (3): 18.1 Proctor Roster Management & Strict Whitelist Enforcement, 18.2 Session Resumption & Crash Resilience, 18. Roster Synchronization & Resilient Session Resumption Engine
 
 ## Knowledge Gaps
-- **417 isolated node(s):** `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM`, `WRONG_PYTHON_TWO_SUM`, `citadel-server`, `1. System context` (+412 more)
+- **417 isolated node(s):** `CITADEL Guard, Shell, and Forge — the Safe Exam Browser replacement`, `1. Why this component exists`, `2. Process architecture and trust boundaries`, `3.1 Module responsibilities`, `3.2 Guard state machine` (+412 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 637 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **42 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?**
-  _High betweenness centrality (0.036) - this node is a cross-community bridge._
-- **Why does `build_app()` connect `api_tests.rs` to `api.rs`, `persistence.rs`, `main`?**
-  _High betweenness centrality (0.019) - this node is a cross-community bridge._
 - **Why does `WfpEngine` connect `WfpEngine` to `local_control.rs`?**
-  _High betweenness centrality (0.015) - this node is a cross-community bridge._
-- **What connects `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM`, `WRONG_PYTHON_TWO_SUM` to the rest of the system?**
+  _High betweenness centrality (0.028) - this node is a cross-community bridge._
+- **Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Why does `build_app()` connect `api_tests.rs` to `api.rs`, `persistence.rs`, `main`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **What connects `CITADEL Guard, Shell, and Forge — the Safe Exam Browser replacement`, `1. Why this component exists`, `2. Process architecture and trust boundaries` to the rest of the system?**
   _417 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `api.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.07767741935483871 - nodes in this community are weakly interconnected._
