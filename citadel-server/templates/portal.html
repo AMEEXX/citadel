@@ -1282,6 +1282,31 @@
     </div>
   </div>
 
+  <!-- MOBILE / TABLET DEVICE BLOCKED OVERLAY (PRODUCTION MODE ONLY) -->
+  <div id="mobile-device-blocked-overlay" class="modal-overlay" style="display: none; background: rgba(0, 0, 0, 0.96); backdrop-filter: blur(12px); z-index: 9999;">
+    <div class="conclusion-card" style="max-width: 460px; text-align: left; padding: 32px 28px; border: 1px solid rgba(239, 68, 68, 0.4); background: #121110; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9);">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+        <span style="font-size: 24px;">💻</span>
+        <span style="font-family: var(--font-mono); font-size: 10px; font-weight: 700; color: #fca5a5; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4); padding: 3px 8px; border-radius: 4px; letter-spacing: 0.05em; text-transform: uppercase;">Laptop Required</span>
+      </div>
+      <h2 style="margin: 0 0 10px 0; font-size: var(--text-lg); font-weight: var(--weight-medium); color: var(--text-primary); letter-spacing: -0.01em;">
+        This exam needs to be taken from a laptop
+      </h2>
+      <p style="font-size: var(--text-xs); color: var(--text-muted); line-height: 1.6; margin-bottom: 20px;">
+        Mobile phones and tablets are not supported for secure proctored sessions. In production mode, you can only take the assessment from a laptop or desktop computer running Windows.
+      </p>
+
+      <div style="background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 12px 14px; margin-bottom: 20px;">
+        <div style="font-size: 10px; font-family: var(--font-mono); color: var(--text-dim); text-transform: uppercase; margin-bottom: 4px;">Detected Device</div>
+        <div id="detected-device-info" style="font-size: var(--text-xs); color: #fca5a5; font-family: var(--font-mono); font-weight: var(--weight-medium);">Mobile / Tablet Device</div>
+      </div>
+
+      <div style="font-size: var(--text-xs); color: var(--text-dim); line-height: 1.5;">
+        Please open this examination link on your laptop workstation to continue.
+      </div>
+    </div>
+  </div>
+
   <!-- CANDIDATE IDENTITY VERIFICATION MODAL -->
   <div id="candidate-id-modal" class="modal-overlay" style="display: flex; background: rgba(0, 0, 0, 0.94); backdrop-filter: blur(8px); z-index: 6000;">
     <div class="conclusion-card" style="max-width: 440px; text-align: left; padding: 28px; border: 1px solid var(--border-subtle); background: #121110; box-shadow: 0 16px 48px rgba(0,0,0,0.85);">
@@ -1292,6 +1317,10 @@
       <p style="font-size: var(--text-xs); color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
         Enter your enrolled College Email or Roll Number and Exam Passcode to unlock your assessment environment. Only whitelisted candidates can proceed.
       </p>
+
+      <div id="mobile-testing-banner" style="display: none; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 4px; padding: 8px 12px; margin-bottom: 16px; font-size: var(--text-xs); color: #7dd3fc; line-height: 1.45;">
+        📱 <strong>Testing Mode:</strong> Mobile/tablet viewport active. Testing is permitted on all devices in non-production mode.
+      </div>
 
       <div id="candidate-login-error" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; border-radius: 4px; padding: 10px 14px; margin-bottom: 16px; font-size: var(--text-xs); color: #fca5a5; line-height: 1.45;"></div>
 
@@ -1347,6 +1376,93 @@
       }
       return originalFetch.call(this, url, options);
     };
+
+    // =========================================================================
+    // DEVICE DETECTION & WORKSTATION ENFORCEMENT (TESTING VS PRODUCTION)
+    // =========================================================================
+    function detectDevice() {
+      const ua = (navigator.userAgent || navigator.vendor || window.opera || '').toLowerCase();
+
+      // Citadel Lockdown Client is always approved
+      if (ua.includes('citadelsecuritycore') || ua.includes('citadel-lockdown-client')) {
+        return { isLaptop: true, type: 'citadel_client', label: 'Citadel Lockdown Client (Workstation)' };
+      }
+
+      // Windows, Mac desktop, Linux desktop
+      const isWindows = ua.includes('windows nt');
+      const isMac = ua.includes('macintosh') && (navigator.maxTouchPoints === 0 || !('ontouchend' in document));
+      const isLinuxDesktop = ua.includes('x11') || (ua.includes('linux') && !ua.includes('android'));
+
+      // Explicit Mobile/Tablet patterns
+      const isExplicitMobile = /android.*mobile|iphone|ipod|iemobile|opera mini|blackberry|mobile/i.test(ua);
+      const isExplicitTablet = /ipad|android(?!.*mobile)|tablet|silk\//i.test(ua);
+      const isIPadOS = ua.includes('macintosh') && (navigator.maxTouchPoints > 1);
+
+      // Viewport / Touch heuristics (non-desktop touch or narrow screen)
+      const isSmallScreen = window.screen.width < 768 || window.innerWidth < 768;
+      const isTouchCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !window.matchMedia('(pointer: fine)').matches;
+
+      if (isExplicitMobile || (isSmallScreen && isTouchCoarse && !isWindows)) {
+        return { isLaptop: false, type: 'mobile', label: 'Mobile Smartphone' };
+      }
+
+      if (isExplicitTablet || isIPadOS) {
+        return { isLaptop: false, type: 'tablet', label: 'Tablet Device' };
+      }
+
+      if (isWindows || isMac || isLinuxDesktop) {
+        return { isLaptop: true, type: 'laptop', label: 'Laptop / Desktop Workstation' };
+      }
+
+      // Broad screen fallback
+      if (window.screen.width >= 1024 && !isExplicitMobile && !ua.includes('android')) {
+        return { isLaptop: true, type: 'desktop', label: 'Desktop / Laptop Workstation' };
+      }
+
+      return { isLaptop: false, type: 'unsupported', label: 'Non-Laptop Device' };
+    }
+
+    function enforceDevicePolicy() {
+      const device = detectDevice();
+      const blockedOverlay = document.getElementById('mobile-device-blocked-overlay');
+      const testingBanner = document.getElementById('mobile-testing-banner');
+      const devInfoEl = document.getElementById('detected-device-info');
+
+      if (isProductionMode && !device.isLaptop) {
+        // Block completely in production mode
+        if (blockedOverlay) {
+          if (devInfoEl) devInfoEl.innerText = `${device.label} (Access Disallowed in Production)`;
+          blockedOverlay.style.display = 'flex';
+        }
+        const joinBtn = document.getElementById('btn-register-join');
+        if (joinBtn) {
+          joinBtn.disabled = true;
+          joinBtn.style.opacity = '0.4';
+          joinBtn.innerText = 'Laptop Required';
+        }
+        showLoginError('This exam needs to be taken from a laptop. Mobile devices and tablets are not permitted in production mode.');
+      } else {
+        // Allowed
+        if (blockedOverlay) {
+          blockedOverlay.style.display = 'none';
+        }
+        const joinBtn = document.getElementById('btn-register-join');
+        if (joinBtn && joinBtn.innerText === 'Laptop Required') {
+          joinBtn.disabled = false;
+          joinBtn.style.opacity = '1';
+          joinBtn.innerText = 'Verify & Enter Assessment';
+        }
+
+        if (!isProductionMode && !device.isLaptop) {
+          if (testingBanner) testingBanner.style.display = 'block';
+        } else {
+          if (testingBanner) testingBanner.style.display = 'none';
+        }
+      }
+    }
+
+    window.addEventListener('resize', enforceDevicePolicy);
+    window.addEventListener('orientationchange', enforceDevicePolicy);
 
     // =========================================================================
     // PERSISTENT CANDIDATE IDENTITY & ROSTER WHITELIST VERIFICATION
@@ -2099,6 +2215,7 @@ Score Awarded: ${data.score} pts`);
 
         if (data.is_production !== undefined) {
           isProductionMode = Boolean(data.is_production);
+          enforceDevicePolicy();
         }
 
         const notStartedOverlay = document.getElementById('exam-not-started-overlay');
@@ -2395,6 +2512,7 @@ Score Awarded: ${data.score} pts`);
 
     // Page initialization
     window.addEventListener('DOMContentLoaded', () => {
+      enforceDevicePolicy();
       initCandidateId();
       initAceEditor();
       initResizers();

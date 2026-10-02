@@ -795,3 +795,48 @@ The appliance supports automated candidate enrollment via `roster.csv`:
   2. The candidate logs in with their credentials.
   3. The server validates their identity and returns their exact `resume_state`: active problem index, written code in Monaco, compilation history, and elapsed exam time.
   4. The candidate resumes without losing any written code.
+
+---
+
+## 19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating
+
+### 19.1 Threat Model: Secondary Mobile Devices & Localhost Resolution Gaps
+In university proctored exams, candidates frequently attempt two vectors of evasion or face configuration failures:
+1. **Mobile Device Infiltration**: Candidates attempt to access examination portals via smartphones or tablets connected to campus Wi-Fi, evading desktop lockdown software and screen monitoring.
+2. **Localhost (`127.0.0.1`) Disconnect on Remote Fleets**: When lockdown clients are distributed to candidate laptops or virtual machines, hardcoded loopback (`127.0.0.1:8443`) addresses fail because the exam server appliance runs exclusively on the proctor's workstation or central campus server.
+
+### 19.2 Device Detection & Enforcement Architecture (Testing vs. Production)
+CITADEL enforces strict hardware differentiation based on operational mode:
+
+| Device Category | Testing Mode (`CITADEL_PRODUCTION=0`) | Production Mode (`CITADEL_PRODUCTION=1`) |
+|---|---|---|
+| **Windows Laptop / Workstation** | Allowed (Kiosk & Web Assessment) | **MANDATORY**: Strictly Required for Proctored Sessions |
+| **Mobile Smartphones (iOS / Android)** | Allowed with Advisory Banner (`📱 Testing Mode: Mobile viewport active`) | **STRICTLY BLOCKED**: 403 Forbidden with prompt: *"This exam needs to be taken from a laptop."* |
+| **Tablet Devices (iPad / Android Tablet)** | Allowed for UI / Responsiveness Testing | **STRICTLY BLOCKED**: High-z-index overlay prevents candidate login & question viewing |
+| **Citadel Lockdown Client (`citadel-client.exe`)** | Allowed (Developer Tools Preserved) | **MANDATORY**: Required to acquire ephemeral session token |
+
+#### Enforcement Implementation:
+1. **Client-Side Perimeter (`portal.html`)**:
+   - `detectDevice()` inspects `navigator.userAgent`, `navigator.maxTouchPoints`, and viewport media queries (`pointer: coarse`).
+   - `enforceDevicePolicy()` evaluates `isProductionMode`. In Production Mode, non-laptop devices are trapped behind `#mobile-device-blocked-overlay` (`z-index: 9999`, backdrop blur, unclosable).
+   - Identity verification button is locked with text `"Laptop Required"` and candidate login submission is prevented.
+2. **Server-Side Perimeter (`api.rs`)**:
+   - `is_mobile_or_tablet_user_agent()` analyzes incoming `User-Agent` headers across:
+     - `POST /api/v1/auth/login`: Rejects mobile logins with `403 Forbidden` (`DEVICE_DISALLOWED`).
+     - `GET /exam`: Serves standalone `mobile_blocked.html` response.
+     - `GET /`: Injects prominent laptop requirement banner into the download gatekeeper.
+
+### 19.3 Multi-Network Dynamic Endpoint Discovery & PE Watermarking
+To eliminate the `127.0.0.1` disconnect when candidate laptops or VMs launch `citadel-client.exe`, CITADEL integrates a 5-tier discovery hierarchy:
+
+1. **Dynamic PE Overlay Watermarking (`/download/citadel-client.exe`)**:
+   - When a candidate downloads `citadel-client.exe` from `http://172.60.10.12:8443/`, `download_client_handler` inspects the HTTP `Host` header.
+   - The server appends a lightweight configuration trailer directly to the binary:
+     `\n---CITADEL_CONFIG_START---\nENDPOINT=172.60.10.12:8443\n---CITADEL_CONFIG_END---\n`
+   - Windows PE loaders ignore overlay bytes appended after the raw sections. When `citadel-client.exe` launches, `read_embedded_server_endpoint()` extracts the trailer and connects directly to the server IP it was downloaded from.
+2. **Local Configuration File Override**:
+   - `citadel-client.exe` checks for `citadel-server.txt` or `server.txt` in the same directory, enabling instant proctor deployment via USB drives.
+3. **Automated Multi-Subnet Probing**:
+   - The client probes active campus Wi-Fi endpoints (`172.60.10.12:8443`), VM Host-Only interfaces (`192.168.56.1:8443`), VirtualBox NAT gateways (`10.0.2.2:8443`), and local loopback (`127.0.0.1:8443`).
+4. **Interactive GUI Connection Prompt**:
+   - If automated probing fails across all interfaces, `citadel-client.exe` opens a native Win32 input modal pre-filled with `172.60.10.12:8443`, allowing proctors or students to confirm or enter the active server IP rather than aborting.

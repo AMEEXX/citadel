@@ -155,6 +155,15 @@
 </head>
 <body class="app-gate">
   <div class="card">
+    <div id="mobile-warning-banner" class="mobile-warning" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; text-align: left;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+        <span style="font-size: 16px;">⚠️</span>
+        <span style="font-weight: 600; color: #fca5a5; font-size: 13px; letter-spacing: -0.01em;">Laptop Required for Assessment</span>
+      </div>
+      <div style="font-size: 12px; color: #f2f0ec; line-height: 1.55;">
+        <strong>This exam needs to be taken from a laptop.</strong> Mobile devices and tablets are not supported for secure proctored examinations. Please open this URL from your laptop workstation.
+      </div>
+    </div>
     <div class="logo-badge">CITADEL RUNTIME</div>
     <h1>CITADEL Assessment Appliance</h1>
     <p>To take your examination on the isolated campus fleet, launch the Citadel Lockdown Client on your workstation.</p>
@@ -176,5 +185,26 @@
       </ol>
     </div>
   </div>
+  <script>
+    (function() {
+      const isProd = /* {{IS_PRODUCTION_FLAG}} */ false;
+      const ua = (navigator.userAgent || '').toLowerCase();
+      const isExplicitMobile = /android|iphone|ipad|ipod|iemobile|opera mini|blackberry|mobile|tablet/i.test(ua);
+      const isTouchCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !ua.includes('windows nt');
+      const isMobile = isExplicitMobile || isTouchCoarse;
+
+      if (isProd && isMobile) {
+        const banner = document.getElementById('mobile-warning-banner');
+        if (banner) banner.style.display = 'block';
+        const dlBtn = document.querySelector('.download-btn');
+        if (dlBtn) {
+          dlBtn.style.opacity = '0.5';
+          dlBtn.style.pointerEvents = 'none';
+          dlBtn.style.cursor = 'not-allowed';
+          dlBtn.innerHTML = `⚠️ Laptop Required (Windows)`;
+        }
+      }
+    })();
+  </script>
 </body>
 </html>

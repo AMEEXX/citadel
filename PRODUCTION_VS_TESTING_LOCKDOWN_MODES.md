@@ -35,6 +35,8 @@ CITADEL is designed with two distinct operational modes to eliminate testing fri
 | **Single-Session Device Lock** | 🟢 Can re-open & re-test freely | 🔴 **Single-login locked** on submit |
 | **Rapid Escape Triggers** | 5x Escape / Ctrl+Shift+Alt+Q | Proctor override only (Ctrl+Shift+Alt+F12) |
 | **Exit Mechanism** | 🟢 **End Exam** button restores system | 🔴 **End Exam** unlocked only within final 15m |
+| **Supported Devices** | 🟢 **All Devices Permitted** (Mobile, tablet, laptop, desktop for testing) | 🔴 **Strictly Laptop/Desktop Only** (Mobile/tablets blocked: "Laptop required") |
+| **Server Discovery** | 🌐 Multi-network discovery & loopback allowed | 🌐 Dynamic PE watermarking & campus Wi-Fi fleet probing |
 
 ---
 
@@ -213,3 +215,24 @@ If a machine is ever abruptly powered off or interrupted during testing:
 1. Run **`citadel-recovery.exe`** (located at the root of the project).
 2. Click **Yes** on the UAC prompt.
 3. All registry policies, taskbars, and Windows Explorer are restored in under 1 second.
+
+---
+
+## 9. Device Policy & Endpoint Discovery: Laptop Workstation Enforcement
+
+### 9.1 Testing Mode vs. Production Mode Device Policy
+- **Testing Mode (`CITADEL_PRODUCTION=0`)**:
+  - Open device evaluation: Testers, recruiters, and developers can open the assessment portal on mobile phones, tablets, or desktop browsers.
+  - Responsive design with an informational indicator: `📱 Testing Mode: Mobile device viewport active`.
+  - All test runner, code editor, and submission APIs accept requests from mobile user agents.
+- **Production Mode (`CITADEL_PRODUCTION=1`)**:
+  - **Laptop / Desktop Computer Strictly Enforced**: Candidates are prohibited from taking exams on smartphones or tablets.
+  - When opened on mobile/tablet in production:
+    - Dedicated unclosable overlay (`#mobile-device-blocked-overlay`) blocks access.
+    - Explicit prompt: *"This exam needs to be taken from a laptop. Mobile devices and tablets are not supported for secure proctored sessions."*
+    - Backend endpoints (`/api/v1/auth/login`, `/exam`) reject mobile user agents with HTTP `403 Forbidden` (`DEVICE_DISALLOWED`).
+
+### 9.2 Auto-Configured Client Downloads (Zero-Config Network Connection)
+- When a candidate navigates to `http://172.60.10.12:8443/` and downloads `citadel-client.exe`, the server dynamically embeds the host endpoint into the executable's trailer.
+- When launched, `citadel-client.exe` connects automatically to `http://172.60.10.12:8443` without requiring command-line flags or manual IP entry.
+- VM host-only adapters (`192.168.56.1`) and VirtualBox gateways (`10.0.2.2`) are automatically probed.

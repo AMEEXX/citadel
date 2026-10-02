@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -64,23 +65,141 @@ pub fn log_event(msg: &str) {
     }
 }
 
-fn resolve_server_endpoint(preferred_ip: Ipv4Addr, port: u16) -> Ipv4Addr {
-    // 1. Check local loopback FIRST (zero-latency instant local connect for single-machine demo/eval)
-    let loopback = Ipv4Addr::new(127, 0, 0, 1);
-    let target_lb = SocketAddr::from((loopback, port));
-    if TcpStream::connect_timeout(&target_lb, Duration::from_millis(250)).is_ok() {
-        log_event(&format!("[CITADEL CLIENT] Connected to local exam server at 127.0.0.1:{}", port));
-        return loopback;
+fn read_embedded_server_endpoint() -> Option<(Ipv4Addr, u16)> {
+    let exe_path = std::env::current_exe().ok()?;
+    let bytes = std::fs::read(&exe_path).ok()?;
+    if bytes.len() < 32 {
+        return None;
+    }
+    let tail_len = bytes.len().min(4096);
+    let tail = &bytes[bytes.len() - tail_len..];
+    let tail_str = String::from_utf8_lossy(tail);
+
+    if let Some(start) = tail_str.find("---CITADEL_CONFIG_START---") {
+        if let Some(end) = tail_str[start..].find("---CITADEL_CONFIG_END---") {
+            let config_block = &tail_str[start..start + end];
+            for line in config_block.lines() {
+                if let Some(endpoint) = line.strip_prefix("ENDPOINT=") {
+                    let ep = endpoint.trim().trim_start_matches("http://").trim_start_matches("https://");
+                    if let Some((host, port_str)) = ep.split_once(':') {
+                        if let (Ok(ip), Ok(port)) = (host.parse::<Ipv4Addr>(), port_str.parse::<u16>()) {
+                            return Some((ip, port));
+                        }
+                    } else if let Ok(ip) = ep.parse::<Ipv4Addr>() {
+                        return Some((ip, 8443));
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn read_file_server_endpoint() -> Option<(Ipv4Addr, u16)> {
+    let current_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|p| p.to_path_buf()));
+    let mut candidates = Vec::new();
+    if let Some(ref dir) = current_dir {
+        candidates.push(dir.join("citadel-server.txt"));
+        candidates.push(dir.join("server.txt"));
+    }
+    candidates.push(PathBuf::from("citadel-server.txt"));
+    candidates.push(PathBuf::from("server.txt"));
+
+    for path in &candidates {
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for line in content.lines() {
+                let trimmed = line.trim().trim_start_matches("http://").trim_start_matches("https://");
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                if let Some((host, port_str)) = trimmed.split_once(':') {
+                    if let (Ok(ip), Ok(port)) = (host.parse::<Ipv4Addr>(), port_str.parse::<u16>()) {
+                        return Some((ip, port));
+                    }
+                } else if let Ok(ip) = trimmed.parse::<Ipv4Addr>() {
+                    return Some((ip, 8443));
+                }
+            }
+        }
+    }
+    None
+}
+
+fn prompt_server_endpoint_gui(default_addr: &str) -> Option<(Ipv4Addr, u16)> {
+    let ps_script = format!(
+        "[void][System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic'); [Microsoft.VisualBasic.Interaction]::InputBox('Could not automatically connect to the Citadel Exam Server on this network.\n\nPlease enter the exam server address provided by your proctor (e.g. 172.60.10.12:8443):', 'Citadel Exam Server Connection', '{}')",
+        default_addr
+    );
+    let output = std::process::Command::new("powershell")
+        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
+        .output()
+        .ok()?;
+
+    let entered = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if entered.is_empty() {
+        return None;
     }
 
-    // 2. Probe campus Wi-Fi fleet server
-    let target = SocketAddr::from((preferred_ip, port));
-    if TcpStream::connect_timeout(&target, Duration::from_millis(500)).is_ok() {
-        log_event(&format!("[CITADEL CLIENT] Connected to campus exam fleet server at {}:{}", preferred_ip, port));
-        return preferred_ip;
+    let cleaned = entered.trim_start_matches("http://").trim_start_matches("https://");
+    if let Some((host, port_str)) = cleaned.split_once(':') {
+        if let (Ok(ip), Ok(port)) = (host.parse::<Ipv4Addr>(), port_str.parse::<u16>()) {
+            return Some((ip, port));
+        }
+    } else if let Ok(ip) = cleaned.parse::<Ipv4Addr>() {
+        return Some((ip, 8443));
     }
 
-    loopback
+    None
+}
+
+fn resolve_server_endpoint(cli_ip: Option<Ipv4Addr>, port: u16) -> (Ipv4Addr, u16) {
+    let mut candidate_list: Vec<(Ipv4Addr, u16)> = Vec::new();
+
+    // 1. Explicit CLI argument / Environment variable
+    if let Some(ip) = cli_ip {
+        candidate_list.push((ip, port));
+    }
+
+    // 2. Embedded server address from download trailer
+    if let Some(ep) = read_embedded_server_endpoint() {
+        candidate_list.push(ep);
+    }
+
+    // 3. Local configuration file next to executable
+    if let Some(ep) = read_file_server_endpoint() {
+        candidate_list.push(ep);
+    }
+
+    // 4. Known common network server endpoints:
+    // Wi-Fi campus IP (172.60.10.12)
+    candidate_list.push((Ipv4Addr::new(172, 60, 10, 12), port));
+    // VM Host-Only Network (VirtualBox / VMware: 192.168.56.1)
+    candidate_list.push((Ipv4Addr::new(192, 168, 56, 1), port));
+    // VirtualBox NAT Gateway host IP (10.0.2.2)
+    candidate_list.push((Ipv4Addr::new(10, 0, 2, 2), port));
+    // Local loopback (for local evaluation on the host machine itself)
+    candidate_list.push((Ipv4Addr::new(127, 0, 0, 1), port));
+
+    // Probe candidates in order with short timeout
+    for (ip, p) in candidate_list {
+        let target = SocketAddr::from((ip, p));
+        if TcpStream::connect_timeout(&target, Duration::from_millis(300)).is_ok() {
+            log_event(&format!("[CITADEL CLIENT] Successfully connected to exam server at {}:{}", ip, p));
+            return (ip, p);
+        }
+    }
+
+    // 5. If none reachable, show interactive dialog with pre-filled recommendation
+    if let Some((ip, p)) = prompt_server_endpoint_gui("172.60.10.12:8443") {
+        let target = SocketAddr::from((ip, p));
+        if TcpStream::connect_timeout(&target, Duration::from_millis(600)).is_ok() {
+            log_event(&format!("[CITADEL CLIENT] User entered exam server at {}:{}", ip, p));
+            return (ip, p);
+        }
+    }
+
+    // Final fallback to 172.60.10.12:8443
+    (Ipv4Addr::new(172, 60, 10, 12), port)
 }
 
 fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16, auth_token: Option<&str>) -> Result<bool, std::io::Error> {
@@ -222,11 +341,10 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
 
     log_event("[CITADEL CLIENT] Administrator privileges verified. Zero-fallback lockdown enforcement active.");
 
-    let default_server_ip: Ipv4Addr = args
+    let explicit_ip: Option<Ipv4Addr> = args
         .get(1)
         .and_then(|s| s.parse().ok())
-        .or_else(|| std::env::var("CITADEL_SERVER_IP").ok().and_then(|s| s.parse().ok()))
-        .unwrap_or(Ipv4Addr::new(172, 60, 5, 98));
+        .or_else(|| std::env::var("CITADEL_SERVER_IP").ok().and_then(|s| s.parse().ok()));
 
     let server_port: u16 = args
         .get(2)
@@ -234,7 +352,7 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         .or_else(|| std::env::var("CITADEL_SERVER_PORT").ok().and_then(|s| s.parse().ok()))
         .unwrap_or(8443);
 
-    let server_ip = resolve_server_endpoint(default_server_ip, server_port);
+    let (server_ip, server_port) = resolve_server_endpoint(explicit_ip, server_port);
 
     // Pre-flight check: ensure the exam server is reachable before engaging lockdown
     let target = SocketAddr::from((server_ip, server_port));
@@ -247,7 +365,7 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         show_error_message(
             "Citadel Connection Error",
             &format!(
-                "Cannot connect to the Citadel Exam Server at {}:{}.\n\n                 Please ensure 'citadel-server.exe' is started before launching the client.\n\n                 Exam lockdown aborted safely.",
+                "Cannot connect to the Citadel Exam Server at {}:{}.\n\n                 Please ensure that you are connected to the campus exam Wi-Fi and that the Citadel Exam Server is running on the proctor workstation (http://172.60.10.12:8443).\n\n                 You can also launch with a specific server address:\n                 citadel-client.exe 172.60.10.12 8443\n\n                 Exam lockdown aborted safely.",
                 server_ip, server_port
             ),
         );

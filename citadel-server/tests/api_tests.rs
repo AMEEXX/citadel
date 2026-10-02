@@ -1132,12 +1132,12 @@ async fn test_mandatory_elevation_handshake_enforcement() {
 
 #[tokio::test]
 async fn test_gatekeeper_production_mode_removes_testing_link() {
-    let gatekeeper_testing = citadel_server::ui::render_gatekeeper_html(false);
+    let gatekeeper_testing = citadel_server::ui::render_gatekeeper_html(false, false);
     assert!(gatekeeper_testing.contains("Launch Web Assessment Directly (Testing Mode)"));
     assert!(gatekeeper_testing.contains(r#"href="/exam""#));
     assert!(gatekeeper_testing.contains("/download/citadel-client.exe"));
 
-    let gatekeeper_prod = citadel_server::ui::render_gatekeeper_html(true);
+    let gatekeeper_prod = citadel_server::ui::render_gatekeeper_html(true, false);
     assert!(!gatekeeper_prod.contains("Launch Web Assessment Directly (Testing Mode)"));
     assert!(!gatekeeper_prod.contains(r#"href="/exam""#));
     assert!(gatekeeper_prod.contains("/download/citadel-client.exe"));

@@ -25,7 +25,7 @@ use crate::questions::{
     Question, QuestionSummary, TestCase,
 };
 use crate::ui::{
-    render_admin_denied_html, render_gatekeeper_html, render_portal_html, render_recruiter_lms_html,
+    render_admin_denied_html, render_gatekeeper_html, render_mobile_blocked_html, render_portal_html, render_recruiter_lms_html,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -606,6 +606,30 @@ pub fn build_app_with_state(state: AppState) -> Router {
 // CANDIDATE PORTAL HANDLERS
 // ============================================================================
 
+/// Returns true if the provided User-Agent header indicates a mobile phone or tablet device.
+pub fn is_mobile_or_tablet_user_agent(user_agent: &str) -> bool {
+    let ua = user_agent.to_lowercase();
+    // Exclude Citadel client / desktop clients
+    if ua.contains("citadelsecuritycore") || ua.contains("citadel-lockdown-client") {
+        return false;
+    }
+
+    ua.contains("mobile")
+        || ua.contains("android")
+        || ua.contains("iphone")
+        || ua.contains("ipad")
+        || ua.contains("ipod")
+        || ua.contains("blackberry")
+        || ua.contains("iemobile")
+        || ua.contains("opera mini")
+        || ua.contains("opera mobi")
+        || ua.contains("tablet")
+        || ua.contains("silk/")
+        || ua.contains("fennec")
+        || ua.contains("kindle")
+}
+
+
 async fn portal_or_gatekeeper_handler(
     headers: HeaderMap,
     Query(params): Query<HashMap<String, String>>,
@@ -624,11 +648,25 @@ async fn portal_or_gatekeeper_handler(
         .unwrap_or("");
     let has_lockdown_ua = user_agent.contains("CitadelSecurityCore")
         || user_agent.contains("CITADEL-Lockdown-Client");
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    let is_mobile = is_mobile_or_tablet_user_agent(user_agent);
 
     let is_presenting_auth = has_token_param || has_token_cookie || has_auth_header || has_lockdown_ua;
     let authorized = is_presenting_auth && is_request_authorized(&headers, &params, &state);
 
     if authorized {
+        if is_prod && is_mobile {
+            return (
+                StatusCode::FORBIDDEN,
+                [
+                    (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+                    (header::PRAGMA, "no-cache"),
+                    (header::EXPIRES, "0"),
+                ],
+                Html(render_mobile_blocked_html().to_string()),
+            ).into_response();
+        }
+
         let mut response = (
             [
                 (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
@@ -646,14 +684,13 @@ async fn portal_or_gatekeeper_handler(
         }
         response
     } else {
-        let is_prod = state.is_production.load(Ordering::SeqCst);
         (
             [
                 (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
                 (header::PRAGMA, "no-cache"),
                 (header::EXPIRES, "0"),
             ],
-            Html(render_gatekeeper_html(is_prod)),
+            Html(render_gatekeeper_html(is_prod, is_mobile)),
         ).into_response()
     }
 }
@@ -663,6 +700,25 @@ async fn portal_handler(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    let is_prod = state.is_production.load(Ordering::SeqCst);
+    let is_mobile = is_mobile_or_tablet_user_agent(user_agent);
+
+    if is_prod && is_mobile {
+        return (
+            StatusCode::FORBIDDEN,
+            [
+                (header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
+                (header::PRAGMA, "no-cache"),
+                (header::EXPIRES, "0"),
+            ],
+            Html(render_mobile_blocked_html().to_string()),
+        ).into_response();
+    }
+
     let authorized = is_request_authorized(&headers, &params, &state);
 
     if !authorized {
@@ -1398,20 +1454,36 @@ async fn report_event_handler(
     StatusCode::OK
 }
 
-async fn download_client_handler() -> Result<Response, StatusCode> {
+async fn download_client_handler(headers: HeaderMap) -> Result<Response, StatusCode> {
+    let host_header = headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("172.60.10.12:8443");
+
     let candidates = [
+        "citadel-client.exe",
         "target/release/citadel-client.exe",
         "target/debug/citadel-client.exe",
+        "../citadel-client.exe",
         "../target/release/citadel-client.exe",
         "../target/debug/citadel-client.exe",
+        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\citadel-client.exe",
         r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\target\release\citadel-client.exe",
         r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\target\debug\citadel-client.exe",
+        "/home/amitlinux/DevProjects/citadel-design/citadel-client.exe",
         "/home/amitlinux/DevProjects/citadel-design/target/release/citadel-client.exe",
         "/home/amitlinux/DevProjects/citadel-design/target/debug/citadel-client.exe",
     ];
 
     for path in &candidates {
-        if let Ok(bytes) = std::fs::read(path) {
+        if let Ok(mut bytes) = std::fs::read(path) {
+            // Append dynamic PE overlay trailer with server host endpoint
+            let config_trailer = format!(
+                "\n---CITADEL_CONFIG_START---\nENDPOINT={}\n---CITADEL_CONFIG_END---\n",
+                host_header.trim()
+            );
+            bytes.extend_from_slice(config_trailer.as_bytes());
+
             let res = Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "application/vnd.microsoft.portable-executable")
@@ -2142,6 +2214,25 @@ async fn candidate_login_handler(
 
     let is_prod = state.is_production.load(Ordering::SeqCst);
     let now = chrono::Utc::now();
+
+    // Device check: In Production Mode, exams can only be taken from a laptop/desktop workstation
+    let user_agent = headers
+        .get(header::USER_AGENT)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    if is_prod && is_mobile_or_tablet_user_agent(user_agent) {
+        eprintln!(
+            "[CITADEL DEVICE SECURITY] Candidate login REJECTED for '{}' from mobile/tablet device ('{}') in Production Mode",
+            candidate_id, user_agent
+        );
+        return (
+            StatusCode::FORBIDDEN,
+            Json(serde_json::json!({
+                "error": "DEVICE_DISALLOWED",
+                "message": "This exam needs to be taken from a laptop. Mobile devices and tablets are not permitted in production mode."
+            })),
+        ).into_response();
+    }
 
     // 2. Check Exam Status
     {
