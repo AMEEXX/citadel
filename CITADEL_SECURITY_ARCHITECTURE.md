@@ -842,3 +842,35 @@ To eliminate the `127.0.0.1` disconnect when candidate laptops or VMs launch `ci
    - The client probes active campus Wi-Fi endpoints (`172.60.10.12:8443`), VM Host-Only interfaces (`192.168.56.1:8443`), VirtualBox NAT gateways (`10.0.2.2:8443`), and local loopback (`127.0.0.1:8443`).
 4. **Interactive GUI Connection Prompt**:
    - If automated probing fails across all interfaces, `citadel-client.exe` opens a native Win32 input modal pre-filled with `172.60.10.12:8443`, allowing proctors or students to confirm or enter the active server IP rather than aborting.
+
+
+---
+
+## 20. UI Design System, Button Semantics & Boxy Action Geometry Synchrony
+
+### 20.1 Design Intent & Visual Philosophy
+To maintain visual consistency and unambiguous UX between administrative proctors and examinees:
+1. **Palette Alignment**: Danger and destructive actions share the unified **Garnet Red** palette:
+   - Idle State: Subtle translucent tint `rgba(241, 112, 112, 0.12)` with `1px solid rgba(241, 112, 112, 0.3)` border and `#f47a79` Garnet label.
+   - Hover State: Solid Crimson `#c4474b` with `#f2f0ec` pearl text.
+   - Active/Press State: Solid Dark Crimson `#a8363a` with `#ffffff` white text.
+   - Glow Policy: Zero extraneous outer glow (`box-shadow: none`) and zero translateY transforms, preserving high-contrast readability without distracting artifacts.
+2. **Boxy Action Geometry (`--radius-ctl: 0px`)**:
+   - In accordance with the Obsidian Atelier design philosophy, all interactive action buttons in the Candidate Portal (**Run Code**, **Submit Solution**, and **End Exam**) employ sharp rectangular geometry (`border-radius: 0px`), preventing mismatched curved corners and maintaining brutalist clarity.
+3. **Symbolic Visual Cue (Door Out Exit SVG)**:
+   - The **End Exam** button in the header features the dedicated door-out exit SVG icon (`<svg width="13" height="13">...`), providing an immediate semantic distinction between in-editor operations (Run/Submit) and terminal exam exit.
+
+### 20.2 Button Specification Across Portals
+
+| Button Identifier | Location | Background (Idle) | Border | Text Color | Hover Background | Border Radius | Icon / Symbol |
+|---|---|---|---|---|---|---|---|
+| **Disqualify** | Recruiter Fleet Table | `rgba(241, 112, 112, 0.12)` | `1px solid rgba(241, 112, 112, 0.3)` | `#f47a79` | `#c4474b` | `4px` | Text Only |
+| **Revoke Access** | Recruiter Roster Table | `rgba(241, 112, 112, 0.12)` | `1px solid rgba(241, 112, 112, 0.3)` | `#f47a79` | `#c4474b` | `4px` | Text Only |
+| **End Exam** | Candidate Portal Header | `rgba(241, 112, 112, 0.12)` | `1px solid rgba(241, 112, 112, 0.3)` | `#f47a79` | `#c4474b` | `0px` (Boxy) | Door Out SVG (`13x13`) |
+| **Confirm & End Exam**| Modal Dialog | `rgba(241, 112, 112, 0.12)` | `1px solid rgba(241, 112, 112, 0.3)` | `#f47a79` | `#c4474b` | `0px` (Boxy) | Text Only |
+| **Run Code** | Candidate Editor Drawer | `#1f1e1d` | `1px solid #323130` | `#a5a39f` | `#242321` | `0px` (Boxy) | Play Triangle SVG |
+| **Submit Solution** | Candidate Editor Drawer | Locked: `transparent` / Unlocked: `#dad0bf` | `1px solid #1a1918` / None | Locked: `#555451` / Unlocked: `#0b0a09` | Solid Champagne | `0px` (Boxy) | Lock / Checkmark |
+
+### 20.3 CSS Cascading & Specificity Architecture
+- Standalone templates (`portal.html`) define base classes (`.btn-end-exam`, `.btn-sm`, `.btn-danger`).
+- Central skin (`citadel-skin.css`) targets `.app-portal .btn-end-exam` and `.app-portal .btn-danger` with `!important` declarations to ensure that external stylesheets or embedded browser resets cannot revert buttons to generic transparent or user-agent defaults.

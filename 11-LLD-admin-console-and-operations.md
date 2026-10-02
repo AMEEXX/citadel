@@ -232,3 +232,18 @@ Produces a single signed archive: service logs, metrics snapshots, config (secre
 The operator transfers it out of band. The support engineer loads it into a replay tool that reconstructs the appliance's state timeline.
 
 **This constraint is worth designing for early.** A product that can only be debugged live will be undebuggable at a customer site with no internet, and every support call will become an on-site visit.
+
+---
+
+## 8. UI Consistency & Danger Action Semantics
+
+To prevent proctor errors during fast-paced exam operations:
+1. **Destructive Action Palette (Garnet Red)**:
+   - Applied uniformly to `.btn-danger`:
+     - Idle: `background: rgba(241, 112, 112, 0.12)`, `border: 1px solid rgba(241, 112, 112, 0.3)`, `color: #f47a79`.
+     - Hover: `background: #c4474b`, `color: #f2f0ec`.
+     - Active: `background: #a8363a`, `color: #ffffff`.
+2. **Synchronized Danger Language**:
+   - Proctors clicking **Disqualify** or **Revoke Access** interact with the exact same visual danger signifier that candidates encounter on the **End Exam** action.
+3. **Restraint Over Spectacle**:
+   - Zero fluorescent glow, neon drop shadows, or moving transforms. Contrast and legibility remain primary.

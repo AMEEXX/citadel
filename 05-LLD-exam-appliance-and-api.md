@@ -522,3 +522,8 @@ The appliance hosts canonical LeetCode #1 Two Sum (`q1-two-sum`, 100 pts) as the
 - **Sample Cases (3)**: Basic array pairs, negative offset pairs, and identical element pairs.
 - **Hidden Cases (5)**: Zero-target cases, negative number pairs, large array inputs, boundary duplicates, and large target values.
 - **Data Integrity**: Zero mock evaluation data. All passes and failures represent genuine subprocess compilation and standard I/O execution.
+
+### 8.4 Obsidian Atelier Design System & Boxy Button Architecture
+- **Boxy Action Geometry (`--radius-ctl: 0px`)**: The candidate portal eliminates rounded buttons, standardizing on sharp rectangular action controls (`border-radius: 0px`) across **Run Code**, **Submit Solution**, and **End Exam**.
+- **Unified Danger Aesthetics**: The **End Exam** header button matches the visual weight, padding (`5px 12px`), font typography (`Geist 12px, weight 600`), and Garnet Red palette (`rgba(241, 112, 112, 0.12)` idle, `#c4474b` hover) established by the proctor's **Disqualify** and **Revoke Access** controls.
+- **Door Out Exit Visual Cue**: Includes the door-out exit SVG glyph (`<svg width="13" height="13">...`) to ensure immediate legibility under high-stress exam environments.
