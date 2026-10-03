@@ -47,114 +47,6 @@
     "ast_hash": "cd757bd6c744f42efed1585613dcfb8e",
     "semantic_hash": "cd757bd6c744f42efed1585613dcfb8e"
   },
-  "00-README-INDEX.md": {
-    "mtime": 1790012567.4167366,
-    "seen": 1790566807.6591716,
-    "ast_hash": "b64d889fbe063bc982a7d87752049554",
-    "semantic_hash": "b64d889fbe063bc982a7d87752049554"
-  },
-  "01-SDD-software-design-document.md": {
-    "mtime": 1790503055.8152597,
-    "seen": 1790566807.6591742,
-    "ast_hash": "81ea0fc0d14ca7f40d08ffc7a9ab9454",
-    "semantic_hash": "81ea0fc0d14ca7f40d08ffc7a9ab9454"
-  },
-  "02-HLD-high-level-design.md": {
-    "mtime": 1790502988.231794,
-    "seen": 1790566807.6591763,
-    "ast_hash": "0af37be57f26314e27e88ff87e4aec48",
-    "semantic_hash": "0af37be57f26314e27e88ff87e4aec48"
-  },
-  "03-LLD-lockdown-client.md": {
-    "mtime": 1790913234.8042037,
-    "seen": 1790913494.1994903,
-    "ast_hash": "9525620fe074ef16e9a9a22134252f9f",
-    "semantic_hash": ""
-  },
-  "04-LLD-network-routing-and-lan.md": {
-    "mtime": 1790502697.1820571,
-    "seen": 1790566807.6591814,
-    "ast_hash": "d216d0143365739ebc7fda9eecf895dc",
-    "semantic_hash": "d216d0143365739ebc7fda9eecf895dc"
-  },
-  "05-LLD-exam-appliance-and-api.md": {
-    "mtime": 1790913216.0046306,
-    "seen": 1790913494.1994917,
-    "ast_hash": "41fce0d640218b1d7fa41eacd64b612f",
-    "semantic_hash": ""
-  },
-  "06-LLD-judge-and-sandbox.md": {
-    "mtime": 1790338880.6562312,
-    "seen": 1790566807.659186,
-    "ast_hash": "71f836bb0a7167c9eecae69d367348cc",
-    "semantic_hash": "71f836bb0a7167c9eecae69d367348cc"
-  },
-  "07-LLD-content-authoring-upload-and-distribution.md": {
-    "mtime": 1789818386.0,
-    "seen": 1790566807.6591883,
-    "ast_hash": "a13e9ec0a4b5121a199895078df338d5",
-    "semantic_hash": "a13e9ec0a4b5121a199895078df338d5"
-  },
-  "08-LLD-load-balancing-caching-and-scale.md": {
-    "mtime": 1789818474.0,
-    "seen": 1790566807.659191,
-    "ast_hash": "0b1088c807143ea3de882e666145937f",
-    "semantic_hash": "0b1088c807143ea3de882e666145937f"
-  },
-  "09-LLD-reliability-failover-and-dr.md": {
-    "mtime": 1789818544.0,
-    "seen": 1790566807.659193,
-    "ast_hash": "a4e0b082b7d5eb912a11d7fb8bd80b81",
-    "semantic_hash": "a4e0b082b7d5eb912a11d7fb8bd80b81"
-  },
-  "10-LLD-integrity-analytics-and-proctoring.md": {
-    "mtime": 1789818628.0,
-    "seen": 1790566807.6591954,
-    "ast_hash": "911c2894da39c955d1ee100e31d85f29",
-    "semantic_hash": "911c2894da39c955d1ee100e31d85f29"
-  },
-  "11-LLD-admin-console-and-operations.md": {
-    "mtime": 1790503035.7969978,
-    "seen": 1790566807.6591978,
-    "ast_hash": "8f7b5f3396128492bfef3e35c9d8f9df",
-    "semantic_hash": "8f7b5f3396128492bfef3e35c9d8f9df"
-  },
-  "12-capacity-planning-and-bom.md": {
-    "mtime": 1790012640.659698,
-    "seen": 1790566807.6592,
-    "ast_hash": "c462c4e5f9a780c69e23d4bb04fa6eca",
-    "semantic_hash": "c462c4e5f9a780c69e23d4bb04fa6eca"
-  },
-  "13-security-threat-model.md": {
-    "mtime": 1790502923.8877928,
-    "seen": 1790566807.6592023,
-    "ast_hash": "d080b587607a60f3aed1b5b848b49b32",
-    "semantic_hash": "d080b587607a60f3aed1b5b848b49b32"
-  },
-  "14-implementation-roadmap.md": {
-    "mtime": 1789818870.0,
-    "seen": 1790566807.6592052,
-    "ast_hash": "b7919ce783d09c76c0ec3c0a251c68e0",
-    "semantic_hash": "b7919ce783d09c76c0ec3c0a251c68e0"
-  },
-  "15-senior-review-and-hardened-lockdown-v2.md": {
-    "mtime": 1790350548.6354208,
-    "seen": 1790566807.6592073,
-    "ast_hash": "48516ea9535f7bf08009097b3ca04dea",
-    "semantic_hash": "48516ea9535f7bf08009097b3ca04dea"
-  },
-  "16-implementation-playbook-task-contract-standard.md": {
-    "mtime": 1789857512.0,
-    "seen": 1790566807.6592097,
-    "ast_hash": "1fa1660e83668c30932bcf645921ddaf",
-    "semantic_hash": "1fa1660e83668c30932bcf645921ddaf"
-  },
-  "17-implementation-plan-p0-spike.md": {
-    "mtime": 1789857812.0,
-    "seen": 1790566807.659212,
-    "ast_hash": "7ff34d4b7c11e3a43493761b03781d80",
-    "semantic_hash": "7ff34d4b7c11e3a43493761b03781d80"
-  },
   ".opencode/opencode.json": {
     "mtime": 1790328231.1286588,
     "seen": 1790566807.6590295,
@@ -389,30 +281,6 @@
     "ast_hash": "8687733eb8c5ef6df721316251669a33",
     "semantic_hash": "8687733eb8c5ef6df721316251669a33"
   },
-  "portal_test.js": {
-    "mtime": 1790358708.1180894,
-    "seen": 1790566807.659169,
-    "ast_hash": "9842fc7e283a8be009ddadc6a64ffccb",
-    "semantic_hash": "9842fc7e283a8be009ddadc6a64ffccb"
-  },
-  "CITADEL_SECURITY_ARCHITECTURE.md": {
-    "mtime": 1790913215.9746284,
-    "seen": 1790913494.1995008,
-    "ast_hash": "150609b1a775eb16d21c9cd4fb1b37a4",
-    "semantic_hash": ""
-  },
-  "GOLDEN_RULE_ARCHITECTURE.md": {
-    "mtime": 1790391528.978088,
-    "seen": 1790566807.6592193,
-    "ast_hash": "839e4298de6199d6719d3f2609d123a9",
-    "semantic_hash": "839e4298de6199d6719d3f2609d123a9"
-  },
-  "PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md": {
-    "mtime": 1790913215.9846292,
-    "seen": 1790913494.199502,
-    "ast_hash": "1c43d46e788f5d7eb170358c3b28dd11",
-    "semantic_hash": ""
-  },
   "citadel-server/templates/denied.html": {
     "mtime": 1790603580.1774926,
     "seen": 1790606814.729691,
@@ -443,12 +311,6 @@
     "ast_hash": "e6bdea856520da047222f648765c7120",
     "semantic_hash": "e6bdea856520da047222f648765c7120"
   },
-  "upgradation.md": {
-    "mtime": 1790507323.574296,
-    "seen": 1790566807.6592338,
-    "ast_hash": "0d4bf428cc560c11c7db156f2461092a",
-    "semantic_hash": "0d4bf428cc560c11c7db156f2461092a"
-  },
   ".archify/citadel-architecture.browser-check.json": {
     "mtime": 1790605329.2086253,
     "seen": 1790609666.8663034,
@@ -456,9 +318,9 @@
     "semantic_hash": "450d4457727174ef5d60916af237e005"
   },
   ".archify/citadel-architecture.candidate.json": {
-    "mtime": 1790919331.7520013,
-    "seen": 1790919352.2311938,
-    "ast_hash": "ae971c2e6920ab5521b7f2836cd6479e",
+    "mtime": 1791000309.1934032,
+    "seen": 1791001286.3258839,
+    "ast_hash": "13a66d8c59b7f05448fd467091087a82",
     "semantic_hash": ""
   },
   "citadel-client/src/policy.rs": {
@@ -498,15 +360,15 @@
     "semantic_hash": "f5894e552ac82b01f4590f7290aaa145"
   },
   ".archify/citadel-architecture.html": {
-    "mtime": 1790919332.0622551,
-    "seen": 1790919352.2312493,
-    "ast_hash": "5d5a31f34372ba01b9fbb5c10bf4d3ac",
+    "mtime": 1791000309.7634666,
+    "seen": 1791001286.325932,
+    "ast_hash": "49d02944098c31cfddaa8928382c9dc5",
     "semantic_hash": ""
   },
   "citadel-server/static/citadel-architecture.html": {
-    "mtime": 1790919332.1323123,
-    "seen": 1790919352.2312746,
-    "ast_hash": "5d5a31f34372ba01b9fbb5c10bf4d3ac",
+    "mtime": 1791000309.893481,
+    "seen": 1791001286.325935,
+    "ast_hash": "49d02944098c31cfddaa8928382c9dc5",
     "semantic_hash": ""
   },
   "citadel-server/tests/roster_whitelist_hardening_tests.rs": {
@@ -525,6 +387,162 @@
     "mtime": 1790875439.3582966,
     "seen": 1790911050.015791,
     "ast_hash": "a6d5bbb5787f7df2fb931bdcc1cec681",
+    "semantic_hash": ""
+  },
+  "scripts/check_links.py": {
+    "mtime": 1791000302.3551679,
+    "seen": 1791001286.3259292,
+    "ast_hash": "c32383878b4c4d019ec475c51cf1f054",
+    "semantic_hash": ""
+  },
+  "scripts/tests/portal_test.js": {
+    "mtime": 1790358708.1180894,
+    "seen": 1791001286.325931,
+    "ast_hash": "9842fc7e283a8be009ddadc6a64ffccb",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1791000288.4133935,
+    "seen": 1791001286.3259335,
+    "ast_hash": "c919e6c53365d4185e20b1853296a37b",
+    "semantic_hash": ""
+  },
+  "bin/README.md": {
+    "mtime": 1791000074.3429205,
+    "seen": 1791001286.3259342,
+    "ast_hash": "a7dd8676bc633fcec6c4f2f50ec63361",
+    "semantic_hash": ""
+  },
+  "docs/README.md": {
+    "mtime": 1791000178.6641889,
+    "seen": 1791001286.3259392,
+    "ast_hash": "b6ab0bca23d8bd7410525c4e31e7299c",
+    "semantic_hash": ""
+  },
+  "docs/architecture/01-SDD-software-design-document.md": {
+    "mtime": 1790503055.8152597,
+    "seen": 1791001286.3259397,
+    "ast_hash": "81ea0fc0d14ca7f40d08ffc7a9ab9454",
+    "semantic_hash": ""
+  },
+  "docs/architecture/02-HLD-high-level-design.md": {
+    "mtime": 1790502988.231794,
+    "seen": 1791001286.3259404,
+    "ast_hash": "0af37be57f26314e27e88ff87e4aec48",
+    "semantic_hash": ""
+  },
+  "docs/architecture/CITADEL_SECURITY_ARCHITECTURE.md": {
+    "mtime": 1790919487.38044,
+    "seen": 1791001286.325941,
+    "ast_hash": "8d35a7e8f818d1887795280c6de5870e",
+    "semantic_hash": ""
+  },
+  "docs/architecture/GOLDEN_RULE_ARCHITECTURE.md": {
+    "mtime": 1790391528.978088,
+    "seen": 1791001286.3259418,
+    "ast_hash": "839e4298de6199d6719d3f2609d123a9",
+    "semantic_hash": ""
+  },
+  "docs/operations/12-capacity-planning-and-bom.md": {
+    "mtime": 1790012640.659698,
+    "seen": 1791001286.3259423,
+    "ast_hash": "c462c4e5f9a780c69e23d4bb04fa6eca",
+    "semantic_hash": ""
+  },
+  "docs/operations/13-security-threat-model.md": {
+    "mtime": 1790502923.8877928,
+    "seen": 1791001286.325943,
+    "ast_hash": "d080b587607a60f3aed1b5b848b49b32",
+    "semantic_hash": ""
+  },
+  "docs/operations/PRODUCTION_VS_TESTING_LOCKDOWN_MODES.md": {
+    "mtime": 1790913215.9846292,
+    "seen": 1791001286.3259435,
+    "ast_hash": "1c43d46e788f5d7eb170358c3b28dd11",
+    "semantic_hash": ""
+  },
+  "docs/operations/upgradation.md": {
+    "mtime": 1790507323.574296,
+    "seen": 1791001286.325944,
+    "ast_hash": "0d4bf428cc560c11c7db156f2461092a",
+    "semantic_hash": ""
+  },
+  "docs/roadmap/14-implementation-roadmap.md": {
+    "mtime": 1789818870.0,
+    "seen": 1791001286.3259447,
+    "ast_hash": "b7919ce783d09c76c0ec3c0a251c68e0",
+    "semantic_hash": ""
+  },
+  "docs/roadmap/15-senior-review-and-hardened-lockdown-v2.md": {
+    "mtime": 1790350548.6354208,
+    "seen": 1791001286.3259451,
+    "ast_hash": "48516ea9535f7bf08009097b3ca04dea",
+    "semantic_hash": ""
+  },
+  "docs/roadmap/16-implementation-playbook-task-contract-standard.md": {
+    "mtime": 1789857512.0,
+    "seen": 1791001286.3259459,
+    "ast_hash": "1fa1660e83668c30932bcf645921ddaf",
+    "semantic_hash": ""
+  },
+  "docs/roadmap/17-implementation-plan-p0-spike.md": {
+    "mtime": 1789857812.0,
+    "seen": 1791001286.3259463,
+    "ast_hash": "7ff34d4b7c11e3a43493761b03781d80",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/03-LLD-lockdown-client.md": {
+    "mtime": 1790913234.8042037,
+    "seen": 1791001286.325947,
+    "ast_hash": "9525620fe074ef16e9a9a22134252f9f",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/04-LLD-network-routing-and-lan.md": {
+    "mtime": 1790502697.1820571,
+    "seen": 1791001286.3259478,
+    "ast_hash": "d216d0143365739ebc7fda9eecf895dc",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/05-LLD-exam-appliance-and-api.md": {
+    "mtime": 1790919487.3904417,
+    "seen": 1791001286.3259482,
+    "ast_hash": "ad01ac501a6dc000f9835ef4467dde09",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/06-LLD-judge-and-sandbox.md": {
+    "mtime": 1790338880.6562312,
+    "seen": 1791001286.325949,
+    "ast_hash": "71f836bb0a7167c9eecae69d367348cc",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/07-LLD-content-authoring-upload-and-distribution.md": {
+    "mtime": 1789818386.0,
+    "seen": 1791001286.3259504,
+    "ast_hash": "a13e9ec0a4b5121a199895078df338d5",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/08-LLD-load-balancing-caching-and-scale.md": {
+    "mtime": 1789818474.0,
+    "seen": 1791001286.3259513,
+    "ast_hash": "0b1088c807143ea3de882e666145937f",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/09-LLD-reliability-failover-and-dr.md": {
+    "mtime": 1789818544.0,
+    "seen": 1791001286.325952,
+    "ast_hash": "a4e0b082b7d5eb912a11d7fb8bd80b81",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/10-LLD-integrity-analytics-and-proctoring.md": {
+    "mtime": 1789818628.0,
+    "seen": 1791001286.3259525,
+    "ast_hash": "911c2894da39c955d1ee100e31d85f29",
+    "semantic_hash": ""
+  },
+  "docs/subsystems/11-LLD-admin-console-and-operations.md": {
+    "mtime": 1790919487.3904417,
+    "seen": 1791001286.325953,
+    "ast_hash": "f58fa737318ac3a646427ec9a81a1205",
     "semantic_hash": ""
   }
 }
