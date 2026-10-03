@@ -1,17 +1,17 @@
 # Graph Report - citadel-design  (2026-10-03)
 
 ## Corpus Check
-- 84 files · ~251,379 words
+- 85 files · ~454,408 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 17 file(s) not represented in the graph (top: (none) 4, .bat 4, .woff2 4)
 
 ## Summary
-- 1423 nodes · 2697 edges · 117 communities (71 shown, 46 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 181 edges (avg confidence: 0.85)
+- 1426 nodes · 2700 edges · 117 communities (70 shown, 47 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 180 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `8933d6f2`
+- Built from commit: `652a1e35`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -75,7 +75,7 @@
 - CITADEL Architecture: Golden Rule of Workstation Protection
 - 11. Network Security Architecture & Cryptographic Client Handshake
 - 19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating
-- 2. Detection layers
+- Arc
 - 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
 - render_gatekeeper_html
 - wfp_policy.rs
@@ -157,15 +157,15 @@
 ## Import Cycles
 - None detected.
 
-## Communities (117 total, 46 thin omitted)
+## Communities (117 total, 47 thin omitted)
 
 ### Community 0 - "api.rs"
 Cohesion: 0.07
-Nodes (126): CandidateResumeState, CandidateState, AddTestCasePayload, admin_add_hidden_case_handler(), admin_add_roster_candidate_handler(), admin_add_sample_case_handler(), admin_candidate_profile_handler(), admin_clear_flag_candidate_handler() (+118 more)
+Nodes (126): AtomicBool, CandidateResumeState, CandidateState, AddTestCasePayload, admin_add_hidden_case_handler(), admin_add_roster_candidate_handler(), admin_add_sample_case_handler(), admin_candidate_profile_handler() (+118 more)
 
 ### Community 1 - "api_tests.rs"
 Cohesion: 0.07
-Nodes (50): axum, bodyext, citadel_server, build_app(), build_app_with_state(), Router, BOGUS_PYTHON_CODE, CORRECT_PYTHON_TWO_SUM (+42 more)
+Nodes (50): axum, bodyext, citadel_server, build_app(), build_app_with_state(), BOGUS_PYTHON_CODE, CORRECT_PYTHON_TWO_SUM, Router (+42 more)
 
 ### Community 2 - "kiosk_window.rs"
 Cohesion: 0.09
@@ -173,11 +173,11 @@ Nodes (33): ClipboardGuard, find_all_descendants(), find_browser_executable(), f
 
 ### Community 3 - "hotkey_lock.rs"
 Cohesion: 0.06
-Nodes (38): AtomicU32, AtomicU64, check_escape_rapid_press(), EMERGENCY_OVERRIDE_TRIGGERED, ESC_TAP_COUNT, evaluate_keystroke(), HEALTH_CHECK_VK, HEALTH_PONG_RECEIVED (+30 more)
+Nodes (39): AtomicU32, AtomicU64, check_escape_rapid_press(), EMERGENCY_OVERRIDE_TRIGGERED, ESC_TAP_COUNT, evaluate_keystroke(), HEALTH_CHECK_VK, HEALTH_PONG_RECEIVED (+31 more)
 
 ### Community 4 - "judge.rs"
-Cohesion: 0.18
-Nodes (26): Child, clean_compiler_errors(), create_temp_box(), evaluate_submission(), finalize_result(), JudgeResult, normalize_output(), Duration (+18 more)
+Cohesion: 0.12
+Nodes (36): Child, clean_compiler_errors(), create_temp_box(), evaluate_submission(), finalize_result(), JudgeResult, normalize_output(), Duration (+28 more)
 
 ### Community 5 - "ace.bundle.js"
 Cohesion: 0.20
@@ -196,8 +196,8 @@ Cohesion: 0.06
 Nodes (32): 01 — Software Design Document, 10. Traceability summary, 1.1 Problem statement, 1.2 In scope, 1.3 Explicitly out of scope for v1, 1.4 Explicit non-goals, 1. Purpose and scope, 2. Stakeholders and actors (+24 more)
 
 ### Community 9 - "persistence.rs"
-Cohesion: 0.12
-Nodes (37): Self, atomic_write_json(), CandidateResumeState, CandidateState, ensure_directories(), ExamRoster, load_all_candidate_states(), load_candidate_state() (+29 more)
+Cohesion: 0.17
+Nodes (27): atomic_write_json(), CandidateResumeState, CandidateState, ensure_directories(), ExamRoster, load_all_candidate_states(), load_candidate_state(), load_roster() (+19 more)
 
 ### Community 10 - "WfpEngine"
 Cohesion: 0.13
@@ -225,7 +225,7 @@ Nodes (23): Box, citadel_client, ensure_explorer_running(), log_event(), main(),
 
 ### Community 16 - "🛡️ CITADEL — Offline Air-Gapped Assessment Platform & Hardened Lockdown Enclave"
 Cohesion: 0.08
-Nodes (25): 1. Architecture & Design Foundations, 1. Prerequisites, 2. Running the Appliance Server, 2. Subsystem Low-Level Designs (LLDs), 3. Launching the Lockdown Kiosk Client, 3. Operations, Security & Capacity, 4. Roadmaps & Implementation Playbooks, 4. Running Pre-Flight Verification Diagnostics (+17 more)
+Nodes (26): 1. Architecture & Design Foundations, 1. Prerequisites, 2. Running the Appliance Server, 2. Subsystem Low-Level Designs (LLDs), 3. Launching the Lockdown Kiosk Client, 3. Operations, Security & Capacity, 4. Roadmaps & Implementation Playbooks, 4. Running Pre-Flight Verification Diagnostics (+18 more)
 
 ### Community 17 - "llm_detect.rs"
 Cohesion: 0.18
@@ -248,8 +248,8 @@ Cohesion: 0.09
 Nodes (23): 1. Executive Summary, 2. Feature Comparison Matrix, 3. Mandatory UAC Elevation & Zero-Fallback Enforcement, 4. Network & API Access Control: Testing vs. Production Gating, 5.1 The 15-Minute Early Exit Rule (Production vs Testing), 5. Early Exam Exit & Conclusion Lifecycle, 6. Immediate Disqualification Removal & Laptop Restoration, 7. How to Run in Testing Mode (Safe for You) (+15 more)
 
 ### Community 22 - "pre_flight.rs"
-Cohesion: 0.17
-Nodes (20): DesktopEnumContext, DetectedApplication, enforce_clean_environment(), get_pid_to_exe_map(), HashMap, HashSet, String, Vec (+12 more)
+Cohesion: 0.18
+Nodes (19): DesktopEnumContext, DetectedApplication, enforce_clean_environment(), get_pid_to_exe_map(), HashMap, HashSet, String, Vec (+11 more)
 
 ### Community 23 - "06 — LLD: Judge and Sandbox"
 Cohesion: 0.09
@@ -260,16 +260,16 @@ Cohesion: 0.18
 Nodes (16): extract_header(), handle_request(), is_origin_allowed(), LocalControlServer, Arc, AtomicBool, Mutex, Option (+8 more)
 
 ### Community 25 - "crash_handler.rs"
-Cohesion: 0.16
-Nodes (16): console_ctrl_handler(), emergency_restore_system(), install_crash_safety(), BOOL, Vec, to_wide(), Path, generic_all (+8 more)
+Cohesion: 0.17
+Nodes (15): console_ctrl_handler(), emergency_restore_system(), install_crash_safety(), BOOL, Vec, to_wide(), generic_all, osstr (+7 more)
 
 ### Community 26 - "11 — LLD: Admin Console and Operations"
 Cohesion: 0.10
 Nodes (20): 11 — LLD: Admin Console and Operations, 1. Admin console structure, 1. Security Lockdown Mode Switch, 2.1 Live Console Controls & Security Mode Gating, 2. Live Ops screen, 2. Real-Time Exam Live State Switch, 3. Exam lifecycle runbook, 4. Operator CLI (+12 more)
 
 ### Community 28 - "SecureDesktop"
-Cohesion: 0.20
-Nodes (9): Drop, HDESK, Result, Self, String, Vec, SecureDesktop, to_wide_null() (+1 more)
+Cohesion: 0.18
+Nodes (10): Drop, HDESK, Path, Result, Self, String, Vec, SecureDesktop (+2 more)
 
 ### Community 29 - "13 — Security Threat Model"
 Cohesion: 0.12
@@ -296,8 +296,8 @@ Cohesion: 0.13
 Nodes (14): name, name, claude-sonnet-5, gpt-6-astra, apiKey, baseURL, plugin, provider (+6 more)
 
 ### Community 35 - "📚 CITADEL — System Architecture & Design Specification Suite"
-Cohesion: 0.12
-Nodes (17): 1. Architecture & High-Level Design (`docs/architecture/`), 1. System & Enterprise Architects, 2. Security Auditors & Due-Diligence Reviewers, 2. Subsystem Low-Level Designs (`docs/subsystems/`), 3. Operations, Security & Capacity (`docs/operations/`), 3. Venue Network & IT Infrastructure Engineers, 4. Core Systems Developers & Maintainers, 4. Implementation Roadmaps & Playbooks (`docs/roadmap/`) (+9 more)
+Cohesion: 0.11
+Nodes (18): 1. Architecture & High-Level Design (`docs/architecture/`), 1. System & Enterprise Architects, 2. Security Auditors & Due-Diligence Reviewers, 2. Subsystem Low-Level Designs (`docs/subsystems/`), 3. Operations, Security & Capacity (`docs/operations/`), 3. Venue Network & IT Infrastructure Engineers, 4. Core Systems Developers & Maintainers, 4. Implementation Roadmaps & Playbooks (`docs/roadmap/`) (+10 more)
 
 ### Community 36 - "selora"
 Cohesion: 0.14
@@ -312,7 +312,7 @@ Cohesion: 0.12
 Nodes (17): 15 — Senior Engineering Review & Hardened Lockdown (v2), 1. Executive verdict, 2. Reframing the threat correctly (this matters for where effort goes), 3. Bottlenecks (beyond what doc 09/12 already cover), 4. What's genuinely undecided today, 5. The attack catalogue — what's closed, what isn't, 6.1 New attestation checks (append to §3.3's table, A1-A15), 6.2 LOLBAS deny-list overlay (new subsection after §3.4) (+9 more)
 
 ### Community 39 - "09 — LLD: Reliability, Failover, and Disaster Recovery"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (13): 09 — LLD: Reliability, Failover, and Disaster Recovery, 1. The durability chain, 2.1 Pair configuration, 2.2 Failover sequence (target RTO ≤ 90 s, NFR-8), 2.3 Split-brain prevention, 2. Appliance high availability, 3. Failure matrix, 4. Offline mode specification (+5 more)
 
 ### Community 40 - "RegistryLock"
@@ -344,8 +344,8 @@ Cohesion: 0.18
 Nodes (11): 4.10 Foreground Lock (ForegroundLock), 4.1 Keyboard Shortcut Blocking (hotkey_lock.rs), 4.2 Task Manager Disable, 4.3 Win Key Disable, 4.4 Sign-Out / Lock / Shutdown Disable, 4.5 Taskbar Hiding (TaskbarLock), 4.6 Explorer Shell Kill (ExplorerLock) - ELEVATED ONLY, 4.7 Network Lockdown - WFP (Windows Filtering Platform) - ELEVATED ONLY (+3 more)
 
 ### Community 47 - "10 — LLD: Integrity Analytics and Proctoring"
-Cohesion: 0.18
-Nodes (10): 10 — LLD: Integrity Analytics and Proctoring, 1.1 Event catalogue, 1.2 Volume and handling, 1. Telemetry event model, 3. Composite integrity score, 4. Proctor console, 5. Incident workflow, 6. Evidence pack (+2 more)
+Cohesion: 0.13
+Nodes (15): 10 — LLD: Integrity Analytics and Proctoring, 1.1 Event catalogue, 1.2 Volume and handling, 1. Telemetry event model, 2.1 Layer 1 — Deterministic rules (real time), 2.2 Layer 2 — Behavioural analytics (near real time, 60 s windows), 2.3 Layer 3 — Post-exam similarity analysis (FR-S7), 2.4 Layer 4 — Cohort anomaly detection (+7 more)
 
 ### Community 48 - "Completed & Verified Deliverables"
 Cohesion: 0.20
@@ -395,10 +395,6 @@ Nodes (5): 11.1 The Threat: Unauthorized LAN Queries & Device Bypass, 11.2 Dual-
 Cohesion: 0.40
 Nodes (5): 19.1 Threat Model: Secondary Mobile Devices & Localhost Resolution Gaps, 19.2 Device Detection & Enforcement Architecture (Testing vs. Production), 19.3 Multi-Network Dynamic Endpoint Discovery & PE Watermarking, 19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating, Enforcement Implementation:
 
-### Community 60 - "2. Detection layers"
-Cohesion: 0.40
-Nodes (5): 2.1 Layer 1 — Deterministic rules (real time), 2.2 Layer 2 — Behavioural analytics (near real time, 60 s windows), 2.3 Layer 3 — Post-exam similarity analysis (FR-S7), 2.4 Layer 4 — Cohort anomaly detection, 2. Detection layers
-
 ### Community 61 - "12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification"
 Cohesion: 0.50
 Nodes (4): 12.1 The Failure Mode of Static Process Blacklists, 12.2 The Citadel Dual-Layer Detection Architecture, 12.3 Automated Termination and Interactive Rescan Pipeline, 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
@@ -444,23 +440,23 @@ Cohesion: 0.67
 Nodes (3): 18.1 Proctor Roster Management & Strict Whitelist Enforcement, 18.2 Session Resumption & Crash Resilience, 18. Roster Synchronization & Resilient Session Resumption Engine
 
 ## Knowledge Gaps
-- **448 isolated node(s):** `🌟 Key Platform Capabilities`, `💎 Core Architectural Cards`, `⚡ The Five Defining Architectural Invariants`, `🧩 Workspace Crates Breakdown`, `1. Architecture & Design Foundations` (+443 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 650 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **46 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **450 isolated node(s):** `🌟 Key Platform Capabilities`, `🗺️ Interactive Architecture Maps & Visual Graph Navigators`, `💎 Core Architectural Cards`, `⚡ The Five Defining Architectural Invariants`, `🧩 Workspace Crates Breakdown` (+445 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 651 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **47 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Citadel Client - Security Architecture and Implementation Reference` connect `Citadel Client - Security Architecture and Implementation Reference` to `15. Disqualification Immediate Removal & Workstation Restoration Design Flow`, `20. UI Design System, Button Semantics & Boxy Action Geometry Synchrony`, `3. Fix Plan for BUG #5`, `10. Fail-Safe Protections & Dedicated Recovery Utility`, `13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture`, `19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating`, `4. How Restrictions Work - Layer by Layer`, `14. 15-Minute Early Completion Enforcement in Production Mode`, `17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography`, `18. Roster Synchronization & Resilient Session Resumption Engine`, `2. Root Cause of All Failures - The Complete Diagnosis`, `11. Network Security Architecture & Cryptographic Client Handshake`, `docs/README.md`, `12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification`?**
-  _High betweenness centrality (0.043) - this node is a cross-community bridge._
 - **Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?**
-  _High betweenness centrality (0.038) - this node is a cross-community bridge._
-- **Why does `07 — LLD: Content Authoring, Upload, and Distribution` connect `07 — LLD: Content Authoring, Upload, and Distribution` to `docs/README.md`?**
+  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+- **Why does `Citadel Client - Security Architecture and Implementation Reference` connect `Citadel Client - Security Architecture and Implementation Reference` to `15. Disqualification Immediate Removal & Workstation Restoration Design Flow`, `20. UI Design System, Button Semantics & Boxy Action Geometry Synchrony`, `3. Fix Plan for BUG #5`, `10. Fail-Safe Protections & Dedicated Recovery Utility`, `13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture`, `19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating`, `4. How Restrictions Work - Layer by Layer`, `14. 15-Minute Early Completion Enforcement in Production Mode`, `17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography`, `18. Roster Synchronization & Resilient Session Resumption Engine`, `2. Root Cause of All Failures - The Complete Diagnosis`, `11. Network Security Architecture & Cryptographic Client Handshake`, `docs/README.md`, `12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification`?**
+  _High betweenness centrality (0.039) - this node is a cross-community bridge._
+- **Why does `08 — LLD: Load Balancing, Caching, and Workload Distribution` connect `08 — LLD: Load Balancing, Caching, and Workload Distribution` to `docs/README.md`?**
   _High betweenness centrality (0.029) - this node is a cross-community bridge._
-- **What connects `🌟 Key Platform Capabilities`, `💎 Core Architectural Cards`, `⚡ The Five Defining Architectural Invariants` to the rest of the system?**
-  _448 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **What connects `🌟 Key Platform Capabilities`, `🗺️ Interactive Architecture Maps & Visual Graph Navigators`, `💎 Core Architectural Cards` to the rest of the system?**
+  _450 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `api.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.07376453488372094 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07388565891472869 - nodes in this community are weakly interconnected._
 - **Should `api_tests.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.06994535519125683 - nodes in this community are weakly interconnected._
 - **Should `kiosk_window.rs` be split into smaller, more focused modules?**

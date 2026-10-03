@@ -59,7 +59,7 @@
   "57": "CITADEL Architecture: Golden Rule of Workstation Protection",
   "58": "11. Network Security Architecture & Cryptographic Client Handshake",
   "59": "19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating",
-  "60": "2. Detection layers",
+  "60": "Arc",
   "61": "12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification",
   "62": "render_gatekeeper_html",
   "63": "wfp_policy.rs",

@@ -132,10 +132,10 @@
     "semantic_hash": "c04bca764153dc5e9d70a4e9baa2af83"
   },
   "citadel-server/src/api.rs": {
-    "mtime": 1790913114.3480139,
-    "seen": 1790913480.5565689,
-    "ast_hash": "e86643579503b1278f7ff32797206d52",
-    "semantic_hash": "e86643579503b1278f7ff32797206d52"
+    "mtime": 1791002208.3769884,
+    "seen": 1791002295.088868,
+    "ast_hash": "c2da2faa8bc14144399cb70c519efa84",
+    "semantic_hash": ""
   },
   "citadel-server/src/lib.rs": {
     "mtime": 1790591726.4014196,
@@ -288,9 +288,9 @@
     "semantic_hash": ""
   },
   "citadel-server/templates/gatekeeper.html": {
-    "mtime": 1790875439.3582966,
-    "seen": 1790911050.0157893,
-    "ast_hash": "ae996e9cc6b2b6fad8900d88740db66b",
+    "mtime": 1791002230.2680116,
+    "seen": 1791002295.0896678,
+    "ast_hash": "14f21f4c31eedb1556ca1543f99dbf9c",
     "semantic_hash": ""
   },
   "citadel-server/templates/portal.html": {
@@ -300,9 +300,9 @@
     "semantic_hash": ""
   },
   "citadel-server/templates/recruiter.html": {
-    "mtime": 1790911754.9753773,
-    "seen": 1790912475.508775,
-    "ast_hash": "f4591456ea45c29e6795ec6a498bf377",
+    "mtime": 1791002230.2680116,
+    "seen": 1791002295.089709,
+    "ast_hash": "2e686a3a4f84b4fb1335218dc7ad6ceb",
     "semantic_hash": ""
   },
   "citadel-client/src/local_control.rs": {
@@ -402,9 +402,9 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1791000288.4133935,
-    "seen": 1791001286.3259335,
-    "ast_hash": "c919e6c53365d4185e20b1853296a37b",
+    "mtime": 1791002250.809348,
+    "seen": 1791002295.0896022,
+    "ast_hash": "87103cfe796db7ba0679650ef05aff85",
     "semantic_hash": ""
   },
   "bin/README.md": {
@@ -414,9 +414,9 @@
     "semantic_hash": ""
   },
   "docs/README.md": {
-    "mtime": 1791000178.6641889,
-    "seen": 1791001286.3259392,
-    "ast_hash": "b6ab0bca23d8bd7410525c4e31e7299c",
+    "mtime": 1791002250.809348,
+    "seen": 1791002295.0897098,
+    "ast_hash": "f87f44e20baac60777c152e9d6326a2f",
     "semantic_hash": ""
   },
   "docs/architecture/01-SDD-software-design-document.md": {
@@ -543,6 +543,12 @@
     "mtime": 1790919487.3904417,
     "seen": 1791001286.325953,
     "ast_hash": "f58fa737318ac3a646427ec9a81a1205",
+    "semantic_hash": ""
+  },
+  "citadel-server/static/graph.html": {
+    "mtime": 1791002179.1060488,
+    "seen": 1791002295.0896444,
+    "ast_hash": "c820e77ad5cb3de6e5729b22227f9913",
     "semantic_hash": ""
   }
 }
