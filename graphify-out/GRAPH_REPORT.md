@@ -1,7 +1,7 @@
 # Graph Report - citadel-design  (2026-10-03)
 
 ## Corpus Check
-- 85 files · ~454,408 words
+- 85 files · ~454,626 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 17 file(s) not represented in the graph (top: (none) 4, .bat 4, .woff2 4)
 
@@ -11,7 +11,7 @@
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `652a1e35`
+- Built from commit: `eca9ec06`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -440,7 +440,7 @@ Cohesion: 0.67
 Nodes (3): 18.1 Proctor Roster Management & Strict Whitelist Enforcement, 18.2 Session Resumption & Crash Resilience, 18. Roster Synchronization & Resilient Session Resumption Engine
 
 ## Knowledge Gaps
-- **450 isolated node(s):** `🌟 Key Platform Capabilities`, `🗺️ Interactive Architecture Maps & Visual Graph Navigators`, `💎 Core Architectural Cards`, `⚡ The Five Defining Architectural Invariants`, `🧩 Workspace Crates Breakdown` (+445 more)
+- **450 isolated node(s):** `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM`, `WRONG_PYTHON_TWO_SUM`, `citadel-server`, `1. System context` (+445 more)
   These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 651 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **47 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
@@ -448,12 +448,12 @@ Nodes (3): 18.1 Proctor Roster Management & Strict Whitelist Enforcement, 18.2 S
 _Questions this graph is uniquely positioned to answer:_
 
 - **Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
+  _High betweenness centrality (0.043) - this node is a cross-community bridge._
 - **Why does `Citadel Client - Security Architecture and Implementation Reference` connect `Citadel Client - Security Architecture and Implementation Reference` to `15. Disqualification Immediate Removal & Workstation Restoration Design Flow`, `20. UI Design System, Button Semantics & Boxy Action Geometry Synchrony`, `3. Fix Plan for BUG #5`, `10. Fail-Safe Protections & Dedicated Recovery Utility`, `13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture`, `19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating`, `4. How Restrictions Work - Layer by Layer`, `14. 15-Minute Early Completion Enforcement in Production Mode`, `17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography`, `18. Roster Synchronization & Resilient Session Resumption Engine`, `2. Root Cause of All Failures - The Complete Diagnosis`, `11. Network Security Architecture & Cryptographic Client Handshake`, `docs/README.md`, `12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification`?**
-  _High betweenness centrality (0.039) - this node is a cross-community bridge._
-- **Why does `08 — LLD: Load Balancing, Caching, and Workload Distribution` connect `08 — LLD: Load Balancing, Caching, and Workload Distribution` to `docs/README.md`?**
-  _High betweenness centrality (0.029) - this node is a cross-community bridge._
-- **What connects `🌟 Key Platform Capabilities`, `🗺️ Interactive Architecture Maps & Visual Graph Navigators`, `💎 Core Architectural Cards` to the rest of the system?**
+  _High betweenness centrality (0.034) - this node is a cross-community bridge._
+- **Why does `02 — High-Level Design` connect `02 — High-Level Design` to `docs/README.md`?**
+  _High betweenness centrality (0.021) - this node is a cross-community bridge._
+- **What connects `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM`, `WRONG_PYTHON_TWO_SUM` to the rest of the system?**
   _450 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `api.rs` be split into smaller, more focused modules?**
   _Cohesion score 0.07388565891472869 - nodes in this community are weakly interconnected._
