@@ -46,6 +46,12 @@
 </style>
 </head>
 <body>
+<!-- STANDALONE ARCHITECTURE / GRAPH SWITCHER -->
+<div id="citadel-nav-switcher" style="position: fixed; top: 12px; right: 300px; z-index: 99999; display: flex; align-items: center; background: rgba(18, 18, 28, 0.88); backdrop-filter: blur(8px); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 20px; padding: 3px 5px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 12px;">
+  <a href="./citadel-architecture.html" style="padding: 4px 10px; border-radius: 14px; color: #aaa; text-decoration: none; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.color='#38bdf8'; this.style.background='rgba(56, 189, 248, 0.15)';" onmouseout="this.style.color='#aaa'; this.style.background='transparent';">← 🗺️ Archify Map</a>
+  <span style="padding: 4px 10px; border-radius: 14px; background: rgba(192, 132, 252, 0.2); color: #c084fc; font-weight: 600; border: 1px solid rgba(192, 132, 252, 0.35);">🕸️ Knowledge Graph</span>
+</div>
+
 <div id="graph"></div>
 <div id="sidebar">
   <div id="search-wrap">

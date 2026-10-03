@@ -573,6 +573,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
 
         // Protected Recruiter & Administrator Routes
         .route("/admin", get(admin_page_handler))
+        .route("/recruiter", get(admin_page_handler))
         .route("/proctor", get(proctor_redirect_handler))
         .route("/api/v1/admin/metrics", get(admin_metrics_handler))
         .route("/api/v1/admin/mode", get(get_admin_mode_handler))
