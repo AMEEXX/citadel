@@ -25,6 +25,19 @@ Every commercial lockdown bypass method (remote desktop tunnels, Discord stream-
 
 ---
 
+---
+
+## 🗺️ Interactive Visual Architecture & Knowledge Graph Explorers
+
+For visual system exploration, CITADEL bundles two interactive web canvas visualizers:
+
+| Tool | Engine & Format | Browser URL (Appliance Active) | Static Source Repository File | Description |
+|---|---|---|---|---|
+| **Archify Architecture Canvas** | Interactive SVG Pan/Zoom Showcase | [`http://localhost:8443/architecture`](http://localhost:8443/architecture) | [`.archify/citadel-architecture.html`](../.archify/citadel-architecture.html) | Verified component boundaries, security enclaves, WFP filters, and network data paths. |
+| **Graphify Knowledge Graph** | Interactive Force-Directed Graph | [`http://localhost:8443/graph`](http://localhost:8443/graph) | [`graphify-out/graph.html`](../graphify-out/graph.html) | Complete AST dependency cluster, symbol call graphs, and crate relationships. |
+
+---
+
 ## 🏛️ The Four Documentation Pillars
 
 The documentation suite is structured into four distinct directories reflecting the system lifecycle:

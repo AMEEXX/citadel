@@ -15,6 +15,7 @@
 
 **A fully air-gapped, zero-cloud assessment platform and privileged Windows lockdown client engineered to conduct high-stakes coding Online Assessments (OAs) for 400–700 concurrent candidates inside college placement centers and enterprise recruitment halls.**
 
+[Interactive Maps](#-interactive-architecture-maps--visual-graph-navigators) •
 [System Architecture](#-system-architecture--end-to-end-data-flow) •
 [Defining Invariants](#-the-five-defining-architectural-invariants) •
 [Repository Layout](#-repository-structure--crate-taxonomy) •
@@ -55,6 +56,23 @@ The only remaining threats on BYOD laptops are local machine tools (e.g., local 
 | **Hidden Test Integrity** | Two-phase judging pipeline | Candidates only execute public tests; hidden grading test suites never leave the server. |
 | **Graceful Resilience** | Multi-tier Write-Ahead Logs (WAL) | Submissions persist locally if Wi-Fi degrades; automatically sync upon reconnection. |
 | **Hardware Agnostic** | Candidate BYOD support | Statically linked MSVC binaries (`crt-static`) with zero external runtime requirements. |
+
+---
+
+---
+
+## 🗺️ Interactive Architecture Maps & Visual Graph Navigators
+
+CITADEL provides two distinct, interactive graphical explorers for visual architectural inspections:
+
+| Visual Explorer | Technology | Live Server Route | Local Standalone File | Purpose & Focus |
+|---|---|---|---|---|
+| **System Architecture Canvas** | [Archify](https://github.com) (SVG / Pan & Zoom) | [`/architecture`](http://localhost:8443/architecture) or [`/archify`](http://localhost:8443/archify) | [`.archify/citadel-architecture.html`](.archify/citadel-architecture.html) | High-level system boundary layout, network topologies, subsystem data flows, and security zones. |
+| **Codebase Knowledge Graph** | [Graphify](https://github.com) (vis-network / Force) | [`/graph`](http://localhost:8443/graph) or [`/graphify`](http://localhost:8443/graphify) | [`graphify-out/graph.html`](graphify-out/graph.html) | Deep AST dependency graph, crate inter-relationships, call hierarchies, and cross-file linkage. |
+| **Recruiter Proctoring Console** | Citadel LMS (Obsidian Atelier) | [`/recruiter`](http://localhost:8443/recruiter) | [`citadel-server/templates/recruiter.html`](citadel-server/templates/recruiter.html) | Live exam monitoring dashboard with direct links to both Archify and Graphify visualizers. |
+| **Student Assessment Portal** | Monaco / Ace Editor (Forge) | [`/exam`](http://localhost:8443/exam) | [`citadel-server/templates/portal.html`](citadel-server/templates/portal.html) | Candidate coding environment, test runner, and air-gapped problem solver. |
+
+> 💡 **Live Web Access**: When running `citadel-server` (`cargo run -p citadel-server` or `citadel-server.exe`), simply visit [`http://localhost:8443/architecture`](http://localhost:8443/architecture) for the Archify diagram or [`http://localhost:8443/graph`](http://localhost:8443/graph) for the Graphify knowledge graph.
 
 ---
 

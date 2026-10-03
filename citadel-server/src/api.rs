@@ -544,6 +544,9 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/static/*path", get(serve_static_handler))
         .route("/architecture", get(architecture_handler))
         .route("/archify", get(architecture_handler))
+        .route("/graph", get(graphify_handler))
+        .route("/graphify", get(graphify_handler))
+        .route("/knowledge-graph", get(graphify_handler))
         .route("/health", get(health_handler))
         .route("/api/v1/exam/info", get(exam_info_handler))
         .route("/api/v1/exam/status", get(exam_status_handler))
@@ -2010,6 +2013,10 @@ async fn architecture_handler() -> Redirect {
     Redirect::temporary("/static/citadel-architecture.html")
 }
 
+async fn graphify_handler() -> Redirect {
+    Redirect::temporary("/static/graph.html")
+}
+
 async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
     let clean_path = path.trim_start_matches('/');
     let content_type = if clean_path.ends_with(".js") {
@@ -2024,6 +2031,8 @@ async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<Str
         "font/ttf"
     } else if clean_path.ends_with(".html") {
         "text/html; charset=utf-8"
+    } else if clean_path.ends_with(".json") {
+        "application/json; charset=utf-8"
     } else {
         "application/octet-stream"
     };
@@ -2032,6 +2041,8 @@ async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<Str
         PathBuf::from("citadel-server/static").join(clean_path),
         PathBuf::from("static").join(clean_path),
         PathBuf::from("../static").join(clean_path),
+        PathBuf::from("graphify-out").join(clean_path),
+        PathBuf::from("../graphify-out").join(clean_path),
     ];
 
     for file_path in &candidates {
