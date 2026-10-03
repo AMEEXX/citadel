@@ -11,14 +11,14 @@
 
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
 use windows::core::{w, PCWSTR, PWSTR};
-use windows::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND};
+use windows::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND, LPARAM, RECT};
 use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
@@ -34,8 +34,8 @@ use windows::Win32::System::Threading::{
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
 use std::collections::HashSet;
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, FindWindowW, GetForegroundWindow, GetSystemMetrics,
-    GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos, ShowWindow,
+    BringWindowToTop, EnumWindows, FindWindowW, GetForegroundWindow, GetSystemMetrics,
+    GetWindowRect, GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos, ShowWindow,
     HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN,
     SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
     SW_HIDE, SW_MAXIMIZE, SW_SHOW,
@@ -217,6 +217,49 @@ pub struct ForegroundLock {
     target_window: Arc<Mutex<Option<isize>>>,
 }
 
+struct EnumKioskWndCtx {
+    target_pids: HashSet<u32>,
+    found_hwnd: Option<HWND>,
+}
+
+unsafe extern "system" fn enum_kiosk_wnd_proc(hwnd: HWND, lparam: LPARAM) -> BOOL {
+    let ctx = &mut *(lparam.0 as *mut EnumKioskWndCtx);
+    let mut pid = 0u32;
+    GetWindowThreadProcessId(hwnd, Some(&mut pid));
+
+    if ctx.target_pids.contains(&pid) {
+        let mut rect = RECT::default();
+        if GetWindowRect(hwnd, &mut rect).is_ok() {
+            let width = rect.right - rect.left;
+            let height = rect.bottom - rect.top;
+
+            // Ensure this is a real render window, not a tiny tooltip or 0x0 offscreen frame
+            if width > 120 && height > 120 {
+                ctx.found_hwnd = Some(hwnd);
+                return BOOL(0); // Found top window, halt enumeration
+            }
+        }
+    }
+    BOOL(1) // Keep enumerating
+}
+
+pub fn find_kiosk_window(target_pids: &HashSet<u32>) -> Option<HWND> {
+    if target_pids.is_empty() {
+        return None;
+    }
+    let mut ctx = EnumKioskWndCtx {
+        target_pids: target_pids.clone(),
+        found_hwnd: None,
+    };
+    unsafe {
+        let _ = EnumWindows(
+            Some(enum_kiosk_wnd_proc),
+            LPARAM(&mut ctx as *mut _ as isize),
+        );
+    }
+    ctx.found_hwnd
+}
+
 impl ForegroundLock {
     pub fn start(target_pids: Arc<Mutex<HashSet<u32>>>) -> Self {
         let stop_signal = Arc::new(AtomicBool::new(false));
@@ -226,40 +269,29 @@ impl ForegroundLock {
 
         let thread_handle = thread::spawn(move || {
             while !stop_clone.load(Ordering::Relaxed) {
-                unsafe {
-                    let hwnd = FindWindowW(w!("Chrome_WidgetWin_1"), None);
-                    if let Ok(wnd) = hwnd {
-                        if !wnd.is_invalid() {
-                            let mut wnd_pid = 0u32;
-                            GetWindowThreadProcessId(wnd, Some(&mut wnd_pid));
+                let pids = match target_pids.lock() {
+                    Ok(p) => p.clone(),
+                    Err(e) => e.into_inner().clone(),
+                };
 
-                            // Strict verification: ONLY manage windows that belong to our spawned kiosk process!
-                            // NEVER hijack Antigravity IDE, VS Code, or user applications!
-                            let is_our_kiosk = if let Ok(pids) = target_pids.lock() {
-                                pids.contains(&wnd_pid)
-                            } else {
-                                false
-                            };
-
-                            if is_our_kiosk {
-                                if let Ok(mut tw) = window_clone.lock() {
-                                    *tw = Some(wnd.0 as isize);
-                                }
-                                let fg = GetForegroundWindow();
-                                if fg != wnd {
-                                    let _ = SetForegroundWindow(wnd);
-                                    let _ = BringWindowToTop(wnd);
-                                }
-                                let cx = GetSystemMetrics(SM_CXSCREEN);
-                                let cy = GetSystemMetrics(SM_CYSCREEN);
-                                let _ = SetWindowPos(
-                                    wnd,
-                                    HWND_TOPMOST,
-                                    0, 0, cx, cy,
-                                    SWP_SHOWWINDOW,
-                                );
-                            }
+                if let Some(wnd) = find_kiosk_window(&pids) {
+                    unsafe {
+                        if let Ok(mut tw) = window_clone.lock() {
+                            *tw = Some(wnd.0 as isize);
                         }
+                        let fg = GetForegroundWindow();
+                        if fg != wnd {
+                            let _ = SetForegroundWindow(wnd);
+                            let _ = BringWindowToTop(wnd);
+                        }
+                        let cx = GetSystemMetrics(SM_CXSCREEN);
+                        let cy = GetSystemMetrics(SM_CYSCREEN);
+                        let _ = SetWindowPos(
+                            wnd,
+                            HWND_TOPMOST,
+                            0, 0, cx, cy,
+                            SWP_SHOWWINDOW,
+                        );
                     }
                 }
                 thread::sleep(Duration::from_millis(250));
@@ -704,19 +736,72 @@ pub fn find_child_process(parent_pid: u32) -> Option<u32> {
     }
 }
 
+pub fn terminate_lingering_browser_processes() {
+    unsafe {
+        if let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            let mut entry = PROCESSENTRY32W::default();
+            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+
+            if Process32FirstW(snapshot, &mut entry).is_ok() {
+                loop {
+                    let pid = entry.th32ProcessID;
+                    let null_pos = entry
+                        .szExeFile
+                        .iter()
+                        .position(|&c| c == 0)
+                        .unwrap_or(entry.szExeFile.len());
+                    let exe_name = String::from_utf16_lossy(&entry.szExeFile[..null_pos]).to_lowercase();
+
+                    if exe_name == "msedge.exe" || exe_name == "chrome.exe" || exe_name == "brave.exe" {
+                        if let Ok(hproc) = OpenProcess(PROCESS_TERMINATE, false, pid) {
+                            let _ = TerminateProcess(hproc, 1);
+                            let _ = CloseHandle(hproc);
+                        }
+                    }
+
+                    if Process32NextW(snapshot, &mut entry).is_err() {
+                        break;
+                    }
+                }
+            }
+            let _ = CloseHandle(snapshot);
+        }
+    }
+    thread::sleep(Duration::from_millis(300));
+}
+
 pub fn find_browser_executable() -> Option<PathBuf> {
-    let candidate_paths = [
-        r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
-        r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
-        r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
-    ];
+    let mut candidate_paths: Vec<PathBuf> = Vec::new();
+
+    // 1. Program Files & Program Files (x86)
+    if let Ok(pf) = std::env::var("ProgramFiles") {
+        candidate_paths.push(PathBuf::from(&pf).join(r"Microsoft\Edge\Application\msedge.exe"));
+        candidate_paths.push(PathBuf::from(&pf).join(r"Google\Chrome\Application\chrome.exe"));
+        candidate_paths.push(PathBuf::from(&pf).join(r"BraveSoftware\Brave-Browser\Application\brave.exe"));
+    }
+    if let Ok(pfx86) = std::env::var("ProgramFiles(x86)") {
+        candidate_paths.push(PathBuf::from(&pfx86).join(r"Microsoft\Edge\Application\msedge.exe"));
+        candidate_paths.push(PathBuf::from(&pfx86).join(r"Google\Chrome\Application\chrome.exe"));
+        candidate_paths.push(PathBuf::from(&pfx86).join(r"BraveSoftware\Brave-Browser\Application\brave.exe"));
+    }
+
+    // Hardcoded standard locations
+    candidate_paths.push(PathBuf::from(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"));
+    candidate_paths.push(PathBuf::from(r"C:\Program Files\Microsoft\Edge\Application\msedge.exe"));
+    candidate_paths.push(PathBuf::from(r"C:\Program Files\Google\Chrome\Application\chrome.exe"));
+    candidate_paths.push(PathBuf::from(r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe"));
+    candidate_paths.push(PathBuf::from(r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe"));
+
+    // 2. LocalAppData (Per-user browser installations)
+    if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+        candidate_paths.push(PathBuf::from(&local_app_data).join(r"Microsoft\Edge\Application\msedge.exe"));
+        candidate_paths.push(PathBuf::from(&local_app_data).join(r"Google\Chrome\Application\chrome.exe"));
+        candidate_paths.push(PathBuf::from(&local_app_data).join(r"BraveSoftware\Brave-Browser\Application\brave.exe"));
+    }
 
     for path in candidate_paths {
-        let p = Path::new(path);
-        if p.exists() {
-            return Some(p.to_path_buf());
+        if path.exists() {
+            return Some(path);
         }
     }
 
@@ -725,8 +810,13 @@ pub fn find_browser_executable() -> Option<PathBuf> {
 
 /// Spawns an isolated full-screen kiosk browser directly on the designated desktop (e.g. Secure Desktop).
 pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> Result<KioskProcess, String> {
+    // 1. Terminate lingering background browser processes (Startup Boost, background extensions)
+    // This is critical on Windows 10/11: if a background msedge.exe is running via Startup Boost,
+    // newly spawned msedge.exe will hand off the URL to the background headless instance and exit!
+    terminate_lingering_browser_processes();
+
     let browser_path = find_browser_executable()
-        .ok_or_else(|| "No supported browser (Edge/Chrome) found on system".to_string())?;
+        .ok_or_else(|| "No supported browser (Edge/Chrome/Brave) found on system".to_string())?;
 
     let temp_profile = std::env::temp_dir().join(format!("citadel_kiosk_{}", std::process::id()));
     let _ = std::fs::create_dir_all(&temp_profile);
@@ -735,15 +825,43 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
     eprintln!("[CITADEL CLIENT] Target desktop plane: {:?}", desktop_name.unwrap_or("Default"));
     eprintln!("[CITADEL CLIENT] Connecting to exam endpoint: {}", target_url);
 
-    // KIOSK HARDENING ARGS:
-    // CRITICAL: GPU flags (--disable-gpu, --disable-gpu-compositing, etc.) are REMOVED.
-    // Modern Edge/Chrome v130+ abort with code 0 if all GPU & software raster pipelines are stripped.
-    let args = format!(
-        "\"{}\" --user-data-dir=\"{}\" --new-window --kiosk --edge-kiosk-type=fullscreen          --no-first-run --no-default-browser-check --disable-pinch --disable-context-menu          --overscroll-history-navigation=0 --disable-extensions --disable-component-update          --disable-sync --disable-background-networking --disable-domain-reliability          --disable-speech-api --no-service-autorun --disable-background-mode          --disable-backgrounding-occluded-windows          --disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub          --user-agent=\"CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)\"          \"{}\"",
-        browser_path.display(),
-        temp_profile.display(),
-        target_url
-    );
+    // KIOSK HARDENING & UNIVERSAL VM/HARDWARE COMPATIBILITY ARGS:
+    // 1. --no-sandbox: CRITICAL for elevated Administrator launch (prevents Chromium sandbox abort).
+    // 2. --disable-gpu + --enable-software-rasterizer: CRITICAL for Virtual Machines (VirtualBox, VMware,
+    //    Hyper-V, Sandbox) where 3D hardware acceleration causes transparent or blank windows.
+    // 3. --kiosk: Universal fullscreen kiosk across Chrome, Edge, and Brave.
+    // 4. --disable-background-mode: Prevents background persistence / Startup Boost interference.
+    // 5. --start-maximized + --window-position=0,0: Ensures immediate full screen coverage.
+    let arg_parts = [
+        format!("\"{}\"", browser_path.display()),
+        format!("--user-data-dir=\"{}\"", temp_profile.display()),
+        "--kiosk".to_string(),
+        "--start-maximized".to_string(),
+        "--window-position=0,0".to_string(),
+        "--no-first-run".to_string(),
+        "--no-default-browser-check".to_string(),
+        "--no-sandbox".to_string(),
+        "--test-type".to_string(),
+        "--disable-gpu".to_string(),
+        "--enable-software-rasterizer".to_string(),
+        "--disable-background-mode".to_string(),
+        "--disable-extensions".to_string(),
+        "--disable-component-update".to_string(),
+        "--disable-sync".to_string(),
+        "--disable-background-networking".to_string(),
+        "--disable-domain-reliability".to_string(),
+        "--disable-speech-api".to_string(),
+        "--no-service-autorun".to_string(),
+        "--disable-pinch".to_string(),
+        "--disable-context-menu".to_string(),
+        "--overscroll-history-navigation=0".to_string(),
+        "--disable-session-crashed-bubble".to_string(),
+        "--disable-infobars".to_string(),
+        "--disable-features=Translate,OptimizationHints,MediaRouter,EdgeCollections,EdgeShopping,Compose,msEdgeSidebarSupport,msSmartScreenProtection,msUnderside,msEdgeHub".to_string(),
+        "--user-agent=\"CITADEL-Lockdown-Client/1.0 (Windows NT 10.0; Win64; x64; CitadelSecurityCore)\"".to_string(),
+        format!("\"{}\"", target_url),
+    ];
+    let args = arg_parts.join(" ");
 
     let mut wide_cmd = to_wide_str(&args);
     let mut si = STARTUPINFOW::default();
@@ -785,58 +903,66 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
 
     eprintln!("[CITADEL CLIENT] Browser launcher initiated (PID: {}). Awaiting browser window...", launcher_pid);
 
-    // Modern Edge/Chrome uses multi-process delegation: the launcher process
-    // spawns child processes and may exit with code 0 while the children run the browser.
-    // We poll for up to 5 seconds to locate the live browser window and child process.
+    let mut all_pids = std::collections::HashSet::new();
+    if launcher_pid != 0 {
+        all_pids.insert(launcher_pid);
+    }
+
     let mut real_browser_pid = launcher_pid;
     let mut h_browser_process = h_launcher;
     let mut confirmed_alive = false;
+    let mut window_activated = false;
 
-    for _ in 0..50 {
+    // Poll for up to 8 seconds to locate the live browser window and child processes
+    for attempt in 0..80 {
         thread::sleep(Duration::from_millis(100));
 
-        // 1. Check for child process of the launcher
+        // 1. Gather all descendants of the launcher process
+        let seeds: Vec<u32> = all_pids.iter().copied().collect();
+        let descendants = find_all_descendants(&seeds);
+        for d in descendants {
+            all_pids.insert(d);
+        }
+
+        // 2. Locate child process
         if let Some(child_pid) = find_child_process(launcher_pid) {
-            real_browser_pid = child_pid;
-            if let Ok(hproc) = unsafe {
-                OpenProcess(
-                    PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-                    false,
-                    child_pid,
-                )
-            } {
-                h_browser_process = hproc;
+            all_pids.insert(child_pid);
+            if real_browser_pid == launcher_pid {
+                real_browser_pid = child_pid;
+                if let Ok(hproc) = unsafe {
+                    OpenProcess(
+                        PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
+                        false,
+                        child_pid,
+                    )
+                } {
+                    h_browser_process = hproc;
+                }
             }
             confirmed_alive = true;
-            eprintln!("[CITADEL CLIENT] Browser child process verified (PID: {})", child_pid);
+        }
+
+        // 3. Find and forcefully activate the kiosk window
+        if let Some(hwnd) = find_kiosk_window(&all_pids) {
+            unsafe {
+                let cx = GetSystemMetrics(SM_CXSCREEN);
+                let cy = GetSystemMetrics(SM_CYSCREEN);
+                let _ = ShowWindow(hwnd, SW_MAXIMIZE);
+                let _ = SetForegroundWindow(hwnd);
+                let _ = BringWindowToTop(hwnd);
+                let _ = SetWindowPos(
+                    hwnd,
+                    HWND_TOPMOST,
+                    0, 0, cx, cy,
+                    SWP_SHOWWINDOW,
+                );
+            }
+            confirmed_alive = true;
+            window_activated = true;
+            eprintln!("[CITADEL CLIENT] Browser kiosk window verified & activated via Win32 (attempt {})", attempt);
             break;
         }
 
-        // 2. Check for Edge/Chrome top-level kiosk window
-        unsafe {
-            let hwnd = FindWindowW(w!("Chrome_WidgetWin_1"), None);
-            if let Ok(wnd) = hwnd {
-                if !wnd.is_invalid() {
-                    let mut wnd_pid = 0u32;
-                    windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId(wnd, Some(&mut wnd_pid));
-                    if wnd_pid != 0 {
-                        real_browser_pid = wnd_pid;
-                        if let Ok(hproc) = OpenProcess(
-                            PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE,
-                            false,
-                            wnd_pid,
-                        ) {
-                            h_browser_process = hproc;
-                        }
-                        confirmed_alive = true;
-                        eprintln!("[CITADEL CLIENT] Browser kiosk window verified via Win32 (PID: {})", wnd_pid);
-                        break;
-                    }
-                }
-            }
-        }
-
-        // 3. Check if launcher process itself is active
         if is_pid_active(launcher_pid) {
             confirmed_alive = true;
         }
@@ -854,13 +980,7 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         return Err("Exam browser process failed to initialize within timeout.".into());
     }
 
-    let mut initial_pids = std::collections::HashSet::new();
-    if launcher_pid != 0 {
-        initial_pids.insert(launcher_pid);
-    }
-    if real_browser_pid != 0 {
-        initial_pids.insert(real_browser_pid);
-    }
+    eprintln!("[CITADEL CLIENT] Kiosk process ready with {} tracked PID(s). Window activated: {}", all_pids.len(), window_activated);
 
     Ok(KioskProcess {
         h_process: h_browser_process,
@@ -869,7 +989,7 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         pid: real_browser_pid,
         launcher_pid,
         profile_dir: temp_profile,
-        known_pids: Arc::new(std::sync::Mutex::new(initial_pids)),
+        known_pids: Arc::new(std::sync::Mutex::new(all_pids)),
     })
 }
 

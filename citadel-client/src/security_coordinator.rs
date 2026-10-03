@@ -373,12 +373,8 @@ impl ClientLockdownGuard {
             }
         }
 
-        // Start continuous foreground window lock ONLY in Production Mode and ONLY for our browser PID
-        if self.is_production {
-            self._foreground_lock = Some(ForegroundLock::start(kiosk_child.known_pids.clone()));
-        } else {
-            eprintln!("[CITADEL CLIENT] TESTING MODE: ForegroundLock disabled to preserve normal window switching.");
-        }
+        // Start continuous foreground window lock for our browser PID across all modes
+        self._foreground_lock = Some(ForegroundLock::start(kiosk_child.known_pids.clone()));
 
         // Start process watchdog for forbidden cheat tools
         self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone(), self.is_production));
