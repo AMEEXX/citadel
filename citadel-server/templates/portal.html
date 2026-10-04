@@ -832,6 +832,7 @@
       display: flex;
       gap: 6px;
       margin-bottom: 12px;
+      flex-wrap: wrap;
     }
 
     .case-pill {
@@ -859,6 +860,21 @@
     .case-pill.passed {
       border-color: #203329;
       color: var(--accent-green);
+      background: rgba(141, 199, 167, 0.08);
+    }
+    .case-pill.failed {
+      border-color: #4a2222;
+      color: var(--accent-red);
+      background: rgba(215, 142, 136, 0.08);
+    }
+    .case-pill.hidden-case {
+      letter-spacing: 0.02em;
+    }
+    .hidden-case-separator {
+      width: 1px;
+      background: var(--border-subtle);
+      align-self: stretch;
+      margin: 0 4px;
     }
 
     .test-details-grid {
@@ -1503,6 +1519,44 @@
       }
     }
 
+    function showExamAlreadyEndedOverlay(message) {
+      const modal = document.getElementById('candidate-id-modal');
+      if (modal) modal.style.display = 'none';
+      const notStarted = document.getElementById('exam-not-started-overlay');
+      if (notStarted) notStarted.style.display = 'none';
+
+      let overlay = document.getElementById('exam-already-ended-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'exam-already-ended-overlay';
+        overlay.className = 'modal-overlay';
+        overlay.style.cssText = `
+          position: fixed; inset: 0; z-index: 10000;
+          background: var(--bg-base);
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          gap: 16px; padding: 40px;
+        `;
+        overlay.innerHTML = `
+          <div style="font-size: 56px;">🔒</div>
+          <h2 style="color: var(--accent-red); font-size: var(--text-2xl); font-weight: var(--weight-semibold); letter-spacing: -0.01em;">
+            Exam Session Ended
+          </h2>
+          <p id="exam-ended-msg" style="color: var(--text-secondary); max-width: 520px; text-align: center; line-height: 1.6; font-size: var(--text-sm);">
+            ${escapeHtml(message)}
+          </p>
+          <p style="color: var(--text-dim); font-size: var(--text-xs); margin-top: 16px; letter-spacing: 0.04em;">
+            If this is a technical error, please contact your exam proctor to re-admit you.
+          </p>
+        `;
+        document.body.appendChild(overlay);
+      } else {
+        overlay.style.display = 'flex';
+        const msgEl = document.getElementById('exam-ended-msg');
+        if (msgEl) msgEl.innerText = message;
+      }
+    }
+
     function clearLoginError() {
       const errEl = document.getElementById('candidate-login-error');
       if (errEl) {
@@ -1570,13 +1624,17 @@
             fetchQuestions();
           }
         } else {
-          // Stored candidate ID is not valid in roster or was revoked!
-          console.warn("[CITADEL] Stored candidate ID invalid in roster:", CANDIDATE_ID);
+          // Stored candidate ID is not valid in roster, was revoked, or already ended
+          console.warn("[CITADEL] Stored candidate ID invalid in roster or ended:", CANDIDATE_ID);
+          const data = await res.json().catch(() => ({}));
+          if (data && data.error === 'EXAM_ALREADY_ENDED') {
+            showExamAlreadyEndedOverlay(data.message);
+            return;
+          }
           localStorage.removeItem('citadel_candidate_id');
           const badId = CANDIDATE_ID;
           CANDIDATE_ID = null;
           if (modal) modal.style.display = 'flex';
-          const data = await res.json().catch(() => ({}));
           showLoginError(data.message || `Candidate ID '${badId}' is not registered in the exam roster.`);
           if (input) {
             input.value = badId;
@@ -1632,6 +1690,14 @@
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
+          if (data && data.error === 'EXAM_ALREADY_ENDED') {
+            showExamAlreadyEndedOverlay(data.message);
+            if (btn) {
+              btn.disabled = false;
+              btn.innerText = "Verify & Enter Assessment";
+            }
+            return;
+          }
           const errMsg = data.message || `Candidate '${val}' is not enrolled in the exam roster.`;
           showLoginError(errMsg);
           if (btn) {
@@ -1701,7 +1767,10 @@
     let activeQuestion = null;
     let samplePassed = false;
     let latestDiffs = [];
+    let latestHiddenDiffs = [];
+    let lastSubmissionData = null;
     let activeCaseIdx = 0;
+    let activeHiddenCaseIdx = null;
     let editor = null;
     let examStartedOnce = false;
     let remainingSeconds = 90 * 60;
@@ -1819,7 +1888,10 @@
 
       samplePassed = false;
       latestDiffs = [];
+      latestHiddenDiffs = [];
+      lastSubmissionData = null;
       activeCaseIdx = 0;
+      activeHiddenCaseIdx = null;
       lockSubmitButton("Run Sample Cases First");
       updateCasePills();
       renderCaseDetails(0);
@@ -1969,6 +2041,9 @@
 
         const data = await response.json();
         latestDiffs = data.sample_diffs || data.diffs || [];
+        latestHiddenDiffs = [];
+        lastSubmissionData = null;
+        activeHiddenCaseIdx = null;
 
         if (data.status === "Disqualified") {
           alert("Your session has been terminated by proctor administration.");
@@ -2047,10 +2122,40 @@ ${data.details}`;
           return;
         }
 
-        alert(`Submission Result for ${activeQuestion.title}:
+        lastSubmissionData = data;
+
+        // Separate sample diffs from hidden diffs
+        const allDiffs = data.sample_diffs || data.diffs || [];
+        const sampleCount = (activeQuestion && activeQuestion.sample_cases) ? activeQuestion.sample_cases.length : 0;
+
+        // Update sample case diffs
+        latestDiffs = allDiffs.slice(0, sampleCount);
+        // Hidden case diffs are the remaining ones
+        latestHiddenDiffs = allDiffs.slice(sampleCount);
+
+        // Update visual pills for both sample and hidden test cases
+        activeHiddenCaseIdx = null;
+        updateCasePills();
+        renderCaseDetails(activeCaseIdx);
+
+        // Switch to test cases tab to show visual results immediately
+        switchDrawerTab('tests');
+
+        // Also update console output with full summary
+        const consoleOut = document.getElementById('console-output');
+        if (consoleOut) {
+          consoleOut.innerText = `Final Submission Result for ${activeQuestion.title}:
 Status: ${data.status}
-Passed: ${data.passed_cases} of ${data.total_cases} test cases!
-Score Awarded: ${data.score} pts`);
+Passed: ${data.passed_cases} of ${data.total_cases} test cases (Sample + Hidden)
+Score Awarded: ${data.score} pts
+Runtime: ${data.runtime_ms} ms
+
+${data.details || ''}`;
+        }
+
+        // Re-enable submit button so student can resubmit (Feature 2)
+        unlockSubmitButton();
+
         sendHeartbeat();
       } catch (err) {
         alert("Failed to submit final solution: " + err.message);
@@ -2066,20 +2171,71 @@ Score Awarded: ${data.score} pts`);
       if (!container || !activeQuestion) return;
       const sampleCases = activeQuestion.sample_cases || [];
 
-      container.innerHTML = sampleCases.map((_, idx) => {
+      let html = sampleCases.map((_, idx) => {
         const diff = latestDiffs[idx];
+        const hasRun = !!diff;
         const isPassed = diff && (diff.is_passed === true || diff.passed === true);
-        const activeClass = idx === activeCaseIdx ? 'active' : '';
-        const passedClass = isPassed ? 'passed' : '';
-        const symbol = isPassed ? '✓' : '';
-        return `<button class="case-pill ${activeClass} ${passedClass}" onclick="selectCaseView(${idx})">Case ${idx + 1} ${symbol}</button>`;
+        const activeClass = (activeHiddenCaseIdx === null && idx === activeCaseIdx) ? 'active' : '';
+        const statusClass = hasRun ? (isPassed ? 'passed' : 'failed') : '';
+        const symbol = hasRun ? (isPassed ? '✓' : '✗') : '';
+        return `<button class="case-pill ${activeClass} ${statusClass}" onclick="selectCaseView(${idx})">Case ${idx + 1} ${symbol}</button>`;
       }).join('');
+
+      // If hidden test cases were evaluated, append separator and lock-prefixed hidden pills
+      if (latestHiddenDiffs.length > 0) {
+        html += `<div class="hidden-case-separator"></div>`;
+        const sampleCount = sampleCases.length;
+        html += latestHiddenDiffs.map((diff, idx) => {
+          const caseNum = sampleCount + idx + 1;
+          const isPassed = diff && (diff.is_passed === true || diff.passed === true);
+          const activeClass = (activeHiddenCaseIdx === idx) ? 'active' : '';
+          const statusClass = isPassed ? 'passed' : 'failed';
+          const symbol = isPassed ? '✓' : '✗';
+          const tooltip = isPassed ? `Hidden Case ${caseNum}: Passed` : `Hidden Case ${caseNum}: Failed`;
+          return `<button class="case-pill hidden-case ${activeClass} ${statusClass}" title="${tooltip}" onclick="selectHiddenCaseView(${idx})">🔒 Case ${caseNum} ${symbol}</button>`;
+        }).join('');
+      }
+
+      container.innerHTML = html;
     }
 
     function selectCaseView(idx) {
       activeCaseIdx = idx;
+      activeHiddenCaseIdx = null;
       updateCasePills();
       renderCaseDetails(idx);
+    }
+
+    function selectHiddenCaseView(idx) {
+      activeHiddenCaseIdx = idx;
+      updateCasePills();
+      renderHiddenCaseDetails(idx);
+    }
+
+    function renderHiddenCaseDetails(idx) {
+      if (!activeQuestion || !latestHiddenDiffs[idx]) return;
+      const sampleCount = (activeQuestion.sample_cases || []).length;
+      const caseNum = sampleCount + idx + 1;
+      const diff = latestHiddenDiffs[idx];
+      const isPassed = diff && (diff.is_passed === true || diff.passed === true);
+
+      const inBox = document.getElementById('case-input');
+      const expBox = document.getElementById('case-expected');
+      const actualBox = document.getElementById('case-actual');
+
+      if (inBox) inBox.innerText = `🔒 Case ${caseNum}: [Hidden Test Case - Input withheld for evaluation]`;
+      if (expBox) expBox.innerText = `🔒 Case ${caseNum}: [Hidden Test Case - Expected output withheld]`;
+
+      if (actualBox) {
+        if (isPassed) {
+          actualBox.innerText = `Status: Passed ✓ (${diff.execution_ms || 0} ms)\nServer Evaluation: Output verified against secret test oracle.`;
+          actualBox.style.color = 'var(--accent-green)';
+        } else {
+          const err = diff.error_message || diff.actual || 'Wrong Answer';
+          actualBox.innerText = `Status: Failed ✗ (${diff.execution_ms || 0} ms)\n${err}`;
+          actualBox.style.color = 'var(--accent-red)';
+        }
+      }
     }
 
     function renderCaseDetails(idx) {
@@ -2419,6 +2575,7 @@ Score Awarded: ${data.score} pts`);
       } catch (e) {}
 
       // 3. Notify exam server of submission / logout
+      isExplicitEndExam = true;
       try {
         await fetch('/api/v1/integrity/logout', {
           method: 'POST',
@@ -2450,6 +2607,8 @@ Score Awarded: ${data.score} pts`);
             candidate_id: CANDIDATE_ID,
             active_question: activeQNum,
             is_window_focused: document.hasFocus(),
+            is_tab_visible: document.visibilityState === 'visible',
+            window_dimensions: `${window.innerWidth}x${window.innerHeight}`,
           })
         });
         if (res.ok) {
@@ -2516,27 +2675,139 @@ Score Awarded: ${data.score} pts`);
         .replace(/"/g, '&quot;');
     }
 
-    // Event listeners
-    window.addEventListener('beforeunload', () => {
-      try {
-        navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
-          candidate_id: CANDIDATE_ID,
-          reason: 'Candidate closed exam browser window'
-        }));
-      } catch(e) {}
-    });
+    // =========================================================================
+    // ENHANCED VIOLATION DETECTION WITH SPECIFIC REASONS
+    // =========================================================================
+    let lastViolationTime = 0;
+    const VIOLATION_COOLDOWN_MS = 1500;
+    let isExplicitEndExam = false;
 
-    window.addEventListener('blur', () => {
+    function reportDetailedViolation(eventType, details, severity) {
+      if (!CANDIDATE_ID || isDisqualified || isExplicitEndExam) return;
+      const now = Date.now();
+      if (now - lastViolationTime < VIOLATION_COOLDOWN_MS) return;
+      lastViolationTime = now;
+
       fetch('/api/v1/integrity/event', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           candidate_id: CANDIDATE_ID,
-          event_type: 'WINDOW_FOCUS_LOST',
-          details: 'Candidate switched window or lost kiosk focus',
-          severity: 'HIGH',
+          event_type: eventType,
+          details: details,
+          severity: severity || 'HIGH'
         })
       }).catch(() => {});
+    }
+
+    // 1. Tab visibility change (most reliable)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') {
+        reportDetailedViolation(
+          'TAB_HIDDEN',
+          'Browser tab was hidden — candidate either switched to another tab, minimized the browser, or switched to another application using Alt+Tab / taskbar',
+          'HIGH'
+        );
+      }
+    });
+
+    // 2. Window blur (captures focus loss even without tab switch)
+    window.addEventListener('blur', () => {
+      if (document.visibilityState !== 'hidden') {
+        reportDetailedViolation(
+          'WINDOW_BLUR_VISIBLE',
+          'Browser window lost focus while tab remained visible — candidate may have clicked on another application, taskbar, system notification, or used split-screen with another window',
+          'MEDIUM'
+        );
+      }
+    });
+
+    // 3. Alt+Tab / special key detection
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && (e.key === 'Tab' || e.keyCode === 9)) {
+        reportDetailedViolation(
+          'ALT_TAB_DETECTED',
+          'Alt+Tab keyboard shortcut detected — candidate attempted to switch to another application window',
+          'HIGH'
+        );
+      }
+      if (e.ctrlKey && (e.key === 'Tab' || e.keyCode === 9)) {
+        reportDetailedViolation(
+          'CTRL_TAB_DETECTED',
+          'Ctrl+Tab keyboard shortcut detected — candidate attempted to switch browser tabs',
+          'HIGH'
+        );
+      }
+      if ((e.metaKey || e.key === 'Meta') && e.key !== 'Meta') {
+        reportDetailedViolation(
+          'META_KEY_COMBO',
+          `Windows/Meta key combination detected (Meta+${e.key}) — candidate used OS-level keyboard shortcut`,
+          'MEDIUM'
+        );
+      }
+      // F12 / Ctrl+Shift+I / Ctrl+Shift+J — DevTools
+      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c'))) {
+        reportDetailedViolation(
+          'DEVTOOLS_SHORTCUT',
+          `Developer tools keyboard shortcut detected (${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.key}) — candidate attempted to open browser developer tools`,
+          'CRITICAL'
+        );
+      }
+    });
+
+    // 4. Suspicious window resize (split-screen detection)
+    let lastKnownWidth = window.innerWidth;
+    let lastKnownHeight = window.innerHeight;
+    window.addEventListener('resize', () => {
+      const newWidth = window.innerWidth;
+      const newHeight = window.innerHeight;
+      const screenWidth = window.screen.availWidth;
+
+      if (Math.abs(newWidth - screenWidth / 2) < 60 && lastKnownWidth > screenWidth * 0.8) {
+        reportDetailedViolation(
+          'SPLIT_SCREEN_DETECTED',
+          `Window resized from ${lastKnownWidth}x${lastKnownHeight} to ${newWidth}x${newHeight} (screen: ${screenWidth}) — likely split-screen or snap layout activated to view another application alongside the exam`,
+          'HIGH'
+        );
+      }
+
+      lastKnownWidth = newWidth;
+      lastKnownHeight = newHeight;
+    });
+
+    // 5. Right-click context menu outside code editor
+    document.addEventListener('contextmenu', (e) => {
+      if (!e.target.closest('.ace_editor')) {
+        reportDetailedViolation(
+          'CONTEXT_MENU',
+          'Right-click context menu opened outside code editor — possible copy-paste or inspect element attempt',
+          'LOW'
+        );
+      }
+    });
+
+    // 6. Large paste detection
+    document.addEventListener('paste', (e) => {
+      const pastedText = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+      if (pastedText.length > 80) {
+        reportDetailedViolation(
+          'LARGE_PASTE_DETECTED',
+          `Large text paste detected (${pastedText.length} characters) — candidate may have pasted code from an external source`,
+          'HIGH'
+        );
+      }
+    });
+
+    // Window beforeunload: only send logout beacon if candidate explicitly clicked End Exam
+    window.addEventListener('beforeunload', () => {
+      if (isExplicitEndExam && CANDIDATE_ID) {
+        try {
+          navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
+            candidate_id: CANDIDATE_ID,
+            reason: 'Candidate completed and ended exam session'
+          }));
+        } catch(e) {}
+      }
     });
 
     // Page initialization

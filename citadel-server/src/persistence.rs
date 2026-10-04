@@ -54,6 +54,8 @@ pub struct CandidateResumeState {
     pub total_score: u32,
     pub violations_count: u32,
     pub status: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -85,6 +87,14 @@ pub struct CandidateState {
     pub state_version: u64,
     #[serde(default)]
     pub last_synced_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_details: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub exit_timestamp: Option<String>,
+    #[serde(default)]
+    pub best_passed_cases: HashMap<String, Vec<bool>>,
 }
 
 impl CandidateState {
@@ -98,6 +108,7 @@ impl CandidateState {
             total_score: self.total_score,
             violations_count: self.violations_count,
             status: self.status.clone(),
+            exit_reason: self.exit_reason.clone(),
         }
     }
 }
@@ -342,6 +353,10 @@ mod tests {
             session_token: "tok-123".to_string(),
             state_version: 1,
             last_synced_at: "2026-09-28T10:15:00Z".to_string(),
+            exit_reason: None,
+            exit_details: None,
+            exit_timestamp: None,
+            best_passed_cases: HashMap::new(),
         };
 
         save_candidate_state(&temp_dir, &cand_state).unwrap();

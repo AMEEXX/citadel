@@ -233,6 +233,10 @@ pub struct HeartbeatRequest {
     pub candidate_id: String,
     pub active_question: u32,
     pub is_window_focused: bool,
+    #[serde(default)]
+    pub is_tab_visible: Option<bool>,
+    #[serde(default)]
+    pub window_dimensions: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -583,6 +587,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/api/v1/admin/exam/stop-live", post(admin_stop_live_handler))
         .route("/api/v1/admin/candidates/:id/disqualify", post(admin_disqualify_candidate_handler))
         .route("/api/v1/admin/candidates/:id/clear-flag", post(admin_clear_flag_candidate_handler))
+        .route("/api/v1/admin/candidates/:id/readmit", post(admin_readmit_candidate_handler))
         .route("/api/v1/admin/questions", post(admin_create_question_handler))
         .route("/api/v1/admin/candidates/:id/profile", get(admin_candidate_profile_handler))
         .route("/api/v1/admin/questions/:id", post(admin_update_question_handler).delete(admin_delete_question_handler))
@@ -980,9 +985,7 @@ async fn submit_code_handler(
             completed_at: None,
         });
 
-        if !payload.is_sample_run && judge_res.score > cand.total_score {
-            cand.total_score = judge_res.score;
-        }
+        // cand.total_score is synced from cand_st.total_score below
         cand.last_seen = chrono::Utc::now().to_rfc3339();
     }
 
@@ -1008,6 +1011,10 @@ async fn submit_code_handler(
             session_token: String::new(),
             state_version: 1,
             last_synced_at: chrono::Utc::now().to_rfc3339(),
+            exit_reason: None,
+            exit_details: None,
+            exit_timestamp: None,
+            best_passed_cases: HashMap::new(),
         });
 
         if !payload.is_sample_run {
@@ -1016,9 +1023,32 @@ async fn submit_code_handler(
                 *curr_best = judge_res.score;
             }
             cand_st.total_score = cand_st.best_scores.values().sum();
+
+            // Track per-test-case pass/fail
+            if let Some(ref diffs) = judge_res.sample_diffs {
+                let case_results: Vec<bool> = diffs.iter().map(|d| d.is_passed).collect();
+                let entry = cand_st.best_passed_cases.entry(payload.question_id.clone()).or_insert_with(Vec::new);
+                if entry.len() < case_results.len() {
+                    entry.resize(case_results.len(), false);
+                }
+                for (i, passed) in case_results.iter().enumerate() {
+                    if *passed {
+                        entry[i] = true;
+                    }
+                }
+            }
         }
         cand_st.last_seen = chrono::Utc::now().to_rfc3339();
+        let synced_score = cand_st.total_score;
         let _ = save_candidate_state(&state.state_dir, cand_st);
+
+        // Sync CandidateSession.total_score from CandidateState (single source of truth)
+        {
+            let mut cands = state.candidates.lock().unwrap();
+            if let Some(cand_sess) = cands.get_mut(&cand_id) {
+                cand_sess.total_score = synced_score;
+            }
+        }
     }
     let _ = save_submission_snapshot(&state.state_dir, &sub_record.submission_id, &sub_record);
 
@@ -1135,11 +1165,29 @@ async fn logout_handler(
         started_at: Some(chrono::Utc::now().to_rfc3339()),
         completed_at: Some(chrono::Utc::now().to_rfc3339()),
     });
+    let now_str = chrono::Utc::now().to_rfc3339();
     if cand.status != "Disqualified" {
         cand.status = "Logged Out".to_string();
     }
-    cand.completed_at = Some(chrono::Utc::now().to_rfc3339());
-    cand.last_seen = chrono::Utc::now().to_rfc3339();
+    cand.completed_at = Some(now_str.clone());
+    cand.last_seen = now_str.clone();
+    drop(cands);
+
+    {
+        let mut c_states = state.candidate_states.lock().unwrap();
+        if let Some(cand_st) = c_states.get_mut(&req.candidate_id) {
+            if cand_st.status != "Disqualified" {
+                cand_st.status = "Logged Out".to_string();
+                cand_st.exit_reason = Some("candidate_ended".to_string());
+                cand_st.exit_details = Some("Candidate voluntarily ended their exam session".to_string());
+                cand_st.exit_timestamp = Some(now_str.clone());
+            }
+            cand_st.completed_at = Some(now_str.clone());
+            cand_st.last_seen = now_str;
+            let _ = save_candidate_state(&state.state_dir, cand_st);
+        }
+    }
+
     StatusCode::OK
 }
 
@@ -1709,8 +1757,12 @@ async fn admin_disqualify_candidate_handler(
     if found {
         let mut c_states = state.candidate_states.lock().unwrap();
         if let Some(cand_st) = c_states.get_mut(&actual_id) {
+            let now_str = chrono::Utc::now().to_rfc3339();
             cand_st.status = "Disqualified".to_string();
-            cand_st.last_seen = chrono::Utc::now().to_rfc3339();
+            cand_st.exit_reason = Some("proctor_disqualified".to_string());
+            cand_st.exit_details = Some("Disqualified by proctor due to security violations".to_string());
+            cand_st.exit_timestamp = Some(now_str.clone());
+            cand_st.last_seen = now_str;
             let _ = save_candidate_state(&state.state_dir, cand_st);
         }
 
@@ -1719,6 +1771,56 @@ async fn admin_disqualify_candidate_handler(
         StatusCode::OK
     } else {
         StatusCode::NOT_FOUND
+    }
+}
+
+async fn admin_readmit_candidate_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    Path(id): Path<String>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let mut actual_id = id.clone();
+    let mut found = false;
+
+    {
+        let mut cands = state.candidates.lock().unwrap();
+        if let Some(cand) = cands.get_mut(&id) {
+            cand.status = "Active".to_string();
+            cand.last_seen = chrono::Utc::now().to_rfc3339();
+            found = true;
+        } else if let Some((k, cand)) = cands.iter_mut().find(|(k, _)| k.eq_ignore_ascii_case(&id)) {
+            cand.status = "Active".to_string();
+            cand.last_seen = chrono::Utc::now().to_rfc3339();
+            actual_id = k.clone();
+            found = true;
+        }
+    }
+
+    let mut c_states = state.candidate_states.lock().unwrap();
+    if let Some(cand_st) = c_states.get_mut(&actual_id) {
+        cand_st.status = "Active".to_string();
+        cand_st.exit_reason = None;
+        cand_st.exit_details = None;
+        cand_st.exit_timestamp = None;
+        cand_st.completed_at = None;
+        cand_st.last_seen = chrono::Utc::now().to_rfc3339();
+        let _ = save_candidate_state(&state.state_dir, cand_st);
+        found = true;
+    }
+
+    if found {
+        Ok(Json(serde_json::json!({
+            "status": "success",
+            "candidate_id": actual_id,
+            "message": "Candidate successfully re-admitted to the exam."
+        })))
+    } else {
+        Err(StatusCode::NOT_FOUND)
     }
 }
 
@@ -2351,6 +2453,22 @@ async fn candidate_login_handler(
             ).into_response();
         }
 
+        // Block re-entry for candidates who already ended their exam
+        if existing.status == "Logged Out" || existing.status == "Submitted" {
+            let exit_reason = existing.exit_reason.as_deref().unwrap_or("ended");
+            let exit_time = existing.exit_timestamp.as_deref().or(existing.completed_at.as_deref()).unwrap_or("unknown");
+            return (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "EXAM_ALREADY_ENDED",
+                    "message": format!(
+                        "You have already submitted and ended your exam (reason: {}, at: {}). Re-entry is not permitted. If you believe this is an error, please contact your proctor.",
+                        exit_reason, exit_time
+                    )
+                })),
+            ).into_response();
+        }
+
         // Single session conflict check:
         if existing.status == "Active" && existing.ip_address != client_ip {
             if let Ok(last) = chrono::DateTime::parse_from_rfc3339(&existing.last_seen) {
@@ -2380,6 +2498,9 @@ async fn candidate_login_handler(
         existing.last_seen = now.to_rfc3339();
         existing.ip_address = client_ip.clone();
         existing.session_token = token.clone();
+        existing.exit_reason = None;
+        existing.exit_details = None;
+        existing.exit_timestamp = None;
 
         // Update in-memory candidates map
         if let Some(cand_sess) = cands.get_mut(&candidate_id) {
@@ -2441,6 +2562,10 @@ async fn candidate_login_handler(
         session_token: token.clone(),
         state_version: 0,
         last_synced_at: now.to_rfc3339(),
+        exit_reason: None,
+        exit_details: None,
+        exit_timestamp: None,
+        best_passed_cases: HashMap::new(),
     };
 
     cands.insert(candidate_id.clone(), CandidateSession {
@@ -2769,6 +2894,9 @@ async fn disconnect_watchdog_loop(state: AppState) {
                         if diff_secs > 15 {
                             cand.status = "Disconnected".to_string();
                             cand.timer_paused_at = Some(now.to_rfc3339());
+                            cand.exit_reason = Some("network_disconnect".to_string());
+                            cand.exit_details = Some(format!("Lost connection for {}s", diff_secs));
+                            cand.exit_timestamp = Some(now.to_rfc3339());
                             states_to_persist.push(cand.clone());
 
                             if let Some(sess) = c_sessions.get_mut(cid) {
