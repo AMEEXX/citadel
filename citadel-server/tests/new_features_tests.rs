@@ -286,4 +286,11 @@ async fn test_portal_html_features() {
     assert!(portal_html.contains("We saw that, don't try it again kid."), "Must display exact calm warning text");
     assert!(portal_html.contains("showMischiefWarning"), "Must have showMischiefWarning handler");
     assert!(portal_html.contains("SCREENSHOT_ATTEMPT"), "Must intercept screenshot shortcuts");
+
+    // Feature 7: Code Autocomplete & IntelliSense
+    assert!(portal_html.contains("citadel-ac-popup"), "Must include autocomplete popup element");
+    assert!(portal_html.contains("AC_DICTIONARY"), "Must include autocomplete dictionary");
+    assert!(portal_html.contains("unordered_map"), "Must include unordered_map completion");
+    assert!(portal_html.contains("checkAutocomplete"), "Must include checkAutocomplete function");
+    assert!(portal_html.contains("applyAutocomplete"), "Must include applyAutocomplete function");
 }

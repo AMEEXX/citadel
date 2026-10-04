@@ -1042,6 +1042,96 @@
 
     /* INVISIBLE DRAG BARRIER OVERLAY */
 
+
+    /* ─── CITADEL INTELLISENSE AUTOCOMPLETE DROPDOWN ─── */
+    .citadel-autocomplete-dropdown {
+      position: fixed;
+      z-index: 99999;
+      background: rgba(18, 17, 16, 0.98);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(219, 184, 126, 0.32);
+      border-radius: 6px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.92), 0 0 20px rgba(219, 184, 126, 0.08), 0 0 0 1px rgba(242, 240, 236, 0.03);
+      width: 320px;
+      max-height: 240px;
+      overflow-y: auto;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      display: none;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-medium) transparent;
+    }
+
+    .citadel-autocomplete-item {
+      padding: 6px 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      cursor: pointer;
+      color: #d6d3cd;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+      user-select: none;
+      transition: background 0.08s ease, color 0.08s ease;
+    }
+
+    .citadel-autocomplete-item:last-child {
+      border-bottom: none;
+    }
+
+    .citadel-autocomplete-item.active,
+    .citadel-autocomplete-item:hover {
+      background: rgba(219, 184, 126, 0.16);
+      color: #ffffff;
+    }
+
+    .citadel-ac-label {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      flex-grow: 1;
+    }
+
+    .citadel-ac-label .match-highlight {
+      color: var(--accent-amber);
+      font-weight: 700;
+      text-decoration: underline;
+    }
+
+    .citadel-ac-meta {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .citadel-ac-desc {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--font-ui);
+      max-width: 110px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .citadel-ac-badge {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 1px 5px;
+      border-radius: 3px;
+      letter-spacing: 0.04em;
+    }
+
+    .citadel-ac-badge.stl    { color: #8dc7a7; background: rgba(141, 199, 167, 0.14); border: 1px solid rgba(141, 199, 167, 0.25); }
+    .citadel-ac-badge.kw     { color: #dbb87e; background: rgba(219, 184, 126, 0.14); border: 1px solid rgba(219, 184, 126, 0.25); }
+    .citadel-ac-badge.fn     { color: #a2bad8; background: rgba(162, 186, 216, 0.14); border: 1px solid rgba(162, 186, 216, 0.25); }
+    .citadel-ac-badge.type   { color: #e4bb95; background: rgba(228, 187, 149, 0.14); border: 1px solid rgba(228, 187, 149, 0.25); }
+    .citadel-ac-badge.local  { color: #b7a9d2; background: rgba(183, 169, 210, 0.14); border: 1px solid rgba(183, 169, 210, 0.25); }
+
     /* ─── MISCHIEF & SHORTCUT INTERCEPTION WARNING ─── */
     .mischief-warning-overlay {
       position: fixed;
@@ -1450,6 +1540,9 @@
       <button id="btn-register-join" class="candidate-reg-btn" onclick="saveCandidateId()" style="font-weight: var(--weight-medium); letter-spacing: 0.02em;">Verify & Enter Assessment</button>
     </div>
   </div>
+
+  <!-- CITADEL CODE INTELLISENSE AUTOCOMPLETE POPUP -->
+  <div id="citadel-ac-popup" class="citadel-autocomplete-dropdown"></div>
 
   <!-- MISCHIEF / SHORTCUT ATTEMPT WARNING POPUP -->
   <div id="mischief-warning-overlay" class="mischief-warning-overlay">
@@ -1863,6 +1956,338 @@
 
     // Code store: [question_id][language] -> string
     const questionCodeStore = {};
+
+
+    // =========================================================================
+    // CITADEL CODE INTELLISENSE / AUTOCOMPLETE ENGINE
+    // =========================================================================
+    const AC_DICTIONARY = {
+      cpp: [
+        { text: 'vector', type: 'stl', desc: 'Dynamic array' },
+        { text: 'vector<int>', type: 'stl', desc: 'Vector of integers' },
+        { text: 'vector<string>', type: 'stl', desc: 'Vector of strings' },
+        { text: 'vector<vector<int>>', type: 'stl', desc: '2D matrix vector' },
+        { text: 'unordered_map', type: 'stl', desc: 'Hash map container' },
+        { text: 'unordered_map<int, int>', type: 'stl', desc: 'Hash map int->int' },
+        { text: 'unordered_map<string, int>', type: 'stl', desc: 'Hash map str->int' },
+        { text: 'map', type: 'stl', desc: 'Ordered map (red-black tree)' },
+        { text: 'map<int, int>', type: 'stl', desc: 'Ordered map int->int' },
+        { text: 'unordered_set', type: 'stl', desc: 'Hash set container' },
+        { text: 'unordered_set<int>', type: 'stl', desc: 'Hash set of integers' },
+        { text: 'set', type: 'stl', desc: 'Ordered set' },
+        { text: 'set<int>', type: 'stl', desc: 'Ordered set of integers' },
+        { text: 'multiset', type: 'stl', desc: 'Multi-set with duplicates' },
+        { text: 'multimap', type: 'stl', desc: 'Multi-map with duplicates' },
+        { text: 'unordered_multimap', type: 'stl', desc: 'Hash multi-map' },
+        { text: 'unordered_multiset', type: 'stl', desc: 'Hash multi-set' },
+        { text: 'priority_queue', type: 'stl', desc: 'Max-heap container' },
+        { text: 'priority_queue<int, vector<int>, greater<int>>', type: 'stl', desc: 'Min-heap container' },
+        { text: 'queue', type: 'stl', desc: 'FIFO queue' },
+        { text: 'deque', type: 'stl', desc: 'Double-ended queue' },
+        { text: 'stack', type: 'stl', desc: 'LIFO stack' },
+        { text: 'pair', type: 'stl', desc: 'std::pair' },
+        { text: 'pair<int, int>', type: 'stl', desc: 'Pair of integers' },
+        { text: 'string', type: 'type', desc: 'std::string' },
+        { text: 'stringstream', type: 'type', desc: 'std::stringstream' },
+        { text: 'push_back', type: 'fn', desc: 'Append element' },
+        { text: 'emplace_back', type: 'fn', desc: 'In-place append' },
+        { text: 'pop_back', type: 'fn', desc: 'Remove last element' },
+        { text: 'push', type: 'fn', desc: 'Insert into stack/queue' },
+        { text: 'pop', type: 'fn', desc: 'Remove top/front' },
+        { text: 'top', type: 'fn', desc: 'Access top element' },
+        { text: 'front', type: 'fn', desc: 'Access first element' },
+        { text: 'back', type: 'fn', desc: 'Access last element' },
+        { text: 'insert', type: 'fn', desc: 'Insert into container' },
+        { text: 'erase', type: 'fn', desc: 'Remove element' },
+        { text: 'find', type: 'fn', desc: 'Search for element' },
+        { text: 'count', type: 'fn', desc: 'Count occurrences' },
+        { text: 'size', type: 'fn', desc: 'Container size' },
+        { text: 'empty', type: 'fn', desc: 'Check if empty' },
+        { text: 'clear', type: 'fn', desc: 'Remove all elements' },
+        { text: 'begin', type: 'fn', desc: 'Iterator start' },
+        { text: 'end', type: 'fn', desc: 'Iterator end' },
+        { text: 'sort', type: 'fn', desc: 'std::sort(begin, end)' },
+        { text: 'reverse', type: 'fn', desc: 'std::reverse(begin, end)' },
+        { text: 'lower_bound', type: 'fn', desc: 'First element >= val' },
+        { text: 'upper_bound', type: 'fn', desc: 'First element > val' },
+        { text: 'binary_search', type: 'fn', desc: 'Binary search' },
+        { text: 'min', type: 'fn', desc: 'std::min' },
+        { text: 'max', type: 'fn', desc: 'std::max' },
+        { text: 'min_element', type: 'fn', desc: 'Pointer to min' },
+        { text: 'max_element', type: 'fn', desc: 'Pointer to max' },
+        { text: 'accumulate', type: 'fn', desc: 'Sum range elements' },
+        { text: 'cout', type: 'kw', desc: 'std::cout output' },
+        { text: 'cin', type: 'kw', desc: 'std::cin input' },
+        { text: 'endl', type: 'kw', desc: 'std::endl' },
+        { text: 'auto', type: 'kw', desc: 'Type inference' },
+        { text: 'const', type: 'kw', desc: 'Constant qualifier' },
+        { text: 'nullptr', type: 'kw', desc: 'Null pointer' },
+        { text: 'long long', type: 'type', desc: '64-bit integer' },
+        { text: 'INT_MAX', type: 'kw', desc: '2147483647' },
+        { text: 'INT_MIN', type: 'kw', desc: '-2147483648' },
+        { text: 'LLONG_MAX', type: 'kw', desc: '9223372036854775807' },
+        { text: 'LLONG_MIN', type: 'kw', desc: '-9223372036854775808' }
+      ],
+      python: [
+        { text: 'def', type: 'kw', desc: 'Function definition' },
+        { text: 'class', type: 'kw', desc: 'Class definition' },
+        { text: 'return', type: 'kw', desc: 'Return statement' },
+        { text: 'append', type: 'fn', desc: 'list.append(x)' },
+        { text: 'extend', type: 'fn', desc: 'list.extend(iterable)' },
+        { text: 'insert', type: 'fn', desc: 'list.insert(i, x)' },
+        { text: 'pop', type: 'fn', desc: 'list.pop([i])' },
+        { text: 'remove', type: 'fn', desc: 'list.remove(x)' },
+        { text: 'clear', type: 'fn', desc: 'Remove all items' },
+        { text: 'index', type: 'fn', desc: 'Return first index' },
+        { text: 'count', type: 'fn', desc: 'Count occurrences' },
+        { text: 'sort', type: 'fn', desc: 'In-place sort' },
+        { text: 'sorted', type: 'fn', desc: 'Return sorted copy' },
+        { text: 'reverse', type: 'fn', desc: 'In-place reverse' },
+        { text: 'range', type: 'fn', desc: 'range(start, stop)' },
+        { text: 'len', type: 'fn', desc: 'Return length' },
+        { text: 'enumerate', type: 'fn', desc: 'enumerate(iterable)' },
+        { text: 'zip', type: 'fn', desc: 'zip(*iterables)' },
+        { text: 'defaultdict', type: 'stl', desc: 'collections.defaultdict' },
+        { text: 'Counter', type: 'stl', desc: 'collections.Counter' },
+        { text: 'deque', type: 'stl', desc: 'collections.deque' },
+        { text: 'heappush', type: 'fn', desc: 'heapq.heappush(h, x)' },
+        { text: 'heappop', type: 'fn', desc: 'heapq.heappop(h)' },
+        { text: 'heapify', type: 'fn', desc: 'heapq.heapify(x)' },
+        { text: 'bisect_left', type: 'fn', desc: 'bisect.bisect_left' },
+        { text: 'bisect_right', type: 'fn', desc: 'bisect.bisect_right' },
+        { text: 'keys', type: 'fn', desc: 'dict.keys()' },
+        { text: 'values', type: 'fn', desc: 'dict.values()' },
+        { text: 'items', type: 'fn', desc: 'dict.items()' },
+        { text: 'get', type: 'fn', desc: 'dict.get(key, def)' },
+        { text: 'split', type: 'fn', desc: 'str.split(sep)' },
+        { text: 'join', type: 'fn', desc: 'str.join(iterable)' },
+        { text: 'strip', type: 'fn', desc: 'str.strip()' },
+        { text: 'replace', type: 'fn', desc: 'str.replace(old, new)' },
+        { text: 'min', type: 'fn', desc: 'min(iterable)' },
+        { text: 'max', type: 'fn', desc: 'max(iterable)' },
+        { text: 'sum', type: 'fn', desc: 'sum(iterable)' },
+        { text: 'float("inf")', type: 'kw', desc: 'Positive infinity' },
+        { text: 'float("-inf")', type: 'kw', desc: 'Negative infinity' }
+      ],
+      java: [
+        { text: 'ArrayList', type: 'stl', desc: 'Dynamic array list' },
+        { text: 'HashMap', type: 'stl', desc: 'Hash table map' },
+        { text: 'HashSet', type: 'stl', desc: 'Hash table set' },
+        { text: 'TreeMap', type: 'stl', desc: 'Red-black tree map' },
+        { text: 'TreeSet', type: 'stl', desc: 'Red-black tree set' },
+        { text: 'PriorityQueue', type: 'stl', desc: 'Priority heap queue' },
+        { text: 'LinkedList', type: 'stl', desc: 'Doubly-linked list' },
+        { text: 'Stack', type: 'stl', desc: 'LIFO stack' },
+        { text: 'Queue', type: 'stl', desc: 'Queue interface' },
+        { text: 'StringBuilder', type: 'type', desc: 'Mutable string buffer' },
+        { text: 'Arrays.sort', type: 'fn', desc: 'Sort array' },
+        { text: 'Collections.sort', type: 'fn', desc: 'Sort collection' },
+        { text: 'Math.max', type: 'fn', desc: 'Maximum of values' },
+        { text: 'Math.min', type: 'fn', desc: 'Minimum of values' },
+        { text: 'Math.abs', type: 'fn', desc: 'Absolute value' },
+        { text: 'System.out.println', type: 'fn', desc: 'Print with newline' },
+        { text: 'System.out.print', type: 'fn', desc: 'Print output' },
+        { text: 'Integer.MAX_VALUE', type: 'kw', desc: '2147483647' },
+        { text: 'Integer.MIN_VALUE', type: 'kw', desc: '-2147483648' },
+        { text: 'add', type: 'fn', desc: 'Add element' },
+        { text: 'get', type: 'fn', desc: 'Get by index/key' },
+        { text: 'set', type: 'fn', desc: 'Set by index' },
+        { text: 'put', type: 'fn', desc: 'Put key-value' },
+        { text: 'remove', type: 'fn', desc: 'Remove element' },
+        { text: 'containsKey', type: 'fn', desc: 'Map contains key' },
+        { text: 'contains', type: 'fn', desc: 'Set contains item' },
+        { text: 'size', type: 'fn', desc: 'Collection size' },
+        { text: 'length', type: 'fn', desc: 'Array length' },
+        { text: 'length()', type: 'fn', desc: 'String length' },
+        { text: 'charAt', type: 'fn', desc: 'Character at index' },
+        { text: 'substring', type: 'fn', desc: 'Extract substring' }
+      ]
+    };
+
+    let activeCompletions = [];
+    let activeCompletionIndex = 0;
+    let currentPrefix = "";
+
+    function isAutocompleteVisible() {
+      const popup = document.getElementById('citadel-ac-popup');
+      return popup && popup.style.display === 'block';
+    }
+
+    function hideAutocomplete() {
+      const popup = document.getElementById('citadel-ac-popup');
+      if (popup) {
+        popup.style.display = 'none';
+        popup.innerHTML = '';
+      }
+      activeCompletions = [];
+      activeCompletionIndex = 0;
+      currentPrefix = "";
+    }
+
+    function checkAutocomplete() {
+      if (!editor) return;
+      const cursor = editor.getCursorPosition();
+      const line = editor.session.getLine(cursor.row);
+      const lineUpToCursor = line.slice(0, cursor.column);
+
+      // Extract current word prefix
+      const match = lineUpToCursor.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
+      if (!match || match[1].length < 1) {
+        hideAutocomplete();
+        return;
+      }
+
+      const prefix = match[1];
+      const pLower = prefix.toLowerCase();
+      currentPrefix = prefix;
+
+      // 1. Get standard items for current language
+      const langItems = AC_DICTIONARY[currentLang] || AC_DICTIONARY.python || [];
+
+      // 2. Scan code document for local variable / function identifiers
+      const docCode = editor.getValue();
+      const idMatches = docCode.match(/\b[a-zA-Z_][a-zA-Z0-9_]{2,}\b/g) || [];
+      const seen = new Set();
+      const docItems = [];
+      for (const id of idMatches) {
+        if (!seen.has(id) && id !== prefix && !langItems.some(it => it.text === id)) {
+          seen.add(id);
+          docItems.push({ text: id, type: 'local', desc: 'Local identifier' });
+        }
+      }
+
+      const allCandidates = [...langItems, ...docItems];
+
+      // Filter and score matches
+      const scored = [];
+      for (const item of allCandidates) {
+        const textLower = item.text.toLowerCase();
+        if (textLower === pLower) continue; // already fully typed
+
+        if (textLower.startsWith(pLower)) {
+          // Starts with prefix -> High score
+          scored.push({ item, score: 100 - (textLower.length - pLower.length) });
+        } else if (textLower.includes(pLower)) {
+          // Contains prefix -> Medium score (e.g. "map" matches "unordered_map")
+          scored.push({ item, score: 50 - (textLower.indexOf(pLower)) });
+        }
+      }
+
+      if (scored.length === 0) {
+        hideAutocomplete();
+        return;
+      }
+
+      scored.sort((a, b) => b.score - a.score);
+      activeCompletions = scored.slice(0, 9).map(s => s.item);
+      activeCompletionIndex = 0;
+
+      renderAutocomplete(prefix);
+      positionAutocomplete();
+    }
+
+    function renderAutocomplete(prefix) {
+      const popup = document.getElementById('citadel-ac-popup');
+      if (!popup) return;
+
+      const pLower = prefix.toLowerCase();
+      let html = '';
+
+      activeCompletions.forEach((comp, idx) => {
+        const isSelected = idx === activeCompletionIndex ? 'active' : '';
+        const text = comp.text;
+        const textLower = text.toLowerCase();
+
+        // Highlight matched part
+        let labelHtml = text;
+        const matchIdx = textLower.indexOf(pLower);
+        if (matchIdx !== -1) {
+          const before = text.slice(0, matchIdx);
+          const matched = text.slice(matchIdx, matchIdx + prefix.length);
+          const after = text.slice(matchIdx + prefix.length);
+          labelHtml = `${before}<span class="match-highlight">${matched}</span>${after}`;
+        }
+
+        html += `
+          <div class="citadel-autocomplete-item ${isSelected}" onmousedown="applyAutocompleteIndex(${idx})">
+            <span class="citadel-ac-label">${labelHtml}</span>
+            <div class="citadel-ac-meta">
+              <span class="citadel-ac-desc">${comp.desc || ''}</span>
+              <span class="citadel-ac-badge ${comp.type || 'kw'}">${comp.type || 'kw'}</span>
+            </div>
+          </div>
+        `;
+      });
+
+      popup.innerHTML = html;
+      popup.style.display = 'block';
+    }
+
+    function positionAutocomplete() {
+      if (!editor) return;
+      const popup = document.getElementById('citadel-ac-popup');
+      if (!popup) return;
+
+      const cursor = editor.getCursorPosition();
+      const coord = editor.renderer.textToScreenCoordinates(cursor.row, cursor.column);
+      const lineHeight = editor.renderer.lineHeight || 20;
+
+      let top = coord.pageY + lineHeight + 3;
+      let left = coord.pageX - 10;
+
+      const popupW = 320;
+      const popupH = Math.min(activeCompletions.length * 32 + 10, 240);
+
+      if (top + popupH > window.innerHeight) {
+        top = Math.max(coord.pageY - popupH - 4, 10);
+      }
+      if (left + popupW > window.innerWidth) {
+        left = window.innerWidth - popupW - 14;
+      }
+      if (left < 10) left = 10;
+
+      popup.style.top = `${top}px`;
+      popup.style.left = `${left}px`;
+    }
+
+    function navigateAutocomplete(dir) {
+      if (!activeCompletions.length) return;
+      activeCompletionIndex = (activeCompletionIndex + dir + activeCompletions.length) % activeCompletions.length;
+      renderAutocomplete(currentPrefix);
+      // Auto-scroll selected item into view
+      const popup = document.getElementById('citadel-ac-popup');
+      if (popup) {
+        const activeItem = popup.children[activeCompletionIndex];
+        if (activeItem) activeItem.scrollIntoView({ block: 'nearest' });
+      }
+    }
+
+    function applyAutocomplete() {
+      if (!activeCompletions.length || activeCompletionIndex < 0 || activeCompletionIndex >= activeCompletions.length) {
+        hideAutocomplete();
+        return;
+      }
+      const choice = activeCompletions[activeCompletionIndex].text;
+      applyChosenText(choice);
+    }
+
+    function applyAutocompleteIndex(idx) {
+      if (idx >= 0 && idx < activeCompletions.length) {
+        applyChosenText(activeCompletions[idx].text);
+      }
+    }
+
+    function applyChosenText(choice) {
+      if (!editor || !currentPrefix) {
+        hideAutocomplete();
+        return;
+      }
+      const cursor = editor.getCursorPosition();
+      const range = new ace.Range(cursor.row, cursor.column - currentPrefix.length, cursor.row, cursor.column);
+      editor.session.replace(range, choice);
+      hideAutocomplete();
+      editor.focus();
+    }
 
     // =========================================================================
     // ACE EDITOR INITIALIZATION (VIVID ONE DARK SYNTAX)
