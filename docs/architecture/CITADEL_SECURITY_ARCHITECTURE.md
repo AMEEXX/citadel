@@ -279,7 +279,7 @@ Every 150ms:
 
 3. ClientLockdownGuard::new_with_mode() called
    -> install_crash_safety() - panic hook + console ctrl handler FIRST
-   -> RegistryLock::acquire() - 7 HKCU registry policies applied immediately
+   -> RegistryLock intentionally bypassed (registry_lock = None) to protect host desktop integrity; crash handler / recovery utility cleans stale policy keys as a safety net
    -> install_hotkey_lock() - WH_KEYBOARD_LL hook + message loop thread
    -> TaskbarLock::acquire() - taskbar hidden immediately
    -> ClipboardGuard::start() - clipboard wiper thread

@@ -259,6 +259,18 @@ The repository includes a comprehensive 21-document system design and architectu
 - 📄 [`docs/architecture/CITADEL_SECURITY_ARCHITECTURE.md`](docs/architecture/CITADEL_SECURITY_ARCHITECTURE.md): Deep-dive into Windows security, WFP filtering, Desktop switches (`WinSta0`), and Registry ACLs.
 - 📄 [`docs/architecture/GOLDEN_RULE_ARCHITECTURE.md`](docs/architecture/GOLDEN_RULE_ARCHITECTURE.md): The non-negotiable golden rules (Zero-Internet, Single-Session Device Lock, 15m Rule, Clean Desktop Restoration).
 
+### 🛠️ Developer Lockdown Overrides (Environment Variables)
+
+When testing or running candidate builds locally, the following environment variables allow granular control over lockdown behavior without compromising production security:
+
+| Variable | Default | Purpose / Effect |
+|---|---|---|
+| `CITADEL_DEV_MODE=1` | `0` | **Developer Workstation Safety**: Protects developer tools, shells, IDEs (VS Code, Cursor), and terminals from ProcessWatchdog; preserves Explorer shell even in production policy. |
+| `CITADEL_PRESERVE_EXPLORER=1` | `0` | Keeps Windows Explorer shell alive even during strict production runs (narrower than dev mode). |
+| `CITADEL_KILL_EXPLORER=1` | `0` | Forces Explorer shell termination even on local (`127.0.0.1`) runs to simulate full exam-day lockdown on a single machine. |
+| `CITADEL_ENFORCE_NETWORK=1` | `0` | Forces kernel WFP zero-internet firewall installation even in Testing mode. |
+| `CITADEL_PROCTOR_PIN` | `9944` | Configures the proctor emergency override PIN (`Ctrl+Shift+Alt+Q` or `F12`). |
+
 ### 2. Subsystem Low-Level Designs (LLDs)
 - 📄 [`docs/subsystems/03-LLD-lockdown-client.md`](docs/subsystems/03-LLD-lockdown-client.md): Kiosk Shell, Guard service, hotkey hook, local LLM defeat, and Forge editor.
 - 📄 [`docs/subsystems/04-LLD-network-routing-and-lan.md`](docs/subsystems/04-LLD-network-routing-and-lan.md): Exam LAN routing, DHCP/DNS ownership, enterprise Wi-Fi 6 AP density, and pre-flight RF validation.

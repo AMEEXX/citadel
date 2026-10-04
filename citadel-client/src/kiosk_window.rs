@@ -825,13 +825,16 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
     eprintln!("[CITADEL CLIENT] Target desktop plane: {:?}", desktop_name.unwrap_or("Default"));
     eprintln!("[CITADEL CLIENT] Connecting to exam endpoint: {}", target_url);
 
-    // KIOSK HARDENING & UNIVERSAL VM/HARDWARE COMPATIBILITY ARGS:
+    // KIOSK HARDENING & STABILITY ARGS:
     // 1. --no-sandbox: CRITICAL for elevated Administrator launch (prevents Chromium sandbox abort).
-    // 2. --disable-gpu + --enable-software-rasterizer: CRITICAL for Virtual Machines (VirtualBox, VMware,
-    //    Hyper-V, Sandbox) where 3D hardware acceleration causes transparent or blank windows.
-    // 3. --kiosk: Universal fullscreen kiosk across Chrome, Edge, and Brave.
-    // 4. --disable-background-mode: Prevents background persistence / Startup Boost interference.
-    // 5. --start-maximized + --window-position=0,0: Ensures immediate full screen coverage.
+    // 2. --kiosk: Universal fullscreen kiosk across Chrome, Edge, and Brave.
+    // 3. --disable-background-mode: Prevents background persistence / Startup Boost interference.
+    // 4. --start-maximized + --window-position=0,0: Ensures immediate full screen coverage.
+    // NOTE: GPU acceleration is deliberately left ENABLED (no --disable-gpu and no
+    // software-rasterizer fallback). Edge v130+ exits immediately or renders a
+    // blank/transparent kiosk window when GPU is disabled — see
+    // docs/architecture/CITADEL_SECURITY_ARCHITECTURE.md §7/§8 ("Never disable
+    // GPU flags"), verified empirically against Edge v153.
     let arg_parts = [
         format!("\"{}\"", browser_path.display()),
         format!("--user-data-dir=\"{}\"", temp_profile.display()),
@@ -842,8 +845,6 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         "--no-default-browser-check".to_string(),
         "--no-sandbox".to_string(),
         "--test-type".to_string(),
-        "--disable-gpu".to_string(),
-        "--enable-software-rasterizer".to_string(),
         "--disable-background-mode".to_string(),
         "--disable-extensions".to_string(),
         "--disable-component-update".to_string(),

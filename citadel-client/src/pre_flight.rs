@@ -1,8 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
-use std::os::windows::process::CommandExt;
-use std::process::Command;
 use std::time::Duration;
 
 use windows::core::{w, PCWSTR};
@@ -273,20 +271,15 @@ pub fn terminate_detected_applications(apps: &[DetectedApplication]) {
         unique_exes.insert(app.exe_name.clone());
     }
 
-    // 1. Terminate entire process trees by PID
+    // 1. Terminate entire process trees by PID (bounded: `taskkill /F /T` can
+    // stall on an uninterruptible process — pre-flight must never hang on it)
     for pid in &unique_pids {
-        let _ = Command::new("taskkill")
-            .args(&["/F", "/T", "/PID", &pid.to_string()])
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .output();
+        crate::crash_handler::run_bounded("taskkill", &["/F", "/T", "/PID", &pid.to_string()], 8000);
     }
 
     // 2. Terminate matching executable images
     for exe in &unique_exes {
-        let _ = Command::new("taskkill")
-            .args(&["/F", "/T", "/IM", exe])
-            .creation_flags(0x08000000)
-            .output();
+        crate::crash_handler::run_bounded("taskkill", &["/F", "/T", "/IM", exe], 8000);
         eprintln!("[PRE-FLIGHT] Auto-terminated process image: {}", exe);
     }
 
@@ -312,11 +305,9 @@ pub fn enforce_clean_environment(is_production: bool) -> bool {
 
     eprintln!("[PRE-FLIGHT] Starting Pre-Launch Environment Enforcement (Production Mode: {})...", is_production);
 
-    // Step 1: Suppress Bluetooth hardware & service immediately
-    let _ = Command::new("net")
-        .args(["stop", "bthserv", "/y"])
-        .creation_flags(0x08000000)
-        .output();
+    // Step 1: Suppress Bluetooth hardware & service immediately (bounded —
+    // `net stop` must never stall the pre-flight gate)
+    crate::crash_handler::run_bounded("net", &["stop", "bthserv", "/y"], 5000);
     eprintln!("[PRE-FLIGHT] Bluetooth service suppressed for assessment integrity.");
 
     // Step 2: Automated Termination Phase (Run up to 3 passes to clean all apps in our hand)
@@ -382,7 +373,7 @@ Please open Task Manager or check your taskbar, close them now, and click 'OK' t
 
         if result == IDCANCEL {
             eprintln!("[PRE-FLIGHT] Candidate clicked Cancel. Aborting pre-flight safely. Restoring Bluetooth service.");
-            let _ = Command::new("net").args(["start", "bthserv"]).creation_flags(0x08000000).output();
+            crate::crash_handler::run_bounded("net", &["start", "bthserv"], 5000);
             return false;
         }
 

@@ -12,7 +12,6 @@
 //! On session exit or handled panic, the watchdog terminates and cleanly relaunches
 //! explorer.exe to restore the student's normal desktop experience.
 
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread::{self, JoinHandle};
@@ -95,8 +94,9 @@ impl ExplorerLock {
             let _ = h.join();
         }
 
-        // Relaunch Windows Explorer shell
-        let _ = Command::new("explorer.exe").spawn();
+        // Relaunch Windows Explorer shell (idempotent: only when no instance is
+        // alive, so repeated restores never stack extra File Explorer windows)
+        crate::crash_handler::relaunch_explorer_shell();
         eprintln!("[CITADEL CLIENT] EXPLORER SHELL RESTORED: explorer.exe restarted.");
     }
 }

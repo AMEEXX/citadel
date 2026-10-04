@@ -6,7 +6,7 @@
       "name": "Selora Gateway",
       "options": {
         "baseURL": "https://api.selora.lol/v1",
-        "apiKey": "sk-gw-02RJJgRhfNVUnRp-RNUh6rZdo2VyTaa6u5QpT1OIN10"
+        "apiKey": "sk-gw-xbEH8uxasCTd86rMmIDSxGIsxOsorDjgQYTDuVKtrl8"
       },
       "models": {
         "claude-sonnet-5": {
@@ -14,6 +14,9 @@
         },
         "gpt-6-astra": {
           "name": "GPT-6 Astra"
+        },
+        "claude-opus-5.5": {
+          "name": "Claude Opus 5.5"
         }
       }
     }

@@ -8,14 +8,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use citadel_client::{
-    crash_handler::emergency_restore_system, elevate_self, enforce_clean_environment,
-    is_elevated, is_emergency_override_triggered, reset_emergency_override, ClientLockdownGuard, LocalControlServer,
+    crash_handler::{emergency_restore_system, relaunch_explorer_shell},
+    elevate_self, enforce_clean_environment, is_elevated, is_emergency_override_triggered,
+    reset_emergency_override, ClientLockdownGuard, LocalControlServer,
 };
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::CloseHandle;
-use windows::Win32::System::Diagnostics::ToolHelp::{
-    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
-};
 use windows::Win32::UI::WindowsAndMessaging::{
     MessageBoxW, IDRETRY, MB_ICONERROR, MB_ICONWARNING, MB_OK, MB_RETRYCANCEL,
     MB_SETFOREGROUND, MB_TOPMOST,
@@ -51,18 +48,7 @@ fn prompt_elevation_retry_cancel(title: &str, message: &str) -> bool {
 }
 
 pub fn log_event(msg: &str) {
-    eprintln!("{}", msg);
-    let paths = [
-        format!(r"{}\citadel_client.log", std::env::temp_dir().display()),
-        r"C:\Users\amitk\citadel_client.log".to_string(),
-    ];
-    for p in &paths {
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
-            use std::io::Write;
-            let now = format!("{:?}", std::time::SystemTime::now());
-            let _ = writeln!(f, "[{}] {}", now, msg);
-        }
-    }
+    citadel_client::crash_handler::log_client_event(msg);
 }
 
 fn read_embedded_server_endpoint() -> Option<(Ipv4Addr, u16)> {
@@ -125,33 +111,6 @@ fn read_file_server_endpoint() -> Option<(Ipv4Addr, u16)> {
     None
 }
 
-fn prompt_server_endpoint_gui(default_addr: &str) -> Option<(Ipv4Addr, u16)> {
-    let ps_script = format!(
-        "[void][System.Reflection.Assembly]::LoadWithPartialName('Microsoft.VisualBasic'); [Microsoft.VisualBasic.Interaction]::InputBox('Could not automatically connect to the Citadel Exam Server on this network.\n\nPlease enter the exam server address provided by your proctor (e.g. 172.60.10.12:8443):', 'Citadel Exam Server Connection', '{}')",
-        default_addr
-    );
-    let output = std::process::Command::new("powershell")
-        .args(["-NoProfile", "-WindowStyle", "Hidden", "-Command", &ps_script])
-        .output()
-        .ok()?;
-
-    let entered = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    if entered.is_empty() {
-        return None;
-    }
-
-    let cleaned = entered.trim_start_matches("http://").trim_start_matches("https://");
-    if let Some((host, port_str)) = cleaned.split_once(':') {
-        if let (Ok(ip), Ok(port)) = (host.parse::<Ipv4Addr>(), port_str.parse::<u16>()) {
-            return Some((ip, port));
-        }
-    } else if let Ok(ip) = cleaned.parse::<Ipv4Addr>() {
-        return Some((ip, 8443));
-    }
-
-    None
-}
-
 fn resolve_server_endpoint(cli_ip: Option<Ipv4Addr>, port: u16) -> (Ipv4Addr, u16) {
     let mut candidate_list: Vec<(Ipv4Addr, u16)> = Vec::new();
 
@@ -189,16 +148,11 @@ fn resolve_server_endpoint(cli_ip: Option<Ipv4Addr>, port: u16) -> (Ipv4Addr, u1
         }
     }
 
-    // 5. If none reachable, show interactive dialog with pre-filled recommendation
-    if let Some((ip, p)) = prompt_server_endpoint_gui("172.60.10.12:8443") {
-        let target = SocketAddr::from((ip, p));
-        if TcpStream::connect_timeout(&target, Duration::from_millis(600)).is_ok() {
-            log_event(&format!("[CITADEL CLIENT] User entered exam server at {}:{}", ip, p));
-            return (ip, p);
-        }
-    }
-
-    // Final fallback to 172.60.10.12:8443
+    // 5. None reachable: fall back to the campus default and let the pre-flight
+    //    reachability gate below show the connection error dialog and exit
+    //    cleanly (documented startup sequence, CITADEL_SECURITY_ARCHITECTURE.md
+    //    §5 step 2 — no interactive endpoint prompt on the startup path).
+    log_event("[CITADEL CLIENT] No exam server candidate reachable. Falling back to campus default; reachability gate will report.");
     (Ipv4Addr::new(172, 60, 10, 12), port)
 }
 
@@ -267,33 +221,9 @@ fn probe_server_is_production(server_ip: Ipv4Addr, server_port: u16) -> Result<b
 }
 
 fn ensure_explorer_running() {
-    let mut running = false;
-    unsafe {
-        if let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
-            let mut entry = PROCESSENTRY32W::default();
-            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
-            if Process32FirstW(snapshot, &mut entry).is_ok() {
-                loop {
-                    let exe_name = String::from_utf16_lossy(&entry.szExeFile)
-                        .trim_matches(char::from(0))
-                        .to_lowercase();
-                    if exe_name == "explorer.exe" {
-                        running = true;
-                        break;
-                    }
-                    if Process32NextW(snapshot, &mut entry).is_err() {
-                        break;
-                    }
-                }
-            }
-            let _ = CloseHandle(snapshot);
-        }
-    }
-
-    if !running {
-        eprintln!("[CITADEL CLIENT] Restoring Windows Explorer shell process...");
-        let _ = std::process::Command::new("explorer.exe").spawn();
-    }
+    // Idempotent: only spawns explorer.exe when no shell instance is alive,
+    // so repeated restore paths never stack extra File Explorer windows.
+    relaunch_explorer_shell();
 }
 
 
@@ -405,12 +335,32 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
     // 3. Start Local Control HTTP Server on 127.0.0.1:8444 for instant End Exam triggers
     let exit_signal = Arc::new(AtomicBool::new(false));
     let local_control = LocalControlServer::start(exit_signal.clone()).ok();
-    log_event("[CITADEL CLIENT] Local control server started on 127.0.0.1:8444");
+    if local_control.is_some() {
+        log_event("[CITADEL CLIENT] Local control server started on 127.0.0.1:8444");
+    } else {
+        log_event("[CITADEL CLIENT] Warning: local control server could not bind 127.0.0.1:8444 (port already in use?).");
+    }
 
     // 4. Initialize Security Coordinator
     log_event("[CITADEL CLIENT] Initializing security lockdown coordinator...");
-    let mut guard = ClientLockdownGuard::new_with_mode(server_ip, server_port, use_isolated_desktop, is_production)
-        .map_err(|e| format!("Failed to initialize security guard: {}", e))?;
+    let mut guard = match ClientLockdownGuard::new_with_mode(server_ip, server_port, use_isolated_desktop, is_production) {
+        Ok(g) => g,
+        Err(e) => {
+            // Hard failures must block exam start with a specific, actionable
+            // message (LLD §3.3) — never exit silently with the workstation
+            // half-locked in a GUI-subsystem binary where stderr is invisible.
+            log_event(&format!("[CITADEL CLIENT] Security guard initialization FAILED: {}", e));
+            show_error_message(
+                "Citadel Lockdown Initialization Error",
+                &format!(
+                    "The secure exam environment could not be initialized:\n\n{}\n\nNo lockdown policies remain active and your desktop is fully restored. Please close the remaining applications by hand if any, then retry or contact your proctor.",
+                    e
+                ),
+            );
+            emergency_restore_system();
+            return Err(format!("Failed to initialize security guard: {}", e).into());
+        }
+    };
 
     // Authenticate local control server with issued session token (Finding F)
     if let Some(ref lc) = local_control {

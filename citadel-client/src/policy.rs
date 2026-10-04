@@ -115,6 +115,17 @@ pub struct LockdownPolicy {
     pub mode: LockdownMode,
 }
 
+/// Developer-mode escape hatch (CITADEL_DEV_MODE=1): keeps developer tooling
+/// (shells, IDEs, WSL, cargo) alive on development workstations even while the
+/// appliance enforces Production lockdown, so the client can be exercised
+/// without killing the developer's own terminals and IDE.
+/// Documented in CITADEL_SECURITY_ARCHITECTURE.md §7 ("Dev mode protection").
+pub fn is_dev_mode() -> bool {
+    std::env::var("CITADEL_DEV_MODE")
+        .map(|v| v == "1")
+        .unwrap_or(false)
+}
+
 impl LockdownPolicy {
     pub fn new(is_production: bool) -> Self {
         Self {
@@ -156,8 +167,11 @@ impl LockdownPolicy {
             return true;
         }
 
-        // 3. Testing mode exemptions (Developer tooling)
-        if self.mode.is_testing() {
+        // 3. Testing / developer-mode exemptions (Developer tooling)
+        // In plain Testing mode these are always allowed. With CITADEL_DEV_MODE=1
+        // they stay allowed even under Production policy, so the client can be
+        // tested on development workstations (§7 dev-mode protection).
+        if self.mode.is_testing() || is_dev_mode() {
             let is_dev_tool = exe_lower.contains("antigravity")
                 || title_lower.contains("antigravity")
                 || exe_lower.contains("cargo")
@@ -226,6 +240,21 @@ pub fn is_windows_system_process(exe_lower: &str) -> bool {
         "securityhealthsystray.exe",
         "securityhealthservice.exe",
         "smartscreen.exe",
+        // Respawning OS infrastructure. These processes are re-created by the OS
+        // the moment they are killed (COM surrogates on demand, WSL VM plumbing
+        // re-armed by its service). Without this whitelist the strict pre-flight
+        // rescan loop and the production runtime watchdog can never converge to
+        // a clean state. Interactive dev entry points (wsl.exe, cmd.exe,
+        // powershell.exe) remain prohibited in Production mode — only the
+        // always-on service plumbing below is exempt.
+        "dllhost.exe",
+        "wslservice.exe",
+        "wslhost.exe",
+        "wslrelay.exe",
+        "wslgpuprocess.exe",
+        "vmcompute.exe",
+        "vmmem",
+        "vmmemwsl",
     ];
 
     SYSTEM_EXES.iter().any(|&s| exe_lower == s || exe_lower.ends_with(&format!("\\{}", s)))

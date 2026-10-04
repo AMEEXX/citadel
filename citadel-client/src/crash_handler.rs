@@ -8,13 +8,18 @@
 //! 4. Bluetooth and WLAN services are restored.
 
 use std::ffi::OsStr;
+use std::io::Write;
 use std::os::windows::ffi::OsStrExt;
 use std::process::Command;
 use std::os::windows::process::CommandExt;
+use std::time::Duration;
 
 use windows::core::PCWSTR;
-use windows::Win32::Foundation::BOOL;
+use windows::Win32::Foundation::{BOOL, CloseHandle};
 use windows::Win32::System::Console::SetConsoleCtrlHandler;
+use windows::Win32::System::Diagnostics::ToolHelp::{
+    CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
+};
 use windows::Win32::System::Registry::{
     RegCloseKey, RegDeleteValueW, RegOpenKeyExW, HKEY, HKEY_CURRENT_USER, KEY_WRITE,
 };
@@ -24,6 +29,88 @@ use windows::Win32::System::StationsAndDesktops::{
 
 fn to_wide(s: &str) -> Vec<u16> {
     OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
+}
+
+/// Appends a diagnostic line to the client log files. Library-side breadcrumb
+/// logging so startup hangs and failures are diagnosable from
+/// %TEMP%\citadel_client.log even in `windows_subsystem` builds where stderr
+/// is invisible.
+pub fn log_client_event(msg: &str) {
+    let mut paths = vec![format!(
+        r"{}\citadel_client.log",
+        std::env::temp_dir().display()
+    )];
+    if let Ok(profile) = std::env::var("USERPROFILE") {
+        paths.push(format!(r"{}\citadel_client.log", profile));
+    }
+    for p in &paths {
+        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p) {
+            let now = format!("{:?}", std::time::SystemTime::now());
+            let _ = writeln!(f, "[{}] {}", now, msg);
+        }
+    }
+}
+
+/// Runs a service-control command with a bounded wait. `net stop` / `net start`
+/// can block for tens of seconds when a service ignores its control signal;
+/// guard initialization and crash restoration must never stall on them, so the
+/// wait is capped and the command is simply left running if it exceeds the cap.
+pub fn run_bounded(program: &str, args: &[&str], timeout_ms: u64) {
+    let child = Command::new(program)
+        .args(args)
+        .creation_flags(0x08000000) // CREATE_NO_WINDOW
+        .spawn();
+    if let Ok(mut child) = child {
+        let mut waited_ms = 0u64;
+        while waited_ms < timeout_ms {
+            match child.try_wait() {
+                Ok(Some(_)) => return,
+                Ok(None) => {
+                    std::thread::sleep(Duration::from_millis(100));
+                    waited_ms += 100;
+                }
+                Err(_) => return,
+            }
+        }
+        eprintln!(
+            "[CITADEL CLIENT] Warning: '{}' still running after {}ms; continuing without waiting.",
+            program, timeout_ms
+        );
+    }
+}
+
+/// Restores the Windows Explorer shell exactly once: relaunches explorer.exe
+/// only when no instance is running. Spawning explorer.exe while the shell is
+/// already alive opens a new File Explorer window instead of restoring the
+/// desktop, so unconditional spawns stack duplicate windows across repeated
+/// crash-restore cycles.
+pub fn relaunch_explorer_shell() {
+    let mut running = false;
+    unsafe {
+        if let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            let mut entry = PROCESSENTRY32W::default();
+            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+            if Process32FirstW(snapshot, &mut entry).is_ok() {
+                loop {
+                    let exe_name = String::from_utf16_lossy(&entry.szExeFile)
+                        .trim_matches(char::from(0))
+                        .to_lowercase();
+                    if exe_name == "explorer.exe" {
+                        running = true;
+                        break;
+                    }
+                    if Process32NextW(snapshot, &mut entry).is_err() {
+                        break;
+                    }
+                }
+            }
+            let _ = CloseHandle(snapshot);
+        }
+    }
+
+    if !running {
+        let _ = Command::new("explorer.exe").spawn();
+    }
 }
 
 pub fn emergency_restore_system() {
@@ -101,27 +188,14 @@ pub fn emergency_restore_system() {
         }
     }
 
-    // 3. Restart explorer.exe
-    let _ = Command::new("explorer.exe").spawn();
+    // 3. Restart explorer.exe (idempotent: only when no shell instance is alive)
+    relaunch_explorer_shell();
 
-    // 4. Restore Bluetooth and WLAN
-    let _ = Command::new("sc")
-        .args(["config", "bthserv", "start=", "auto"])
-        .creation_flags(0x08000000)
-        .output();
-    let _ = Command::new("net")
-        .args(["start", "bthserv"])
-        .creation_flags(0x08000000)
-        .output();
-
-    let _ = Command::new("sc")
-        .args(["config", "WlanSvc", "start=", "auto"])
-        .creation_flags(0x08000000)
-        .output();
-    let _ = Command::new("net")
-        .args(["start", "WlanSvc"])
-        .creation_flags(0x08000000)
-        .output();
+    // 4. Restore Bluetooth and WLAN (bounded waits — never stall crash recovery)
+    run_bounded("sc", &["config", "bthserv", "start=", "auto"], 5000);
+    run_bounded("net", &["start", "bthserv"], 5000);
+    run_bounded("sc", &["config", "WlanSvc", "start=", "auto"], 5000);
+    run_bounded("net", &["start", "WlanSvc"], 5000);
 
     // 5. Restore Precision Touchpad multi-finger gestures
     let touchpad_subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad");

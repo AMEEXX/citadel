@@ -16,7 +16,6 @@
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::io::{Read, Write};
 use std::os::windows::ffi::OsStrExt;
-use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
@@ -99,10 +98,9 @@ pub struct BluetoothLock {
 impl BluetoothLock {
     pub fn acquire() -> Self {
         eprintln!("[CITADEL CLIENT] Disabling Bluetooth service for exam security...");
-        let _ = std::process::Command::new("net")
-            .args(["stop", "bthserv", "/y"])
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .output();
+        // Bounded wait: `net stop` can block for tens of seconds on a service
+        // that ignores its stop signal — guard initialization must never hang.
+        crate::crash_handler::run_bounded("net", &["stop", "bthserv", "/y"], 5000);
 
         BluetoothLock { was_active: true }
     }
@@ -110,14 +108,8 @@ impl BluetoothLock {
     pub fn restore(&self) {
         if self.was_active {
             eprintln!("[CITADEL CLIENT] Restoring Bluetooth service...");
-            let _ = std::process::Command::new("sc")
-                .args(["config", "bthserv", "start=", "auto"])
-                .creation_flags(0x08000000)
-                .output();
-            let _ = std::process::Command::new("net")
-                .args(["start", "bthserv"])
-                .creation_flags(0x08000000)
-                .output();
+            crate::crash_handler::run_bounded("sc", &["config", "bthserv", "start=", "auto"], 5000);
+            crate::crash_handler::run_bounded("net", &["start", "bthserv"], 5000);
         }
     }
 }
@@ -215,6 +207,11 @@ impl ClientLockdownGuard {
     pub fn new_with_mode(server_ip: Ipv4Addr, server_port: u16, use_isolated_desktop: bool, is_production: bool) -> Result<Self, String> {
         install_crash_safety();
 
+        crate::crash_handler::log_client_event(&format!(
+            "[GUARD] Initializing lockdown layers (production={}, isolated_desktop={}, server={}:{}, dev_mode={})",
+            is_production, use_isolated_desktop, server_ip, server_port, crate::policy::is_dev_mode()
+        ));
+
         // === ZERO-FALLBACK MANDATORY ELEVATION ENFORCEMENT ===
         // The Citadel Client MUST ONLY run with elevated Administrator privileges.
         // Degrading into an unprivileged "less control" mode is strictly prohibited.
@@ -225,6 +222,10 @@ impl ClientLockdownGuard {
         }
 
         let auth_token = perform_client_handshake(server_ip, server_port, is_production);
+        crate::crash_handler::log_client_event(&format!(
+            "[GUARD] Appliance handshake complete (session token: {})",
+            if auth_token.is_some() { "issued" } else { "not issued" }
+        ));
 
         let violations = Arc::new(Mutex::new(Vec::new()));
         let stop_signal = Arc::new(AtomicBool::new(false));
@@ -300,8 +301,18 @@ impl ClientLockdownGuard {
         };
 
         // === 7. Suppress Windows Explorer shell if in production ===
-        let kill_explorer = is_production
-            || std::env::var("CITADEL_KILL_EXPLORER").map(|v| v == "1").unwrap_or(false);
+        // CITADEL_DEV_MODE=1 / CITADEL_PRESERVE_EXPLORER=1 keep the developer's
+        // shell alive on workstations (CITADEL_SECURITY_ARCHITECTURE.md §8.4);
+        // CITADEL_KILL_EXPLORER=1 force-enables termination even in local testing.
+        let preserve_explorer = crate::policy::is_dev_mode()
+            || std::env::var("CITADEL_PRESERVE_EXPLORER")
+                .map(|v| v == "1")
+                .unwrap_or(false);
+        let kill_explorer = !preserve_explorer
+            && (is_production
+                || std::env::var("CITADEL_KILL_EXPLORER")
+                    .map(|v| v == "1")
+                    .unwrap_or(false));
 
         let explorer_lock = if kill_explorer && !is_local_test {
             Some(ExplorerLock::acquire())
@@ -322,6 +333,8 @@ impl ClientLockdownGuard {
         } else {
             None
         };
+
+        crate::crash_handler::log_client_event("[GUARD] All lockdown layers initialized; handing over to kiosk browser launch.");
 
         Ok(ClientLockdownGuard {
             _hotkey_handle: hotkey_handle,
@@ -518,15 +531,9 @@ impl ClientLockdownGuard {
             eprintln!("[CITADEL CLIENT] [RESTORE] Bluetooth service restored.");
         }
 
-        // 14. Restore WLAN service (always attempt)
-        let _ = std::process::Command::new("sc")
-            .args(["config", "WlanSvc", "start=", "auto"])
-            .creation_flags(0x08000000)
-            .output();
-        let _ = std::process::Command::new("net")
-            .args(["start", "WlanSvc"])
-            .creation_flags(0x08000000)
-            .output();
+        // 14. Restore WLAN service (always attempt, bounded)
+        crate::crash_handler::run_bounded("sc", &["config", "WlanSvc", "start=", "auto"], 5000);
+        crate::crash_handler::run_bounded("net", &["start", "WlanSvc"], 5000);
         eprintln!("[CITADEL CLIENT] [RESTORE] WLAN service restored.");
 
         // 15. Run emergency_restore_system as final safety net (cleans registry, restores desktop)
