@@ -280,4 +280,10 @@ async fn test_portal_html_features() {
     assert!(portal_html.contains("DEVTOOLS_SHORTCUT"), "Must detect DEVTOOLS_SHORTCUT");
     assert!(portal_html.contains("SPLIT_SCREEN_DETECTED"), "Must detect SPLIT_SCREEN_DETECTED");
     assert!(portal_html.contains("LARGE_PASTE_DETECTED"), "Must detect LARGE_PASTE_DETECTED");
+
+    // Feature 6: Mischief suppression & calm warning window
+    assert!(portal_html.contains("mischief-warning-overlay"), "Must have mischief-warning-overlay element");
+    assert!(portal_html.contains("We saw that, don't try it again kid."), "Must display exact calm warning text");
+    assert!(portal_html.contains("showMischiefWarning"), "Must have showMischiefWarning handler");
+    assert!(portal_html.contains("SCREENSHOT_ATTEMPT"), "Must intercept screenshot shortcuts");
 }

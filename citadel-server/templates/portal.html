@@ -1041,6 +1041,78 @@
     }
 
     /* INVISIBLE DRAG BARRIER OVERLAY */
+
+    /* ─── MISCHIEF & SHORTCUT INTERCEPTION WARNING ─── */
+    .mischief-warning-overlay {
+      position: fixed;
+      top: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(-20px);
+      z-index: 10000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s cubic-bezier(0.16, 1, 0.3, 1), transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .mischief-warning-overlay.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    .mischief-warning-card {
+      background: rgba(18, 17, 16, 0.96);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(219, 184, 126, 0.34);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 24px rgba(219, 184, 126, 0.08), 0 0 0 1px rgba(242, 240, 236, 0.03);
+      border-radius: 6px;
+      padding: 13px 22px;
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      cursor: pointer;
+      user-select: none;
+      min-width: 360px;
+      max-width: 480px;
+      animation: mischiefGlow 3s ease infinite alternate;
+    }
+
+    @keyframes mischiefGlow {
+      0% { border-color: rgba(219, 184, 126, 0.30); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 16px rgba(219, 184, 126, 0.06); }
+      100% { border-color: rgba(219, 184, 126, 0.50); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 26px rgba(219, 184, 126, 0.12); }
+    }
+
+    .mischief-warning-icon {
+      font-size: 20px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .mischief-warning-content {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .mischief-warning-title {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent-amber);
+    }
+
+    .mischief-warning-body {
+      font-family: var(--font-ui);
+      font-size: 13.5px;
+      font-weight: var(--weight-medium);
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+
     #drag-overlay {
       display: none;
       position: fixed;
@@ -1376,6 +1448,17 @@
       </div>
 
       <button id="btn-register-join" class="candidate-reg-btn" onclick="saveCandidateId()" style="font-weight: var(--weight-medium); letter-spacing: 0.02em;">Verify & Enter Assessment</button>
+    </div>
+  </div>
+
+  <!-- MISCHIEF / SHORTCUT ATTEMPT WARNING POPUP -->
+  <div id="mischief-warning-overlay" class="mischief-warning-overlay">
+    <div class="mischief-warning-card" onclick="hideMischiefWarning()">
+      <span class="mischief-warning-icon">🛡️</span>
+      <div class="mischief-warning-content">
+        <span class="mischief-warning-title">Citadel Integrity</span>
+        <span class="mischief-warning-body">We saw that, don't try it again kid.</span>
+      </div>
     </div>
   </div>
 
@@ -1815,6 +1898,28 @@
           lockSubmitButton("Re-run Sample Cases");
         }
       });
+
+      // Suppress and intercept clipboard in Ace editor
+      editor.commands.addCommand({
+        name: 'blockCopy',
+        bindKey: { win: 'Ctrl-C', mac: 'Command-C' },
+        exec: function() { showMischiefWarning('COPY_ATTEMPT', 'Copy command blocked in code editor'); }
+      });
+      editor.commands.addCommand({
+        name: 'blockPaste',
+        bindKey: { win: 'Ctrl-V', mac: 'Command-V' },
+        exec: function() { showMischiefWarning('PASTE_ATTEMPT', 'Paste command blocked in code editor'); }
+      });
+      editor.commands.addCommand({
+        name: 'blockCut',
+        bindKey: { win: 'Ctrl-X', mac: 'Command-X' },
+        exec: function() { showMischiefWarning('CUT_ATTEMPT', 'Cut command blocked in code editor'); }
+      });
+      editor.on('paste', (e) => {
+        e.text = "";
+        showMischiefWarning('PASTE_ATTEMPT', 'Editor paste suppressed');
+      });
+
     }
 
     // =========================================================================
@@ -2720,39 +2825,6 @@ ${data.details || ''}`;
       }
     });
 
-    // 3. Alt+Tab / special key detection
-    document.addEventListener('keydown', (e) => {
-      if (e.altKey && (e.key === 'Tab' || e.keyCode === 9)) {
-        reportDetailedViolation(
-          'ALT_TAB_DETECTED',
-          'Alt+Tab keyboard shortcut detected — candidate attempted to switch to another application window',
-          'HIGH'
-        );
-      }
-      if (e.ctrlKey && (e.key === 'Tab' || e.keyCode === 9)) {
-        reportDetailedViolation(
-          'CTRL_TAB_DETECTED',
-          'Ctrl+Tab keyboard shortcut detected — candidate attempted to switch browser tabs',
-          'HIGH'
-        );
-      }
-      if ((e.metaKey || e.key === 'Meta') && e.key !== 'Meta') {
-        reportDetailedViolation(
-          'META_KEY_COMBO',
-          `Windows/Meta key combination detected (Meta+${e.key}) — candidate used OS-level keyboard shortcut`,
-          'MEDIUM'
-        );
-      }
-      // F12 / Ctrl+Shift+I / Ctrl+Shift+J — DevTools
-      if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && (e.key === 'I' || e.key === 'i' || e.key === 'J' || e.key === 'j' || e.key === 'C' || e.key === 'c'))) {
-        reportDetailedViolation(
-          'DEVTOOLS_SHORTCUT',
-          `Developer tools keyboard shortcut detected (${e.ctrlKey ? 'Ctrl+' : ''}${e.shiftKey ? 'Shift+' : ''}${e.key}) — candidate attempted to open browser developer tools`,
-          'CRITICAL'
-        );
-      }
-    });
-
     // 4. Suspicious window resize (split-screen detection)
     let lastKnownWidth = window.innerWidth;
     let lastKnownHeight = window.innerHeight;
@@ -2773,28 +2845,178 @@ ${data.details || ''}`;
       lastKnownHeight = newHeight;
     });
 
-    // 5. Right-click context menu outside code editor
-    document.addEventListener('contextmenu', (e) => {
-      if (!e.target.closest('.ace_editor')) {
+    // =========================================================================
+    // MISCHIEF & SHORTCUT SUPPRESSION WITH SLEEK CITADEL WARNING POPUP
+    // =========================================================================
+    let mischiefTimeout = null;
+    function showMischiefWarning(violationType, description) {
+      if (typeof reportDetailedViolation === 'function') {
         reportDetailedViolation(
-          'CONTEXT_MENU',
-          'Right-click context menu opened outside code editor — possible copy-paste or inspect element attempt',
-          'LOW'
+          violationType || 'MISCHIEF_ATTEMPT',
+          description || 'Unauthorized shortcut, copy/paste, or escape attempt suppressed',
+          'HIGH'
         );
       }
-    });
 
-    // 6. Large paste detection
+      let overlay = document.getElementById('mischief-warning-overlay');
+      if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'mischief-warning-overlay';
+        overlay.className = 'mischief-warning-overlay';
+        overlay.innerHTML = `
+          <div class="mischief-warning-card" onclick="hideMischiefWarning()">
+            <span class="mischief-warning-icon">🛡️</span>
+            <div class="mischief-warning-content">
+              <span class="mischief-warning-title">Citadel Integrity</span>
+              <span class="mischief-warning-body">We saw that, don't try it again kid.</span>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(overlay);
+      }
+
+      overlay.classList.remove('visible');
+      void overlay.offsetWidth; // Force DOM reflow for re-trigger
+      overlay.classList.add('visible');
+
+      if (mischiefTimeout) {
+        clearTimeout(mischiefTimeout);
+      }
+      mischiefTimeout = setTimeout(() => {
+        hideMischiefWarning();
+      }, 3200);
+    }
+
+    function hideMischiefWarning() {
+      const overlay = document.getElementById('mischief-warning-overlay');
+      if (overlay) {
+        overlay.classList.remove('visible');
+      }
+    }
+
+    // 1. Copy, Cut, and Paste suppression across entire document
+    document.addEventListener('copy', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showMischiefWarning('COPY_ATTEMPT', 'Clipboard copy attempt suppressed');
+    }, true);
+
+    document.addEventListener('cut', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showMischiefWarning('CUT_ATTEMPT', 'Clipboard cut attempt suppressed');
+    }, true);
+
     document.addEventListener('paste', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const pastedText = (e.clipboardData || window.clipboardData)?.getData('text') || '';
       if (pastedText.length > 80) {
         reportDetailedViolation(
           'LARGE_PASTE_DETECTED',
-          `Large text paste detected (${pastedText.length} characters) — candidate may have pasted code from an external source`,
+          `Large text paste detected (${pastedText.length} characters) — candidate attempted to paste code from an external source`,
           'HIGH'
         );
       }
-    });
+      showMischiefWarning('PASTE_ATTEMPT', 'Clipboard paste attempt suppressed');
+    }, true);
+
+    // 2. Right-click context menu suppression
+    document.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showMischiefWarning('CONTEXT_MENU_BLOCKED', 'Right-click context menu suppressed');
+    }, true);
+
+    // 3. Drag-and-drop suppression
+    document.addEventListener('dragover', (e) => { e.preventDefault(); }, true);
+    document.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showMischiefWarning('DROP_BLOCKED', 'Drag-and-drop injection attempt suppressed');
+    }, true);
+
+    // 4. Keyboard shortcuts interception (Capture phase runs before all elements)
+    document.addEventListener('keydown', (e) => {
+      const key = e.key ? e.key.toLowerCase() : '';
+      const isCtrlOrMeta = e.ctrlKey || e.metaKey;
+
+      // Copy / Cut / Paste shortcuts
+      if (isCtrlOrMeta && (key === 'c' || key === 'v' || key === 'x')) {
+        e.preventDefault();
+        e.stopPropagation();
+        const action = key === 'c' ? 'Copy' : (key === 'v' ? 'Paste' : 'Cut');
+        showMischiefWarning(`${action.toUpperCase()}_SHORTCUT`, `${action} shortcut (${isCtrlOrMeta ? 'Ctrl/Cmd+' : ''}${key.toUpperCase()}) suppressed`);
+        return;
+      }
+
+      // Shift+Insert (Windows paste)
+      if (e.shiftKey && e.key === 'Insert') {
+        e.preventDefault();
+        e.stopPropagation();
+        showMischiefWarning('PASTE_SHORTCUT', 'Shift+Insert paste shortcut suppressed');
+        return;
+      }
+
+      // Screenshot shortcuts: PrintScreen, Win+Shift+S, Cmd+Shift+3,4,5, Ctrl+Shift+S
+      if (e.key === 'PrintScreen' || e.keyCode === 44) {
+        e.preventDefault();
+        e.stopPropagation();
+        showMischiefWarning('SCREENSHOT_ATTEMPT', 'PrintScreen screenshot shortcut intercepted and suppressed');
+        return;
+      }
+      if (isCtrlOrMeta && e.shiftKey && (key === 's' || key === '3' || key === '4' || key === '5')) {
+        e.preventDefault();
+        e.stopPropagation();
+        showMischiefWarning('SCREENSHOT_ATTEMPT', 'Screen capture shortcut intercepted and suppressed');
+        return;
+      }
+
+      // Print / Save page shortcuts
+      if (isCtrlOrMeta && (key === 'p' || key === 's')) {
+        e.preventDefault();
+        e.stopPropagation();
+        showMischiefWarning('PAGE_EXPORT_SHORTCUT', `Ctrl+${key.toUpperCase()} export shortcut suppressed`);
+        return;
+      }
+
+      // DevTools / Inspect shortcuts (F12, Ctrl+Shift+I/J/C, Ctrl+U)
+      if (e.key === 'F12' || (isCtrlOrMeta && e.shiftKey && (key === 'i' || key === 'j' || key === 'c')) || (isCtrlOrMeta && key === 'u')) {
+        e.preventDefault();
+        e.stopPropagation();
+        showMischiefWarning('DEVTOOLS_SHORTCUT', 'Developer tools shortcut intercepted and suppressed');
+        return;
+      }
+
+      // Alt+Tab / special key detection
+      if (e.altKey && (e.key === 'Tab' || e.keyCode === 9)) {
+        e.preventDefault();
+        showMischiefWarning('ALT_TAB_DETECTED', 'Alt+Tab window switch shortcut detected');
+        return;
+      }
+      if (isCtrlOrMeta && (e.key === 'Tab' || e.keyCode === 9)) {
+        e.preventDefault();
+        showMischiefWarning('CTRL_TAB_DETECTED', 'Ctrl+Tab tab switch shortcut detected');
+        return;
+      }
+      if ((e.metaKey || e.key === 'Meta') && e.key !== 'Meta') {
+        showMischiefWarning('META_KEY_COMBO', `Windows/Meta key combination detected (Meta+${e.key})`);
+        return;
+      }
+
+      // Tab/Window close or reload shortcuts
+      if (isCtrlOrMeta && (key === 'w' || key === 'q')) {
+        e.preventDefault();
+        showMischiefWarning('WINDOW_CLOSE_ATTEMPT', 'Tab/Window close shortcut intercepted and suppressed');
+        return;
+      }
+      if (e.key === 'F5' || (isCtrlOrMeta && key === 'r')) {
+        e.preventDefault();
+        showMischiefWarning('PAGE_RELOAD_ATTEMPT', 'Page reload shortcut suppressed');
+        return;
+      }
+    }, true);
+
 
     // Window beforeunload: only send logout beacon if candidate explicitly clicked End Exam
     window.addEventListener('beforeunload', () => {
