@@ -294,3 +294,116 @@ async fn test_portal_html_features() {
     assert!(portal_html.contains("checkAutocomplete"), "Must include checkAutocomplete function");
     assert!(portal_html.contains("applyAutocomplete"), "Must include applyAutocomplete function");
 }
+
+#[tokio::test]
+async fn test_recruiter_bulk_operations_and_search() {
+    let app = build_app();
+
+    // 1. Enroll 3 candidates in roster
+    enroll_candidate(&app, "bulk1@citadel.com").await;
+    enroll_candidate(&app, "bulk2@citadel.com").await;
+    enroll_candidate(&app, "bulk3@citadel.com").await;
+
+    // 2. Test bulk-revoke
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/roster/bulk-revoke?key=citadel-recruiter-key-2026")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&json!({
+                    "ids": ["bulk1@citadel.com", "bulk2@citadel.com"],
+                    "allowed": false
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // Verify roster reflects revocation
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/admin/roster?key=citadel-recruiter-key-2026")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let roster: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let candidates = roster.get("candidates").unwrap().as_array().unwrap();
+    
+    let c1 = candidates.iter().find(|c| c["email"] == "bulk1@citadel.com").unwrap();
+    assert_eq!(c1["allowed"], false);
+    let c3 = candidates.iter().find(|c| c["email"] == "bulk3@citadel.com").unwrap();
+    assert_eq!(c3["allowed"], true);
+
+    // 3. Test bulk-delete
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/admin/roster/bulk-delete?key=citadel-recruiter-key-2026")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&json!({
+                    "ids": ["bulk1@citadel.com", "bulk2@citadel.com"]
+                })).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+
+    // Verify deleted from roster
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/api/v1/admin/roster?key=citadel-recruiter-key-2026")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let roster: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let candidates = roster.get("candidates").unwrap().as_array().unwrap();
+    assert!(candidates.iter().all(|c| c["email"] != "bulk1@citadel.com"));
+    assert!(candidates.iter().all(|c| c["email"] != "bulk2@citadel.com"));
+    assert!(candidates.iter().any(|c| c["email"] == "bulk3@citadel.com"));
+
+    // 4. Test Recruiter HTML template contents
+    let res = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri("/recruiter?key=citadel-recruiter-key-2026")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res.status(), StatusCode::OK);
+    let bytes = res.into_body().collect().await.unwrap().to_bytes();
+    let recruiter_html = String::from_utf8_lossy(&bytes);
+
+    assert!(recruiter_html.contains("roster-search-input"), "Must have roster search input");
+    assert!(recruiter_html.contains("fleet-search-input"), "Must have fleet search input");
+    assert!(recruiter_html.contains("filterRosterTable()"), "Must have filterRosterTable function");
+    assert!(recruiter_html.contains("filterFleetTable()"), "Must have filterFleetTable function");
+    assert!(recruiter_html.contains("bulkDeleteRoster()"), "Must have bulkDeleteRoster function");
+    assert!(recruiter_html.contains("bulkRevokeRoster(false)"), "Must have bulkRevokeRoster function");
+    assert!(recruiter_html.contains("bulkDisqualifyFleet()"), "Must have bulkDisqualifyFleet function");
+    assert!(recruiter_html.contains("bulkDeleteFleet()"), "Must have bulkDeleteFleet function");
+    assert!(recruiter_html.contains("preserveScroll"), "Must handle scroll preservation");
+}

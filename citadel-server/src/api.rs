@@ -1,5 +1,5 @@
 use crate::persistence::{
-    load_all_candidate_states, load_roster, parse_roster_csv,
+    load_all_candidate_states, load_roster, parse_roster_csv, sanitize_filename,
     save_candidate_state, save_roster, save_submission_snapshot, save_violation_snapshot,
     CandidateResumeState, CandidateState, ExamRoster, RosterEntry,
 };
@@ -571,7 +571,11 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/api/v1/admin/roster", get(admin_get_roster_handler))
         .route("/api/v1/admin/roster/upload", post(admin_upload_roster_handler))
         .route("/api/v1/admin/roster/add", post(admin_add_roster_candidate_handler))
+        .route("/api/v1/admin/roster/bulk-delete", post(admin_bulk_delete_roster_handler))
+        .route("/api/v1/admin/roster/bulk-revoke", post(admin_bulk_revoke_roster_handler))
         .route("/api/v1/admin/roster/:roll", delete(admin_delete_roster_candidate_handler))
+        .route("/api/v1/admin/candidates/bulk-disqualify", post(admin_bulk_disqualify_candidates_handler))
+        .route("/api/v1/admin/candidates/bulk-delete", post(admin_bulk_delete_candidates_handler))
         .route("/api/v1/admin/candidates/:id/extend-time", post(admin_extend_candidate_time_handler))
         .route("/api/v1/admin/exam/passcode", get(admin_get_passcode_handler).post(admin_set_passcode_handler))
 
@@ -2818,6 +2822,141 @@ async fn admin_add_roster_candidate_handler(
     let _ = save_roster(&state.state_dir, &roster);
 
     Ok(Json(serde_json::json!({ "status": "success" })))
+}
+
+
+#[derive(Debug, Deserialize)]
+pub struct BulkIdsPayload {
+    pub ids: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct BulkRevokePayload {
+    pub ids: Vec<String>,
+    #[serde(default)]
+    pub allowed: bool,
+}
+
+async fn admin_bulk_delete_roster_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(payload): Json<BulkIdsPayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let target_ids: std::collections::HashSet<String> = payload.ids.iter().map(|s| s.to_lowercase()).collect();
+    let mut roster = state.roster.write().unwrap();
+    let initial_count = roster.candidates.len();
+    roster.candidates.retain(|c| {
+        let id = c.get_identifier().to_lowercase();
+        let roll = c.roll_number.as_deref().map(|r| r.to_lowercase()).unwrap_or_default();
+        !target_ids.contains(&id) && !target_ids.contains(&roll)
+    });
+    let deleted_count = initial_count - roster.candidates.len();
+    let _ = save_roster(&state.state_dir, &roster);
+
+    Ok(Json(serde_json::json!({ "status": "success", "deleted_count": deleted_count })))
+}
+
+async fn admin_bulk_revoke_roster_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(payload): Json<BulkRevokePayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let target_ids: std::collections::HashSet<String> = payload.ids.iter().map(|s| s.to_lowercase()).collect();
+    let mut roster = state.roster.write().unwrap();
+    let mut modified_count = 0;
+    for c in roster.candidates.iter_mut() {
+        let id = c.get_identifier().to_lowercase();
+        let roll = c.roll_number.as_deref().map(|r| r.to_lowercase()).unwrap_or_default();
+        if target_ids.contains(&id) || target_ids.contains(&roll) {
+            c.allowed = payload.allowed;
+            modified_count += 1;
+        }
+    }
+    let _ = save_roster(&state.state_dir, &roster);
+
+    Ok(Json(serde_json::json!({ "status": "success", "modified_count": modified_count })))
+}
+
+async fn admin_bulk_disqualify_candidates_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(payload): Json<BulkIdsPayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let target_ids: std::collections::HashSet<String> = payload.ids.iter().map(|s| s.to_lowercase()).collect();
+    let now = chrono::Utc::now().to_rfc3339();
+    let mut matched_keys = Vec::new();
+
+    {
+        let mut cands = state.candidates.lock().unwrap();
+        for (k, cand) in cands.iter_mut() {
+            if target_ids.contains(&k.to_lowercase()) || target_ids.contains(&cand.candidate_id.to_lowercase()) {
+                cand.status = "Disqualified".to_string();
+                cand.last_seen = now.clone();
+                matched_keys.push(k.clone());
+            }
+        }
+    }
+
+    let modified_count = matched_keys.len();
+    {
+        let mut c_states = state.candidate_states.lock().unwrap();
+        for key in &matched_keys {
+            if let Some(cand_st) = c_states.get_mut(key) {
+                cand_st.status = "Disqualified".to_string();
+                cand_st.exit_reason = Some("proctor_disqualified".to_string());
+                cand_st.exit_details = Some("Disqualified by proctor (bulk action)".to_string());
+                cand_st.exit_timestamp = Some(now.clone());
+                cand_st.last_seen = now.clone();
+                let _ = save_candidate_state(&state.state_dir, cand_st);
+            }
+        }
+    }
+
+    Ok(Json(serde_json::json!({ "status": "success", "disqualified_count": modified_count })))
+}
+
+async fn admin_bulk_delete_candidates_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+    Json(payload): Json<BulkIdsPayload>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    if !is_admin_authorized(&headers, &query, &state) {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let target_ids: std::collections::HashSet<String> = payload.ids.iter().map(|s| s.to_lowercase()).collect();
+    let mut cands = state.candidates.lock().unwrap();
+    let keys_to_remove: Vec<String> = cands
+        .iter()
+        .filter(|(k, c)| target_ids.contains(&k.to_lowercase()) || target_ids.contains(&c.candidate_id.to_lowercase()))
+        .map(|(k, _)| k.clone())
+        .collect();
+
+    let count = keys_to_remove.len();
+    for k in &keys_to_remove {
+        cands.remove(k);
+        let safe_name = sanitize_filename(k);
+        let path = state.state_dir.join("candidates").join(format!("{}.json", safe_name));
+        let _ = std::fs::remove_file(path);
+    }
+
+    Ok(Json(serde_json::json!({ "status": "success", "deleted_count": count })))
 }
 
 async fn admin_delete_roster_candidate_handler(
