@@ -2012,7 +2012,7 @@
       if (!btn) return;
       btn.disabled = false;
       btn.className = "btn-action btn-submit unlocked";
-      document.getElementById('submit-icon').innerText = "✓";
+      document.getElementById('submit-icon').innerText = "";
       document.getElementById('submit-label').innerText = "Submit Solution";
     }
 
@@ -2177,8 +2177,7 @@ ${data.details || ''}`;
         const isPassed = diff && (diff.is_passed === true || diff.passed === true);
         const activeClass = (activeHiddenCaseIdx === null && idx === activeCaseIdx) ? 'active' : '';
         const statusClass = hasRun ? (isPassed ? 'passed' : 'failed') : '';
-        const symbol = hasRun ? (isPassed ? '✓' : '✗') : '';
-        return `<button class="case-pill ${activeClass} ${statusClass}" onclick="selectCaseView(${idx})">Case ${idx + 1} ${symbol}</button>`;
+        return `<button class="case-pill ${activeClass} ${statusClass}" onclick="selectCaseView(${idx})">Case ${idx + 1}</button>`;
       }).join('');
 
       // If hidden test cases were evaluated, append separator and lock-prefixed hidden pills
@@ -2190,9 +2189,8 @@ ${data.details || ''}`;
           const isPassed = diff && (diff.is_passed === true || diff.passed === true);
           const activeClass = (activeHiddenCaseIdx === idx) ? 'active' : '';
           const statusClass = isPassed ? 'passed' : 'failed';
-          const symbol = isPassed ? '✓' : '✗';
           const tooltip = isPassed ? `Hidden Case ${caseNum}: Passed` : `Hidden Case ${caseNum}: Failed`;
-          return `<button class="case-pill hidden-case ${activeClass} ${statusClass}" title="${tooltip}" onclick="selectHiddenCaseView(${idx})">🔒 Case ${caseNum} ${symbol}</button>`;
+          return `<button class="case-pill hidden-case ${activeClass} ${statusClass}" title="${tooltip}" onclick="selectHiddenCaseView(${idx})">🔒 Case ${caseNum}</button>`;
         }).join('');
       }
 
@@ -2228,11 +2226,11 @@ ${data.details || ''}`;
 
       if (actualBox) {
         if (isPassed) {
-          actualBox.innerText = `Status: Passed ✓ (${diff.execution_ms || 0} ms)\nServer Evaluation: Output verified against secret test oracle.`;
+          actualBox.innerText = `Status: Passed (${diff.execution_ms || 0} ms)\nServer Evaluation: Output verified against secret test oracle.`;
           actualBox.style.color = 'var(--accent-green)';
         } else {
           const err = diff.error_message || diff.actual || 'Wrong Answer';
-          actualBox.innerText = `Status: Failed ✗ (${diff.execution_ms || 0} ms)\n${err}`;
+          actualBox.innerText = `Status: Failed (${diff.execution_ms || 0} ms)\n${err}`;
           actualBox.style.color = 'var(--accent-red)';
         }
       }
