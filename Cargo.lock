@@ -143,6 +143,8 @@ version = "0.2.0"
 dependencies = [
  "guard-net",
  "guard-svc",
+ "serde",
+ "serde_json",
  "windows",
  "winresource",
 ]

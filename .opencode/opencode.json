@@ -1,24 +1,43 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "selora": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Selora Gateway",
-      "options": {
-        "baseURL": "https://api.selora.lol/v1",
-        "apiKey": "sk-gw-02RJJgRhfNVUnRp-RNUh6rZdo2VyTaa6u5QpT1OIN10"
-      },
-      "models": {
-        "claude-sonnet-5": {
-          "name": "Claude Sonnet"
-        },
-        "gpt-6-astra": {
-          "name": "GPT-6 Astra"
-        }
-      }
-    }
-  },
-  "plugin": [
-    ".opencode/plugins/graphify.js"
-  ]
+    "$schema":  "https://opencode.ai/config.json",
+    "provider":  {
+                     "selora":  {
+                                    "npm":  "@ai-sdk/openai-compatible",
+                                    "name":  "Selora Gateway",
+                                    "options":  {
+                                                    "baseURL":  "https://api.selora.lol/v1",
+                                                    "apiKey":  "sk-gw-02RJJgRhfNVUnRp-RNUh6rZdo2VyTaa6u5QpT1OIN10"
+                                                },
+                                    "models":  {
+                                                   "claude-sonnet-5":  {
+                                                                           "name":  "Claude Sonnet"
+                                                                       },
+                                                   "gpt-6-astra":  {
+                                                                       "name":  "GPT-6 Astra"
+                                                                   }
+                                               }
+                                },
+                     "codecraft":  {
+                                       "npm":  "@ai-sdk/openai-compatible",
+                                       "name":  "CodeCraft API",
+                                       "env":  [
+                                                   "CODECRAFT_API_KEY"
+                                               ],
+                                       "options":  {
+                                                       "baseURL":  "https://codecraftapi.com/v1",
+                                                       "apiKey":  "cc_DdONil8sRIhN9KQ6skB8BqRMhsPEvBneA4Ewmmj8Kj8Oyk6B"
+                                                   },
+                                       "models":  {
+                                                      "claude-opus-4.8":  {
+                                                                              "name":  "claude-opus-4.8"
+                                                                          },
+                                                      "claude-opus-5.5":  {
+                                                                              "name":  "claude-opus-5.5"
+                                                                          }
+                                                  }
+                                   }
+                 },
+    "plugin":  [
+                   ".opencode/plugins/graphify.js"
+               ]
 }

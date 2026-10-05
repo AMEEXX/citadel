@@ -174,6 +174,7 @@
     }
   </style>
   <link rel="stylesheet" href="/static/citadel-skin.css">
+  <script src="/static/citadel-restore.js"></script>
 </head>
 <body class="app-gate">
   <!-- {{TESTING_ONLY_RESTORE_START}} -->
@@ -230,37 +231,19 @@
   <script>
     async function triggerGatekeeperRestore() {
       if (!confirm("Restore workstation capabilities and terminate all Citadel processes?")) return;
-      try {
-        await fetch('/api/v1/client/kill-all-lockdown', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidate_id: 'gatekeeper-restore', reason: 'Gatekeeper restore click' })
+      if (typeof window.citadelRestore === 'function') {
+        await window.citadelRestore({
+          isForced: true,
+          isTerminalState: true,
+          candidateId: 'gatekeeper-restore',
+          onNoClient: () => {
+            alert("No Citadel lockdown detected on this workstation \u2014 nothing to restore.\n\nIf you need manual recovery, run RESTORE_MY_LAPTOP.bat.");
+          },
+          onVerified: () => {
+            alert("Workstation verified 100% clean and restored! All restrictions have been released.");
+          }
         });
-      } catch(e) {}
-      try {
-        await fetch('/api/v1/integrity/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ candidate_id: 'gatekeeper-restore', reason: 'Gatekeeper restore click' })
-        });
-      } catch(e) {}
-      let foundPort = null;
-      for (let p = 8444; p <= 8450; p++) {
-        try {
-          const res = await fetch(`http://127.0.0.1:${p}/health`);
-          if (res.ok) { foundPort = p; break; }
-        } catch (e) {}
       }
-      if (foundPort) {
-        try {
-          await fetch(`http://127.0.0.1:${foundPort}/api/v1/client/end-exam`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ reason: 'Gatekeeper page restore click' })
-          });
-        } catch (e) {}
-      }
-      alert("Workstation restoration initiated! All restrictions and processes will terminate.");
     }
     (function() {
       const isProd = /* {{IS_PRODUCTION_FLAG}} */ false;

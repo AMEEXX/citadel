@@ -9,6 +9,7 @@
 //! 5. System clipboard wiper (prevents external copy/paste data leakage)
 //! 6. Active process watchdog (detects and terminates blacklisted cheat processes)
 
+use std::collections::{HashMap, HashSet};
 use std::ffi::OsStr;
 use std::os::windows::ffi::OsStrExt;
 use std::path::PathBuf;
@@ -17,28 +18,31 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
+use serde::{Deserialize, Serialize};
+
 use windows::core::{w, PCWSTR, PWSTR};
-use windows::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND, LPARAM, RECT};
+use windows::Win32::Foundation::{BOOL, CloseHandle, HANDLE, HWND, LPARAM, RECT, WPARAM};
 use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::Registry::{
-    RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegSetValueExW, HKEY,
-    HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_DWORD,
+    RegCloseKey, RegCreateKeyExW, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW,
+    RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, REG_DWORD, REG_SZ,
+    REG_VALUE_TYPE,
 };
+use windows::Win32::UI::Shell::{SHChangeNotify, SHCNE_ASSOCCHANGED, SHCNF_IDLIST};
 use windows::Win32::System::Threading::{
     CreateProcessW, GetExitCodeProcess, OpenProcess, TerminateProcess, CREATE_NEW_PROCESS_GROUP,
     PROCESS_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_TERMINATE, STARTF_USESHOWWINDOW, STARTUPINFOW,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::EnableWindow;
-use std::collections::HashSet;
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, EnumWindows, FindWindowW, GetForegroundWindow, GetSystemMetrics,
     GetWindowRect, GetWindowThreadProcessId, SetForegroundWindow, SetWindowPos, ShowWindow,
-    HWND_BOTTOM, HWND_NOTOPMOST, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN,
+    HWND_BOTTOM, HWND_BROADCAST, HWND_NOTOPMOST, HWND_TOPMOST, SM_CXSCREEN, SM_CYSCREEN,
     SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
-    SW_HIDE, SW_MAXIMIZE, SW_SHOW,
+    SW_HIDE, SW_MAXIMIZE, SW_SHOW, SendMessageTimeoutW, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
 };
 
 // ============================================================================
@@ -119,21 +123,235 @@ impl Drop for TaskbarLock {
 }
 
 // ============================================================================
-// 2. Touchpad Gesture Protection & Restoration
+// 2. Touchpad Gesture Protection, Snapshot & Lockdown
 // ============================================================================
 
-const TOUCHPAD_REG_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
+pub const PRECISION_TOUCHPAD_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad";
+pub const PRECISION_TOUCHPAD_GESTURES_SUBKEY: &str = r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad\Gestures";
+pub const CITADEL_GESTURE_BACKUP_SUBKEY: &str = r"Software\Citadel\GestureBackup";
 
-/// Manages multi-finger touchpad gesture safety.
-///
-/// Multi-finger gestures (3-finger & 4-finger swipes) synthesize system hotkeys
-/// (Win+Tab, Alt+Tab, Win+D), which are actively intercepted and dropped by Citadel's
-/// low-level keyboard hook (evaluate_keystroke) during active lockdown.
-///
-/// To protect the candidate's personal laptop and ensure their touchpad gestures
-/// remain 100% functional after the exam, TouchpadLock restores the standard
-/// Precision Touchpad configuration and clears any stale zero-overrides.
-pub struct TouchpadLock;
+pub const TOUCHPAD_DWORD_KEYS: &[&str] = &[
+    "ThreeFingerSlideEnabled",
+    "ThreeFingerTapEnabled",
+    "FourFingerSlideEnabled",
+    "FourFingerTapEnabled",
+    "ThreeFingerSlideUp",
+    "ThreeFingerSlideDown",
+    "ThreeFingerSlideLeft",
+    "ThreeFingerSlideRight",
+    "ThreeFingerTap",
+    "FourFingerSlideUp",
+    "FourFingerSlideDown",
+    "FourFingerSlideLeft",
+    "FourFingerSlideRight",
+    "FourFingerTap",
+    "ThreeFingerDownEnabled",
+    "FourFingerDownEnabled",
+];
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TouchpadBackup {
+    pub values: HashMap<String, Option<u32>>,
+    pub gestures_sub_values: HashMap<String, Option<u32>>,
+    pub timestamp: u64,
+}
+
+impl TouchpadBackup {
+    pub fn read_current_state() -> Self {
+        let mut values = HashMap::new();
+        let subkey_w = to_wide_str(PRECISION_TOUCHPAD_SUBKEY);
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(subkey_w.as_ptr()),
+                0,
+                KEY_READ,
+                &mut hkey,
+            ).is_ok() {
+                for &k in TOUCHPAD_DWORD_KEYS {
+                    let kw = to_wide_str(k);
+                    let mut data = [0u8; 4];
+                    let mut data_len = 4u32;
+                    let mut rtype = REG_VALUE_TYPE(0);
+                    if RegQueryValueExW(
+                        hkey,
+                        PCWSTR(kw.as_ptr()),
+                        None,
+                        Some(&mut rtype),
+                        Some(data.as_mut_ptr()),
+                        Some(&mut data_len),
+                    ).is_ok() && rtype == REG_DWORD && data_len == 4 {
+                        values.insert(k.to_string(), Some(u32::from_le_bytes(data)));
+                    } else {
+                        values.insert(k.to_string(), None);
+                    }
+                }
+                let _ = RegCloseKey(hkey);
+            } else {
+                for &k in TOUCHPAD_DWORD_KEYS {
+                    values.insert(k.to_string(), None);
+                }
+            }
+        }
+
+        let mut gestures_sub_values = HashMap::new();
+        let gestures_w = to_wide_str(PRECISION_TOUCHPAD_GESTURES_SUBKEY);
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(gestures_w.as_ptr()),
+                0,
+                KEY_READ,
+                &mut hkey,
+            ).is_ok() {
+                for &k in TOUCHPAD_DWORD_KEYS {
+                    let kw = to_wide_str(k);
+                    let mut data = [0u8; 4];
+                    let mut data_len = 4u32;
+                    let mut rtype = REG_VALUE_TYPE(0);
+                    if RegQueryValueExW(
+                        hkey,
+                        PCWSTR(kw.as_ptr()),
+                        None,
+                        Some(&mut rtype),
+                        Some(data.as_mut_ptr()),
+                        Some(&mut data_len),
+                    ).is_ok() && rtype == REG_DWORD && data_len == 4 {
+                        gestures_sub_values.insert(k.to_string(), Some(u32::from_le_bytes(data)));
+                    } else {
+                        gestures_sub_values.insert(k.to_string(), None);
+                    }
+                }
+                let _ = RegCloseKey(hkey);
+            }
+        }
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        Self {
+            values,
+            gestures_sub_values,
+            timestamp,
+        }
+    }
+
+    pub fn persist(&self) {
+        if let Ok(json) = serde_json::to_string_pretty(self) {
+            // 1. %ProgramData%\Citadel\state\pre_exam_snapshot.json
+            let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+            let pd_dir = std::path::Path::new(&program_data).join("Citadel").join("state");
+            let _ = std::fs::create_dir_all(&pd_dir);
+            let pd_file = pd_dir.join("pre_exam_snapshot.json");
+            let _ = std::fs::write(&pd_file, &json);
+
+            // 2. %TEMP%\citadel_gesture_backup.json
+            let temp_dir = std::env::var("TEMP").unwrap_or_else(|_| r"C:\Windows\Temp".to_string());
+            let temp_file = std::path::Path::new(&temp_dir).join("citadel_gesture_backup.json");
+            let _ = std::fs::write(&temp_file, &json);
+
+            // 3. HKCU\Software\Citadel\GestureBackup
+            let reg_subkey = to_wide_str(CITADEL_GESTURE_BACKUP_SUBKEY);
+            unsafe {
+                let mut hkey = HKEY::default();
+                if RegCreateKeyExW(
+                    HKEY_CURRENT_USER,
+                    PCWSTR(reg_subkey.as_ptr()),
+                    0,
+                    None,
+                    windows::Win32::System::Registry::REG_OPEN_CREATE_OPTIONS(0),
+                    KEY_WRITE,
+                    None,
+                    &mut hkey,
+                    None,
+                ).is_ok() {
+                    let json_w = to_wide_str(&json);
+                    let val_name_w = to_wide_str("SnapshotJson");
+                    let bytes = std::slice::from_raw_parts(
+                        json_w.as_ptr() as *const u8,
+                        json_w.len() * 2,
+                    );
+                    let _ = RegSetValueExW(
+                        hkey,
+                        PCWSTR(val_name_w.as_ptr()),
+                        0,
+                        REG_SZ,
+                        Some(bytes),
+                    );
+                    let _ = RegCloseKey(hkey);
+                }
+            }
+        }
+    }
+
+    pub fn load() -> Option<Self> {
+        // Priority 1: ProgramData
+        let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+        let pd_file = std::path::Path::new(&program_data).join("Citadel").join("state").join("pre_exam_snapshot.json");
+        if let Ok(content) = std::fs::read_to_string(&pd_file) {
+            if let Ok(backup) = serde_json::from_str::<Self>(&content) {
+                return Some(backup);
+            }
+        }
+
+        // Priority 2: TEMP
+        let temp_dir = std::env::var("TEMP").unwrap_or_else(|_| r"C:\Windows\Temp".to_string());
+        let temp_file = std::path::Path::new(&temp_dir).join("citadel_gesture_backup.json");
+        if let Ok(content) = std::fs::read_to_string(&temp_file) {
+            if let Ok(backup) = serde_json::from_str::<Self>(&content) {
+                return Some(backup);
+            }
+        }
+
+        // Priority 3: Registry
+        let reg_subkey = to_wide_str(CITADEL_GESTURE_BACKUP_SUBKEY);
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(reg_subkey.as_ptr()),
+                0,
+                KEY_READ,
+                &mut hkey,
+            ).is_ok() {
+                let val_name_w = to_wide_str("SnapshotJson");
+                let mut buf = vec![0u8; 16384];
+                let mut buf_len = buf.len() as u32;
+                let mut rtype = REG_VALUE_TYPE(0);
+                if RegQueryValueExW(
+                    hkey,
+                    PCWSTR(val_name_w.as_ptr()),
+                    None,
+                    Some(&mut rtype),
+                    Some(buf.as_mut_ptr()),
+                    Some(&mut buf_len),
+                ).is_ok() {
+                    let u16_slice = std::slice::from_raw_parts(
+                        buf.as_ptr() as *const u16,
+                        (buf_len as usize) / 2,
+                    );
+                    let s = String::from_utf16_lossy(u16_slice);
+                    let trimmed = s.trim_matches(char::from(0));
+                    if let Ok(backup) = serde_json::from_str::<Self>(trimmed) {
+                        let _ = RegCloseKey(hkey);
+                        return Some(backup);
+                    }
+                }
+                let _ = RegCloseKey(hkey);
+            }
+        }
+
+        None
+    }
+}
+
+pub struct TouchpadLock {
+    pub backup: Option<TouchpadBackup>,
+}
 
 fn to_wide_str(s: &str) -> Vec<u16> {
     OsStr::new(s).encode_wide().chain(std::iter::once(0)).collect()
@@ -141,12 +359,196 @@ fn to_wide_str(s: &str) -> Vec<u16> {
 
 impl TouchpadLock {
     pub fn acquire() -> Self {
-        Self::restore_system_defaults();
-        TouchpadLock
+        Self::snapshot_and_disable()
+    }
+
+    /// Step 0 of Pre-flight: snapshots current touchpad state prior to any kills/locks
+    pub fn snapshot_before_exam() -> TouchpadBackup {
+        if let Some(existing) = TouchpadBackup::load() {
+            eprintln!("[TOUCHPAD] Existing pre-exam gesture snapshot found (ts: {}). Retaining.", existing.timestamp);
+            return existing;
+        }
+
+        eprintln!("[TOUCHPAD] Capturing clean pre-exam gesture snapshot...");
+        let backup = TouchpadBackup::read_current_state();
+        backup.persist();
+        eprintln!("[TOUCHPAD] Clean pre-exam gesture snapshot persisted to ProgramData, TEMP, and HKCU.");
+        backup
+    }
+
+    /// Disables touchpad multi-finger gestures during the exam session
+    pub fn snapshot_and_disable() -> Self {
+        let backup = Self::snapshot_before_exam();
+
+        eprintln!("[TOUCHPAD] Disabling precision touchpad gestures for exam lockdown...");
+        let zero_bytes = 0u32.to_le_bytes();
+
+        let subkey_w = to_wide_str(PRECISION_TOUCHPAD_SUBKEY);
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(subkey_w.as_ptr()),
+                0,
+                KEY_WRITE,
+                &mut hkey,
+            ).is_ok() {
+                for &val_name in TOUCHPAD_DWORD_KEYS {
+                    let val_w = to_wide_str(val_name);
+                    let _ = RegSetValueExW(
+                        hkey,
+                        PCWSTR(val_w.as_ptr()),
+                        0,
+                        REG_DWORD,
+                        Some(&zero_bytes),
+                    );
+                }
+                let _ = RegCloseKey(hkey);
+            }
+
+            let gestures_w = to_wide_str(PRECISION_TOUCHPAD_GESTURES_SUBKEY);
+            let mut ghkey = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(gestures_w.as_ptr()),
+                0,
+                KEY_WRITE,
+                &mut ghkey,
+            ).is_ok() {
+                for &val_name in TOUCHPAD_DWORD_KEYS {
+                    let val_w = to_wide_str(val_name);
+                    let _ = RegSetValueExW(
+                        ghkey,
+                        PCWSTR(val_w.as_ptr()),
+                        0,
+                        REG_DWORD,
+                        Some(&zero_bytes),
+                    );
+                }
+                let _ = RegCloseKey(ghkey);
+            }
+
+            // Signal shell of registry changes
+            let _ = SendMessageTimeoutW(
+                HWND_BROADCAST,
+                WM_SETTINGCHANGE,
+                WPARAM(0),
+                LPARAM(subkey_w.as_ptr() as isize),
+                SMTO_ABORTIFHUNG,
+                1000,
+                None,
+            );
+            SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None);
+        }
+
+        TouchpadLock { backup: Some(backup) }
+    }
+
+    /// Restores touchpad gestures back to their pre-exam snapshot
+    pub fn restore_touchpad_gestures() {
+        eprintln!("[TOUCHPAD] Restoring precision touchpad gestures from snapshot...");
+        let maybe_backup = TouchpadBackup::load();
+
+        if let Some(backup) = maybe_backup {
+            let subkey_w = to_wide_str(PRECISION_TOUCHPAD_SUBKEY);
+            unsafe {
+                let mut hkey = HKEY::default();
+                if RegOpenKeyExW(
+                    HKEY_CURRENT_USER,
+                    PCWSTR(subkey_w.as_ptr()),
+                    0,
+                    KEY_WRITE,
+                    &mut hkey,
+                ).is_ok() {
+                    for (k, opt_val) in backup.values {
+                        let kw = to_wide_str(&k);
+                        if let Some(val) = opt_val {
+                            let bytes = val.to_le_bytes();
+                            let _ = RegSetValueExW(
+                                hkey,
+                                PCWSTR(kw.as_ptr()),
+                                0,
+                                REG_DWORD,
+                                Some(&bytes),
+                            );
+                        } else {
+                            let _ = RegDeleteValueW(hkey, PCWSTR(kw.as_ptr()));
+                        }
+                    }
+                    let _ = RegCloseKey(hkey);
+                }
+
+                let gestures_w = to_wide_str(PRECISION_TOUCHPAD_GESTURES_SUBKEY);
+                let mut ghkey = HKEY::default();
+                if RegOpenKeyExW(
+                    HKEY_CURRENT_USER,
+                    PCWSTR(gestures_w.as_ptr()),
+                    0,
+                    KEY_WRITE,
+                    &mut ghkey,
+                ).is_ok() {
+                    for (k, opt_val) in backup.gestures_sub_values {
+                        let kw = to_wide_str(&k);
+                        if let Some(val) = opt_val {
+                            let bytes = val.to_le_bytes();
+                            let _ = RegSetValueExW(
+                                ghkey,
+                                PCWSTR(kw.as_ptr()),
+                                0,
+                                REG_DWORD,
+                                Some(&bytes),
+                            );
+                        } else {
+                            let _ = RegDeleteValueW(ghkey, PCWSTR(kw.as_ptr()));
+                        }
+                    }
+                    let _ = RegCloseKey(ghkey);
+                }
+
+                let _ = SendMessageTimeoutW(
+                    HWND_BROADCAST,
+                    WM_SETTINGCHANGE,
+                    WPARAM(0),
+                    LPARAM(subkey_w.as_ptr() as isize),
+                    SMTO_ABORTIFHUNG,
+                    1000,
+                    None,
+                );
+                SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, None, None);
+            }
+        } else {
+            // Fallback: enable standard defaults
+            Self::restore_system_defaults();
+        }
+
+        // Clean up persisted snapshot files
+        let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+        let pd_file = std::path::Path::new(&program_data).join("Citadel").join("state").join("pre_exam_snapshot.json");
+        let _ = std::fs::remove_file(pd_file);
+
+        let temp_dir = std::env::var("TEMP").unwrap_or_else(|_| r"C:\Windows\Temp".to_string());
+        let temp_file = std::path::Path::new(&temp_dir).join("citadel_gesture_backup.json");
+        let _ = std::fs::remove_file(temp_file);
+
+        let reg_subkey = to_wide_str(CITADEL_GESTURE_BACKUP_SUBKEY);
+        unsafe {
+            let mut hkey = HKEY::default();
+            if RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                PCWSTR(reg_subkey.as_ptr()),
+                0,
+                KEY_WRITE,
+                &mut hkey,
+            ).is_ok() {
+                let val_name_w = to_wide_str("SnapshotJson");
+                let _ = RegDeleteValueW(hkey, PCWSTR(val_name_w.as_ptr()));
+                let _ = RegCloseKey(hkey);
+            }
+        }
     }
 
     pub fn restore_system_defaults() {
-        let subkey_w = to_wide_str(TOUCHPAD_REG_SUBKEY);
+        let subkey_w = to_wide_str(PRECISION_TOUCHPAD_SUBKEY);
         unsafe {
             let mut hkey = HKEY::default();
             if RegOpenKeyExW(
@@ -203,7 +605,7 @@ impl TouchpadLock {
 
 impl Drop for TouchpadLock {
     fn drop(&mut self) {
-        Self::restore_system_defaults();
+        Self::restore_touchpad_gestures();
     }
 }
 
@@ -234,9 +636,25 @@ unsafe extern "system" fn enum_kiosk_wnd_proc(hwnd: HWND, lparam: LPARAM) -> BOO
             let height = rect.bottom - rect.top;
 
             // Ensure this is a real render window, not a tiny tooltip or 0x0 offscreen frame
-            if width > 120 && height > 120 {
-                ctx.found_hwnd = Some(hwnd);
-                return BOOL(0); // Found top window, halt enumeration
+            // Ensure this is a real render window, not a tiny tooltip or 0x0 offscreen frame
+            // Plan 23: Must be visible, must NOT be Chromium message/helper window (Chrome_WidgetWin_0, Cicero, etc.)
+            let is_visible = unsafe { windows::Win32::UI::WindowsAndMessaging::IsWindowVisible(hwnd).as_bool() };
+            if is_visible && width > 120 && height > 120 {
+                let mut class_buf = [0u16; 256];
+                let class_len = unsafe { windows::Win32::UI::WindowsAndMessaging::GetClassNameW(hwnd, &mut class_buf) };
+                let class_name = String::from_utf16_lossy(&class_buf[..class_len as usize]);
+
+                // Plan 23 F-2: Accept genuine Chrome (Chrome_WidgetWin_0) and Edge (Chrome_WidgetWin_1) viewports;
+                // skip only hidden helper, worker, tooltip, and input helper frames.
+                if !class_name.contains("Cicero")
+                    && !class_name.contains("Tooltip")
+                    && !class_name.contains("Worker")
+                    && !class_name.contains("crashpad")
+                    && !class_name.contains("UAC_Input")
+                {
+                    ctx.found_hwnd = Some(hwnd);
+                    return BOOL(0); // Found genuine top-level kiosk UI window
+                }
             }
         }
     }
@@ -400,6 +818,7 @@ impl ProcessWatchdog {
     pub fn start(
         violations: Arc<Mutex<Vec<String>>>,
         kiosk_pids: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+        browser_exe: Option<String>,
         is_production: bool,
     ) -> Self {
         let stop_signal = Arc::new(AtomicBool::new(false));
@@ -409,8 +828,8 @@ impl ProcessWatchdog {
 
         let thread_handle = thread::spawn(move || {
             while !stop_clone.load(Ordering::Relaxed) {
-                Self::scan_and_terminate(&viol_clone, &pids_clone, is_production);
-                thread::sleep(Duration::from_millis(1000));
+                Self::scan_and_terminate(&viol_clone, &pids_clone, browser_exe.as_deref(), is_production);
+                thread::sleep(Duration::from_millis(250));
             }
         });
 
@@ -424,6 +843,7 @@ impl ProcessWatchdog {
     fn scan_and_terminate(
         violations: &Arc<Mutex<Vec<String>>>,
         kiosk_pids: &Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+        browser_exe: Option<&str>,
         is_production: bool,
     ) {
         let own_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
@@ -436,7 +856,11 @@ impl ProcessWatchdog {
             find_all_descendants(&seeds).into_iter().collect()
         };
 
-        let policy = crate::policy::LockdownPolicy::new(is_production);
+        // Plan 23 F-1: Allowlist includes launched browser image name for runtime protection
+        let mut allowlist = crate::policy::Allowlist::citadel_default();
+        if let Some(b) = browser_exe {
+            allowlist = allowlist.with_kiosk_browser(b);
+        }
         let mut active_unauthorized = Vec::new();
 
         unsafe {
@@ -456,7 +880,7 @@ impl ProcessWatchdog {
                         .trim_matches(char::from(0))
                         .to_string();
 
-                    if !policy.is_process_allowed(&exe_name, None, pid, own_pid, &protected_pids) {
+                    if !allowlist.is_allowed(&exe_name, pid, own_pid, &protected_pids) {
                         eprintln!("[SECURITY VIOLATION] Unauthorized cheat tool / process detected: {} (PID: {})", exe_name, pid);
 
                         // Attempt automatic termination
@@ -584,6 +1008,7 @@ pub struct KioskProcess {
     pub launcher_pid: u32,
     pub profile_dir: PathBuf,
     pub known_pids: Arc<std::sync::Mutex<std::collections::HashSet<u32>>>,
+    pub browser_exe: String,
 }
 
 impl KioskProcess {
@@ -832,8 +1257,8 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
     // 4. --start-maximized + --window-position=0,0: Ensures immediate full screen coverage.
     // NOTE: GPU acceleration is deliberately left ENABLED (no --disable-gpu and no
     // software-rasterizer fallback). Edge v130+ exits immediately or renders a
-    // blank/transparent kiosk window when GPU is disabled — see
-    // docs/architecture/CITADEL_SECURITY_ARCHITECTURE.md §7/§8 ("Never disable
+    // blank/transparent kiosk window when GPU is disabled ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â see
+    // docs/architecture/CITADEL_SECURITY_ARCHITECTURE.md ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§7/ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â§8 ("Never disable
     // GPU flags"), verified empirically against Edge v153.
     let arg_parts = [
         format!("\"{}\"", browser_path.display()),
@@ -983,6 +1408,12 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
 
     eprintln!("[CITADEL CLIENT] Kiosk process ready with {} tracked PID(s). Window activated: {}", all_pids.len(), window_activated);
 
+    let browser_name = browser_path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or("msedge.exe")
+        .to_string();
+
     Ok(KioskProcess {
         h_process: h_browser_process,
         h_launcher,
@@ -991,6 +1422,7 @@ pub fn launch_kiosk_on_desktop(target_url: &str, desktop_name: Option<&str>) -> 
         launcher_pid,
         profile_dir: temp_profile,
         known_pids: Arc::new(std::sync::Mutex::new(all_pids)),
+        browser_exe: browser_name,
     })
 }
 

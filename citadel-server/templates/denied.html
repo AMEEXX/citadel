@@ -137,6 +137,7 @@
     .btn:hover { background: #5f82b0; }
   </style>
   <link rel="stylesheet" href="/static/citadel-skin.css">
+  <script src="/static/citadel-restore.js"></script>
 </head>
 <body class="app-gate">
   <div class="box">
@@ -148,11 +149,29 @@
       <code>/admin?key=citadel-recruiter-key-2026</code>
     </div>
     <a href="/exam" class="btn">Return to Exam Portal</a>
-    <div style="margin-top: 16px;">
+    <div style="margin-top: 16px; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+      <button type="button" onclick="triggerRestoreFromPage()" class="btn" style="background: #dc2626; border: none; cursor: pointer;">
+        Restore Laptop
+      </button>
+      <div id="restore-status" style="font-size: 12px; color: #f87171; font-family: var(--font-mono); min-height: 18px;"></div>
       <a href="/download/RESTORE_MY_LAPTOP.bat" style="color: #f87171; font-size: 12px; text-decoration: none; font-family: var(--font-mono); display: inline-flex; align-items: center; gap: 4px;">
         🚑 Need to reset workstation? Download RESTORE_MY_LAPTOP.bat
       </a>
     </div>
   </div>
+  <script>
+    async function triggerRestoreFromPage() {
+      if (!confirm("Restore workstation capabilities and exit lockdown?")) return;
+      const statusEl = document.getElementById('restore-status');
+      if (typeof window.citadelRestore === 'function') {
+        await window.citadelRestore({
+          statusEl: statusEl,
+          isForced: true,
+          isTerminalState: true,
+          candidateId: 'denied-restore',
+        });
+      }
+    }
+  </script>
 </body>
 </html>

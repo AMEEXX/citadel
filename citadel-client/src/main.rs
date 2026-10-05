@@ -28,7 +28,7 @@ fn show_error_message(title: &str, message: &str) {
             None,
             PCWSTR(wide_msg.as_ptr()),
             PCWSTR(wide_title.as_ptr()),
-            MB_OK | MB_ICONERROR,
+            MB_OK | MB_ICONERROR | MB_TOPMOST | MB_SETFOREGROUND,
         );
     }
 }
@@ -152,7 +152,7 @@ fn resolve_server_endpoint(cli_ip: Option<Ipv4Addr>, port: u16) -> (Ipv4Addr, u1
     // 5. None reachable: fall back to the campus default and let the pre-flight
     //    reachability gate below show the connection error dialog and exit
     //    cleanly (documented startup sequence, CITADEL_SECURITY_ARCHITECTURE.md
-    //    §5 step 2 — no interactive endpoint prompt on the startup path).
+    //    Â§5 step 2 â€” no interactive endpoint prompt on the startup path).
     log_event("[CITADEL CLIENT] No exam server candidate reachable. Falling back to campus default; reachability gate will report.");
     (Ipv4Addr::new(172, 60, 10, 12), port)
 }
@@ -249,6 +249,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log_event("[CITADEL CLIENT] Process started");
 
+    // Plan 25 F-7: Startup auto-recovery for leftover / crashed sessions
+    let marker_path = citadel_client::crash_handler::get_lockdown_marker_path();
+    if marker_path.exists() {
+        let own_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
+        let other_client_running = citadel_client::crash_handler::is_other_citadel_client_running(own_pid);
+
+        if !other_client_running {
+            eprintln!("[CITADEL CLIENT] Previous interrupted lockdown detected via marker. Running automatic workstation recovery...");
+            citadel_client::crash_handler::emergency_restore_system();
+            let _ = std::fs::remove_file(&marker_path);
+            show_error_message(
+                "Citadel Automatic Recovery",
+                "A previous interrupted exam session was detected.\n\nYour workstation, taskbars, Explorer shell, and gestures have been automatically restored.\n\nYou may now start Citadel normally."
+            );
+            return Ok(());
+        }
+    }
+
     // 1. Mandatory Administrator Privilege Check & Interactive UAC Auto-Escalation Loop
     // The Citadel client MUST ONLY run with elevated Administrator privileges.
     // If the process starts unprivileged, it automatically triggers UAC elevation.
@@ -274,8 +292,8 @@ The secure exam environment cannot engage system-level protections\n\
 (hardware locks, keyboard hooks, network firewalls, and process watchdog)\n\
 without administrative elevation.\n\n\
 Running in an unprivileged or degraded 'less control' mode is strictly prohibited.\n\n\
-• Click [Retry] to trigger the Windows UAC elevation prompt again.\n\
-• Click [Cancel] to abort and exit.",
+â€¢ Click [Retry] to trigger the Windows UAC elevation prompt again.\n\
+â€¢ Click [Cancel] to abort and exit.",
                 );
 
                 if !retry {
@@ -350,14 +368,27 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         return Ok(());
     }
 
-    // 3. Start Local Control HTTP Server on 127.0.0.1:8444 for instant End Exam triggers
+    // 3. Start Local Control HTTP Server on 127.0.0.1:8444..8450 for instant End Exam triggers
+    // Plan 24 F-6: Fail-closed enforcement: Never run an exam if no local control channel could be bound!
     let exit_signal = Arc::new(AtomicBool::new(false));
-    let local_control = LocalControlServer::start(exit_signal.clone()).ok();
-    if local_control.is_some() {
-        log_event("[CITADEL CLIENT] Local control server started on 127.0.0.1:8444");
-    } else {
-        log_event("[CITADEL CLIENT] Warning: local control server could not bind 127.0.0.1:8444 (port already in use?).");
-    }
+    let local_control = match LocalControlServer::start(exit_signal.clone()) {
+        Ok(lc) => {
+            log_event(&format!("[CITADEL CLIENT] Local control server started on 127.0.0.1:{}", lc.port));
+            Some(lc)
+        }
+        Err(e) => {
+            log_event(&format!("[CITADEL CLIENT FATAL] Local control server failed to bind (8444-8450): {}", e));
+            show_error_message(
+                "Citadel Initialization Error - Port Conflict",
+                "Citadel Exam Client cannot start:
+
+Restore control port is unavailable (8444-8450). Another Citadel instance or background service may be running.
+
+Please close any existing exam windows or run RESTORE_MY_LAPTOP.bat, then restart Citadel."
+            );
+            return Ok(());
+        }
+    };
 
     // 4. Initialize Security Coordinator
     log_event("[CITADEL CLIENT] Initializing security lockdown coordinator...");
@@ -365,7 +396,7 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         Ok(g) => g,
         Err(e) => {
             // Hard failures must block exam start with a specific, actionable
-            // message (LLD §3.3) — never exit silently with the workstation
+            // message (LLD Â§3.3) â€” never exit silently with the workstation
             // half-locked in a GUI-subsystem binary where stderr is invisible.
             log_event(&format!("[CITADEL CLIENT] Security guard initialization FAILED: {}", e));
             show_error_message(
@@ -414,6 +445,8 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
     log_event("[CITADEL CLIENT] Entering main supervision loop...");
     let launch_time = std::time::Instant::now();
     let mut consecutive_dead_checks = 0;
+    let mut consecutive_window_dead_checks = 0;
+    let mut window_ever_seen = false;
     let mut poll_counter = 0;
 
     loop {
@@ -453,68 +486,85 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
             }
         }
 
-        // Channel 4: Kiosk browser process alive check (with startup grace period & debouncing)
+        // Channel 4: Kiosk browser process alive check & Plan 25 Channel R3 Window-death detection
         // Give modern Chromium/Edge at least 15 seconds to finish multi-process delegation and window creation
         if launch_time.elapsed() > Duration::from_secs(15) {
             let is_running = kiosk_child.is_alive();
             if !is_running {
                 consecutive_dead_checks += 1;
                 if consecutive_dead_checks >= 6 {
-                    eprintln!("[CITADEL CLIENT] Exam browser window closed. Concluding session and restoring desktop...");
+                    eprintln!("[CITADEL CLIENT] Exam browser process terminated. Concluding session and restoring desktop...");
                     break;
                 }
             } else {
                 consecutive_dead_checks = 0;
+            }
+
+            // Plan 25 Channel R3: Window-death detection!
+            // If the processes are still lingering (e.g. utility/crashpad/GPU background tasks),
+            // but the kiosk viewport window has been closed or destroyed for >= 10 consecutive checks (5s):
+            let pids_guard = match kiosk_child.known_pids.lock() {
+                Ok(p) => p.clone(),
+                Err(e) => e.into_inner().clone(),
+            };
+            let window_opt = citadel_client::kiosk_window::find_kiosk_window(&pids_guard);
+            if window_opt.is_some() {
+                window_ever_seen = true;
+                consecutive_window_dead_checks = 0;
+            } else if window_ever_seen {
+                consecutive_window_dead_checks += 1;
+                if consecutive_window_dead_checks >= 10 {
+                    log_event("[EXIT CHANNEL 4] Exam kiosk window was closed or destroyed. Concluding session and restoring desktop...");
+                    break;
+                }
             }
         }
 
         std::thread::sleep(Duration::from_millis(500));
     }
 
-    // 7. COMPREHENSIVE LAPTOP RESTORATION:
-    // Every single lock, policy, hook, firewall rule, and service is restored here.
-    eprintln!("[CITADEL CLIENT] ========================================================");
-    eprintln!("[CITADEL CLIENT] EXAM TERMINATED. RESTORING ALL LAPTOP CAPABILITIES NOW.");
-    eprintln!("[CITADEL CLIENT] ========================================================");
+    // 7. COMPREHENSIVE LAPTOP RESTORATION (Plan 21 F-1 & F-2):
+    // Reordered for immediate handoff: Supervisor is spawned FIRST with live status server,
+    // while client performs sub-50ms in-process teardown. Slow service and registry sweeps
+    // run inside the detached supervisor.
+    log_event("[CITADEL CLIENT] ========================================================");
+    log_event("[CITADEL CLIENT] EXAM TERMINATED. INITIATING SUPERVISOR RESTORATION HANDOFF.");
+    log_event("[CITADEL CLIENT] ========================================================");
 
-    // Hard failsafe thread: unconditionally exits within 15 seconds if cleanup threads stall
-    std::thread::spawn(|| {
-        std::thread::sleep(Duration::from_millis(15000));
-        eprintln!("[CITADEL CLIENT] Hard-exit failsafe triggered: exiting immediately.");
-        std::process::exit(0);
-    });
-
-    // A. Terminate browser processes
+    // A. Terminate browser processes immediately (fast, in-memory)
     let _ = kiosk_child.kill();
+    citadel_client::kiosk_window::terminate_lingering_browser_processes();
 
-    // B. Explicitly stop local control server
+    // B. Explicitly stop local control server to free port for supervisor status server
     let bound_port = local_control.as_ref().map(|lc| lc.port).unwrap_or(8444);
     drop(local_control);
 
-    // C. Explicitly tear down all client security guard locks (Keyboard hooks, Taskbars, WFP, Bluetooth, etc.)
-    guard.restore_all();
+    // C. Fast in-process teardown only: unhooks keyboard, drops taskbar/foreground/watchdog locks,
+    // closes WFP engine handle. Deliberately avoids slow service and registry sweeps in the client.
+    guard.fast_teardown();
 
-    // D. Run emergency restoration safety net (deletes registry policies, resets desktop, starts services)
-    emergency_restore_system();
-
-    // E. Ensure Windows Explorer shell is active
-    ensure_explorer_running();
-
-    // E2. Spawn the Authoritative Restoration Supervisor detached
+    // D. Spawn the Authoritative Restoration Supervisor detached immediately
     let current_exe = std::env::current_exe().ok();
     let mut supervisor_spawned = false;
 
     if let Some(ref exe_path) = current_exe {
-        eprintln!("[CITADEL CLIENT] Spawning self-hosted Restoration Supervisor: {:?}", exe_path);
+        log_event(&format!("[CITADEL CLIENT] Spawning self-hosted Restoration Supervisor: {:?}", exe_path));
         let spawn_res = std::process::Command::new(exe_path)
             .args(["--supervisor", "--origin", "end-exam", "--port", &bound_port.to_string()])
             .creation_flags(0x08000000 | 0x00000200) // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
             .spawn();
-        if spawn_res.is_ok() {
-            supervisor_spawned = true;
+        match spawn_res {
+            Ok(child) => {
+                supervisor_spawned = true;
+                log_event(&format!("[CITADEL CLIENT] Supervisor spawned successfully (PID: {})", child.id()));
+            }
+            Err(e) => {
+                log_event(&format!("[CITADEL CLIENT ERROR] Failed to spawn supervisor: {}", e));
+            }
         }
     }
 
+    // E. Fallback supervisor invocation if primary spawn failed (Plan 22 P3.2: direct spawn, no cmd.exe /c start)
     if !supervisor_spawned {
         let bat_candidates = [
             "citadel-recovery.exe",
@@ -526,65 +576,256 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         ];
         for bat in bat_candidates {
             if std::path::Path::new(bat).exists() {
-                eprintln!("[CITADEL CLIENT] Directly invoking fallback supervisor: {}", bat);
-                let _ = std::process::Command::new("cmd.exe")
-                    .args(["/c", "start", "", bat])
-                    .creation_flags(0x08000000)
+                log_event(&format!("[CITADEL CLIENT] Directly invoking fallback recovery tool: {}", bat));
+                let _ = std::process::Command::new(bat)
+                    .creation_flags(0x08000000 | 0x00000200)
                     .spawn();
+                supervisor_spawned = true;
                 break;
             }
         }
     }
 
-    // F. Force-terminate any lingering guard-svc.exe processes
-    let _ = std::process::Command::new("taskkill")
-        .args(["/F", "/IM", "guard-svc.exe", "/T"])
-        .output();
+    // Plan 25 F-4: Provable supervisor handoff verification (up to 3 seconds)
+    let mut handoff_verified = false;
+    if supervisor_spawned {
+        let addr = std::net::SocketAddr::from(([127, 0, 0, 1], bound_port));
+        for _ in 0..15 {
+            std::thread::sleep(Duration::from_millis(200));
+            if let Ok(mut stream) = std::net::TcpStream::connect_timeout(&addr, Duration::from_millis(150)) {
+                let _ = stream.write_all(b"GET /restore-status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n");
+                let mut buf = [0u8; 512];
+                if let Ok(n) = stream.read(&mut buf) {
+                    let resp = String::from_utf8_lossy(&buf[..n]);
+                    if resp.contains("citadel-supervisor") || resp.contains("200 OK") {
+                        handoff_verified = true;
+                        log_event("[CITADEL CLIENT] Proven supervisor handoff verified: status server alive and responding.");
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
-    eprintln!("[CITADEL CLIENT] ========================================================");
-    eprintln!("[CITADEL CLIENT] PROCESS DESTRUCTION HANDOFF: SUPERVISOR ACTIVE.");
-    eprintln!("[CITADEL CLIENT] ========================================================");
+    // F. Ultimate emergency fallback: if supervisor could not be armed or did not respond
+    if !handoff_verified {
+        log_event("[CITADEL CLIENT CRITICAL] Supervisor handoff failed to respond within 3s. Executing in-process emergency restore safety net.");
+        emergency_restore_system();
+        ensure_explorer_running();
+        show_error_message(
+            "Citadel Restoration Notice",
+            "Supervisor handoff did not respond within timeout.\n\nWorkstation emergency recovery has been executed in-process.\n\nAll restrictions have been removed. If needed, you can relaunch Citadel to verify restoration."
+        );
+    }
 
+    // G. Fast exit watchdog: arms 8-second safety margin, then terminates parent process
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_millis(8000));
+        eprintln!("[CITADEL CLIENT] Exit watchdog triggered: exiting cleanly.");
+        std::process::exit(0);
+    });
+
+    log_event("[CITADEL CLIENT] Process handoff complete. Supervisor active on loopback. Exiting parent.");
     drop(guard);
     std::process::exit(0);
 }
 
-fn prompt_proctor_pin_authorization() -> bool {
-    #[cfg(windows)]
-    {
-        use std::process::Command;
-        use std::os::windows::process::CommandExt;
+// ============================================================================
+// Native Win32 Proctor PIN Prompt (Plan 22 P3.1 — Zero PowerShell / Script text)
+// ============================================================================
 
-        let script = r#"
-Add-Type -AssemblyName Microsoft.VisualBasic
-$pin = [Microsoft.VisualBasic.Interaction]::InputBox(
-    "MANDATORY PROCTOR AUTHORIZATION`n`nEnter Proctor PIN to release examination lockdown and restore workstation:",
-    "Citadel Proctor Emergency Override",
-    ""
-)
-Write-Output $pin
-"#;
+static ENTERED_PIN: std::sync::Mutex<String> = std::sync::Mutex::new(String::new());
+static DIALOG_RESULT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static mut EDIT_HWND: windows::Win32::Foundation::HWND = windows::Win32::Foundation::HWND(std::ptr::null_mut());
 
-        let output = Command::new("powershell")
-            .args(["-NoProfile", "-Command", script])
-            .creation_flags(0x08000000)
-            .output();
+const ID_EDIT: usize = 101;
+const ID_OK: usize = 1;
+const ID_CANCEL: usize = 2;
 
-        if let Ok(out) = output {
-            let entered_pin = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let configured_pin = std::env::var("CITADEL_PROCTOR_PIN").unwrap_or_else(|_| "9944".to_string());
-            if !entered_pin.is_empty() && (entered_pin == configured_pin || entered_pin == "9944" || entered_pin == "citadel" || entered_pin == "admin") {
-                show_error_message(
-                    "Citadel Proctor Authorization",
-                    "Proctor authorization verified.\n\nReleasing lockdown and restoring all system settings now."
-                );
-                return true;
-            } else if !entered_pin.is_empty() {
-                show_error_message(
-                    "Citadel Proctor Authorization Failed",
-                    "Invalid Proctor PIN. Emergency exit request rejected.\n\nLockdown continues uninterrupted."
-                );
+unsafe extern "system" fn pin_dlg_proc(
+    hwnd: windows::Win32::Foundation::HWND,
+    msg: u32,
+    wparam: windows::Win32::Foundation::WPARAM,
+    lparam: windows::Win32::Foundation::LPARAM,
+) -> windows::Win32::Foundation::LRESULT {
+    use windows::core::w;
+    use windows::Win32::Foundation::{HINSTANCE, LRESULT};
+    use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DefWindowProcW, DestroyWindow, GetWindowTextW, PostQuitMessage,
+        BS_DEFPUSHBUTTON, ES_AUTOHSCROLL, ES_PASSWORD, HMENU, WINDOW_EX_STYLE,
+        WINDOW_STYLE, WM_CLOSE, WM_COMMAND, WM_CREATE, WM_DESTROY, WS_BORDER, WS_CHILD,
+        WS_VISIBLE,
+    };
+
+    match msg {
+        WM_CREATE => {
+            let _ = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("STATIC"),
+                w!("Enter Proctor PIN to release examination lockdown:"),
+                WS_CHILD | WS_VISIBLE,
+                20, 16, 320, 20,
+                hwnd,
+                HMENU(std::ptr::null_mut()),
+                HINSTANCE(std::ptr::null_mut()),
+                None,
+            );
+
+            if let Ok(h) = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("EDIT"),
+                w!(""),
+                WS_CHILD | WS_VISIBLE | WS_BORDER | WINDOW_STYLE(ES_PASSWORD as u32 | ES_AUTOHSCROLL as u32),
+                20, 42, 320, 24,
+                hwnd,
+                HMENU(ID_EDIT as *mut _),
+                HINSTANCE(std::ptr::null_mut()),
+                None,
+            ) {
+                EDIT_HWND = h;
             }
+
+            let _ = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("BUTTON"),
+                w!("Authorize Override"),
+                WS_CHILD | WS_VISIBLE | WINDOW_STYLE(BS_DEFPUSHBUTTON as u32),
+                70, 82, 130, 28,
+                hwnd,
+                HMENU(ID_OK as *mut _),
+                HINSTANCE(std::ptr::null_mut()),
+                None,
+            );
+
+            let _ = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                w!("BUTTON"),
+                w!("Cancel"),
+                WS_CHILD | WS_VISIBLE,
+                210, 82, 80, 28,
+                hwnd,
+                HMENU(ID_CANCEL as *mut _),
+                HINSTANCE(std::ptr::null_mut()),
+                None,
+            );
+
+            let _ = SetFocus(EDIT_HWND);
+            LRESULT(0)
+        }
+        WM_COMMAND => {
+            let id = (wparam.0 & 0xffff) as usize;
+            if id == ID_OK {
+                let mut buf = [0u16; 64];
+                let len = GetWindowTextW(EDIT_HWND, &mut buf);
+                let pin = String::from_utf16_lossy(&buf[..len as usize]);
+                if let Ok(mut lock) = ENTERED_PIN.lock() {
+                    *lock = pin.trim().to_string();
+                }
+                DIALOG_RESULT.store(true, std::sync::atomic::Ordering::SeqCst);
+                let _ = DestroyWindow(hwnd);
+            } else if id == ID_CANCEL {
+                DIALOG_RESULT.store(false, std::sync::atomic::Ordering::SeqCst);
+                let _ = DestroyWindow(hwnd);
+            }
+            LRESULT(0)
+        }
+        WM_CLOSE => {
+            DIALOG_RESULT.store(false, std::sync::atomic::Ordering::SeqCst);
+            let _ = DestroyWindow(hwnd);
+            LRESULT(0)
+        }
+        WM_DESTROY => {
+            PostQuitMessage(0);
+            LRESULT(0)
+        }
+        _ => DefWindowProcW(hwnd, msg, wparam, lparam),
+    }
+}
+
+fn show_native_proctor_pin_dialog() -> Option<String> {
+    use windows::core::w;
+    use windows::Win32::Foundation::{HINSTANCE, HWND};
+    use windows::Win32::Graphics::Gdi::{GetSysColorBrush, COLOR_BTNFACE};
+    use windows::Win32::UI::Input::KeyboardAndMouse::SetFocus;
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DispatchMessageW, GetMessageW, GetSystemMetrics, RegisterClassW,
+        SetForegroundWindow, TranslateMessage, HMENU, MSG, SM_CXSCREEN, SM_CYSCREEN,
+        WNDCLASSW, WS_CAPTION, WS_EX_DLGMODALFRAME, WS_EX_TOPMOST, WS_POPUP, WS_SYSMENU,
+        WS_VISIBLE,
+    };
+
+    DIALOG_RESULT.store(false, std::sync::atomic::Ordering::SeqCst);
+    if let Ok(mut lock) = ENTERED_PIN.lock() {
+        lock.clear();
+    }
+
+    unsafe {
+        let class_name = w!("CitadelPinPrompt");
+        let brush = GetSysColorBrush(COLOR_BTNFACE);
+        let wc = WNDCLASSW {
+            lpfnWndProc: Some(pin_dlg_proc),
+            lpszClassName: class_name,
+            hbrBackground: brush,
+            ..Default::default()
+        };
+        let _ = RegisterClassW(&wc);
+
+        let screen_w = GetSystemMetrics(SM_CXSCREEN);
+        let screen_h = GetSystemMetrics(SM_CYSCREEN);
+        let dlg_w = 370;
+        let dlg_h = 160;
+        let x = (screen_w - dlg_w) / 2;
+        let y = (screen_h - dlg_h) / 2;
+
+        let hwnd = match CreateWindowExW(
+            WS_EX_TOPMOST | WS_EX_DLGMODALFRAME,
+            class_name,
+            w!("Citadel Proctor Emergency Override"),
+            WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+            x, y, dlg_w, dlg_h,
+            HWND(std::ptr::null_mut()),
+            HMENU(std::ptr::null_mut()),
+            HINSTANCE(std::ptr::null_mut()),
+            None,
+        ) {
+            Ok(h) => h,
+            Err(_) => return None,
+        };
+
+        let _ = SetForegroundWindow(hwnd);
+        let _ = SetFocus(EDIT_HWND);
+
+        let mut msg = MSG::default();
+        while GetMessageW(&mut msg, HWND(std::ptr::null_mut()), 0, 0).as_bool() {
+            let _ = TranslateMessage(&msg);
+            DispatchMessageW(&msg);
+        }
+
+        if DIALOG_RESULT.load(std::sync::atomic::Ordering::SeqCst) {
+            let res = ENTERED_PIN.lock().unwrap().clone();
+            if !res.is_empty() {
+                return Some(res);
+            }
+        }
+    }
+    None
+}
+
+fn prompt_proctor_pin_authorization() -> bool {
+    if let Some(entered_pin) = show_native_proctor_pin_dialog() {
+        let configured_pin = std::env::var("CITADEL_PROCTOR_PIN").unwrap_or_else(|_| "9944".to_string());
+        if entered_pin == configured_pin || entered_pin == "9944" || entered_pin == "citadel" || entered_pin == "admin" {
+            show_error_message(
+                "Citadel Proctor Authorization",
+                "Proctor authorization verified.\n\nReleasing lockdown and restoring all system settings now."
+            );
+            return true;
+        } else {
+            show_error_message(
+                "Citadel Proctor Authorization Failed",
+                "Invalid Proctor PIN. Emergency exit request rejected.\n\nLockdown continues uninterrupted."
+            );
         }
     }
     false

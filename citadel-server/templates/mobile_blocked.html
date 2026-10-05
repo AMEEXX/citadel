@@ -103,6 +103,7 @@
     .inst-box strong { color: var(--text-main); }
   </style>
   <link rel="stylesheet" href="/static/citadel-skin.css">
+  <script src="/static/citadel-restore.js"></script>
 </head>
 <body>
   <div class="card">
@@ -127,11 +128,29 @@
         <li>Enter your enrolled email and exam passcode to begin your test.</li>
       </ol>
     </div>
-    <div style="margin-top: 18px; text-align: center;">
+    <div style="margin-top: 18px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px;">
+      <button type="button" onclick="triggerMobileRestore()" style="background: #ea580c; color: white; border: none; padding: 8px 16px; border-radius: 4px; font-weight: 600; cursor: pointer;">
+        Restore Workstation
+      </button>
+      <div id="mobile-restore-status" style="font-size: 12px; color: #fb923c; font-family: var(--font-mono); min-height: 18px;"></div>
       <a href="/download/RESTORE_MY_LAPTOP.bat" style="color: #fb923c; font-size: 12px; text-decoration: none; font-family: var(--font-mono);">
         ⚡ Emergency Workstation Reset (RESTORE_MY_LAPTOP.bat)
       </a>
     </div>
   </div>
+  <script>
+    async function triggerMobileRestore() {
+      if (!confirm("Restore workstation capabilities and exit lockdown?")) return;
+      const statusEl = document.getElementById('mobile-restore-status');
+      if (typeof window.citadelRestore === 'function') {
+        await window.citadelRestore({
+          statusEl: statusEl,
+          isForced: true,
+          isTerminalState: true,
+          candidateId: 'mobile-restore',
+        });
+      }
+    }
+  </script>
 </body>
 </html>

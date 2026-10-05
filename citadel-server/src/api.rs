@@ -168,6 +168,10 @@ pub struct TokenSession {
     pub machine_guid: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub candidate_id: Option<String>,
+    #[serde(default)]
+    pub force_exit: bool,
+    #[serde(default)]
+    pub force_exit_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -534,6 +538,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/", get(portal_or_gatekeeper_handler))
         .route("/exam", get(portal_handler))
         .route("/download/citadel-client.exe", get(download_client_handler))
+        .route("/download/citadel-server.txt", get(download_server_txt_handler))
         .route("/download/citadel-recovery.exe", get(download_recovery_handler))
         .route("/download/RESTORE_MY_LAPTOP.bat", get(download_restore_bat_handler))
         .route("/static/ace.bundle.js", get(serve_ace_bundle_handler))
@@ -553,6 +558,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/api/v1/integrity/event", post(report_event_handler))
         .route("/api/v1/integrity/logout", post(logout_handler))
         .route("/api/v1/client/session-control", get(client_session_control_handler))
+        .route("/api/v1/client/force-restore", post(client_force_restore_handler))
         .route("/api/v1/client/handshake", post(client_handshake_handler))
         .route("/api/v1/client/end-exam", post(client_end_exam_handler))
         .route("/api/v1/client/kill-all-lockdown", post(kill_all_lockdown_handler))
@@ -1237,6 +1243,50 @@ pub struct SessionControlQuery {
     pub token: Option<String>,
 }
 
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ForceRestoreRequest {
+    pub auth_token: String,
+    pub reason: Option<String>,
+}
+
+async fn client_force_restore_handler(
+    State(state): State<AppState>,
+    Json(payload): Json<ForceRestoreRequest>,
+) -> impl IntoResponse {
+    let token = payload.auth_token.trim();
+    if token.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "missing_auth_token"})),
+        );
+    }
+
+    let mut tokens = state.authorized_tokens.lock().unwrap();
+    if let Some(session) = tokens.get_mut(token) {
+        session.force_exit = true;
+        session.force_exit_at = Some(chrono::Utc::now());
+        eprintln!(
+            "[CITADEL SERVER] Plan 25 Channel R1: Force restore scheduled for token '{}' (Reason: {})",
+            token,
+            payload.reason.as_deref().unwrap_or("Candidate/Portal Restore click")
+        );
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "ok",
+                "message": "Workstation restore queued for client polling"
+            })),
+        )
+    } else {
+        eprintln!("[CITADEL SERVER SECURITY] Rejected force restore for unrecognized token: {}", token);
+        (
+            StatusCode::UNAUTHORIZED,
+            Json(serde_json::json!({"error": "unrecognized_auth_token"})),
+        )
+    }
+}
+
 async fn client_session_control_handler(
     State(state): State<AppState>,
     Query(q): Query<SessionControlQuery>,
@@ -1264,6 +1314,29 @@ async fn client_session_control_handler(
             reason: "Exam concluded for all candidates".to_string(),
             status: "Concluded".to_string(),
         });
+    }
+
+    // Plan 25 Channel R1: Server-driven force-restore via handshake token (pre-login & all states)
+    if let Some(ref tok) = q.token {
+        let mut tokens = state.authorized_tokens.lock().unwrap();
+        if let Some(session) = tokens.get_mut(tok) {
+            if session.force_exit {
+                let now = chrono::Utc::now();
+                let is_valid = match session.force_exit_at {
+                    Some(at) => (now - at).num_seconds() <= 120,
+                    None => true,
+                };
+                session.force_exit = false; // consume trigger
+                if is_valid {
+                    eprintln!("[CITADEL SERVER] Plan 25 Channel R1 returning force-restore for token: {}", tok);
+                    return Json(SessionControlResponse {
+                        should_exit: true,
+                        reason: "Workstation restore requested via server".to_string(),
+                        status: "Restoring".to_string(),
+                    });
+                }
+            }
+        }
     }
 
     // 2. Resolve candidate ID either from query param or session token
@@ -1450,6 +1523,8 @@ async fn client_handshake_handler(
         machine_guid: payload.machine_guid,
         created_at: now,
         candidate_id: None,
+        force_exit: false,
+        force_exit_at: None,
     };
 
     let mut tokens = state.authorized_tokens.lock().unwrap();
@@ -1586,11 +1661,26 @@ async fn report_event_handler(
     StatusCode::OK
 }
 
-async fn download_client_handler(headers: HeaderMap) -> Result<Response, StatusCode> {
+async fn download_server_txt_handler(headers: HeaderMap) -> Result<Response, StatusCode> {
     let host_header = headers
         .get(header::HOST)
         .and_then(|h| h.to_str().ok())
         .unwrap_or("172.60.10.12:8443");
+    let content = format!("http://{}\n", host_header.trim());
+    let res = Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/plain")
+        .header(
+            header::CONTENT_DISPOSITION,
+            "attachment; filename=\"citadel-server.txt\"",
+        )
+        .header(header::CACHE_CONTROL, "no-cache, no-store, must-revalidate")
+        .body(Body::from(content.into_bytes()))
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    Ok(res)
+}
+
+async fn download_client_handler(_headers: HeaderMap) -> Result<Response, StatusCode> {
 
     let candidates = [
         "citadel-client.exe",
@@ -1608,14 +1698,8 @@ async fn download_client_handler(headers: HeaderMap) -> Result<Response, StatusC
     ];
 
     for path in &candidates {
-        if let Ok(mut bytes) = std::fs::read(path) {
-            // Append dynamic PE overlay trailer with server host endpoint
-            let config_trailer = format!(
-                "\n---CITADEL_CONFIG_START---\nENDPOINT={}\n---CITADEL_CONFIG_END---\n",
-                host_header.trim()
-            );
-            bytes.extend_from_slice(config_trailer.as_bytes());
-
+        if let Ok(bytes) = std::fs::read(path) {
+            // Plan 22 P1: Serve pristine release binary without PE trailer overlay to ensure stable SHA256 and avoid Defender !ml heuristic
             let res = Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "application/vnd.microsoft.portable-executable")
@@ -2361,6 +2445,11 @@ async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<Str
     }
 
     match clean_path {
+        "citadel-restore.js" => (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+            include_bytes!("../static/citadel-restore.js").as_slice(),
+        ).into_response(),
         "ace.bundle.js" => (
             StatusCode::OK,
             [(axum::http::header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
@@ -2639,6 +2728,8 @@ async fn candidate_login_handler(
         machine_guid: None,
         created_at: now,
         candidate_id: Some(candidate_id.clone()),
+        force_exit: false,
+        force_exit_at: None,
     };
     state.authorized_tokens.lock().unwrap().insert(token.clone(), token_session);
 

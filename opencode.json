@@ -1,24 +1,43 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
-    "selora": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "Selora Gateway",
-      "options": {
-        "baseURL": "https://api.selora.lol/v1",
-        "apiKey": "sk-gw-xbEH8uxasCTd86rMmIDSxGIsxOsorDjgQYTDuVKtrl8"
-      },
-      "models": {
-        "claude-sonnet-5": {
-          "name": "Claude Sonnet"
-        },
-        "gpt-6-astra": {
-          "name": "GPT-6 Astra"
-        },
-        "claude-opus-5.5": {
-          "name": "Claude Opus 5.5"
-        }
-      }
-    }
-  }
+    "$schema":  "https://opencode.ai/config.json",
+    "provider":  {
+                     "selora":  {
+                                    "npm":  "@ai-sdk/openai-compatible",
+                                    "name":  "Selora Gateway",
+                                    "options":  {
+                                                    "baseURL":  "https://api.selora.lol/v1",
+                                                    "apiKey":  "sk-gw-xbEH8uxasCTd86rMmIDSxGIsxOsorDjgQYTDuVKtrl8"
+                                                },
+                                    "models":  {
+                                                   "claude-sonnet-5":  {
+                                                                           "name":  "Claude Sonnet"
+                                                                       },
+                                                   "gpt-6-astra":  {
+                                                                       "name":  "GPT-6 Astra"
+                                                                   },
+                                                   "claude-opus-5.5":  {
+                                                                           "name":  "Claude Opus 5.5"
+                                                                       }
+                                               }
+                                },
+                     "codecraft":  {
+                                       "npm":  "@ai-sdk/openai-compatible",
+                                       "name":  "CodeCraft API",
+                                       "env":  [
+                                                   "CODECRAFT_API_KEY"
+                                               ],
+                                       "options":  {
+                                                       "baseURL":  "https://codecraftapi.com/v1",
+                                                       "apiKey":  "cc_DdONil8sRIhN9KQ6skB8BqRMhsPEvBneA4Ewmmj8Kj8Oyk6B"
+                                                   },
+                                       "models":  {
+                                                      "claude-opus-4.8":  {
+                                                                              "name":  "claude-opus-4.8"
+                                                                          },
+                                                      "claude-opus-5.5":  {
+                                                                              "name":  "claude-opus-5.5"
+                                                                          }
+                                                  }
+                                   }
+                 }
 }

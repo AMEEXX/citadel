@@ -12,6 +12,11 @@ fn main() {
         if profile == "release" {
             let mut res = winresource::WindowsResource::new();
             res.set_manifest_file("citadel-client.manifest");
+            res.set("FileDescription", "Citadel Assessment Lockdown Client");
+            res.set("ProductName", "Citadel Examination Platform");
+            res.set("OriginalFilename", "citadel-client.exe");
+            res.set("CompanyName", "Citadel Assessment Systems");
+            res.set("LegalCopyright", "Copyright (C) 2026 Citadel Security Technologies");
             if let Err(e) = res.compile() {
                 eprintln!("cargo:warning=Failed to embed Windows manifest: {}", e);
             }

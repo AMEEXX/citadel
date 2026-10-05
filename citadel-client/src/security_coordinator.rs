@@ -334,6 +334,20 @@ impl ClientLockdownGuard {
             None
         };
 
+        // Plan 25 F-7: Record active lockdown marker for startup auto-recovery
+        let marker_path = crate::crash_handler::get_lockdown_marker_path();
+        let now_sec = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let marker_data = format!(
+            r#"{{"pid":{},"started_at":{},"mode":"{}"}}"#,
+            std::process::id(),
+            now_sec,
+            if is_production { "production" } else { "testing" }
+        );
+        let _ = std::fs::write(marker_path, marker_data);
+
         crate::crash_handler::log_client_event("[GUARD] All lockdown layers initialized; handing over to kiosk browser launch.");
 
         Ok(ClientLockdownGuard {
@@ -390,7 +404,7 @@ impl ClientLockdownGuard {
         self._foreground_lock = Some(ForegroundLock::start(kiosk_child.known_pids.clone()));
 
         // Start process watchdog for forbidden cheat tools
-        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone(), self.is_production));
+        self._process_watchdog = Some(ProcessWatchdog::start(self.violations.clone(), kiosk_child.known_pids.clone(), Some(kiosk_child.browser_exe.clone()), self.is_production));
 
         // Start background anti-cheat sensor thread (M2 loopback, M4 capture-exclusion, M5 injection)
         let stop_clone = self.stop_signal.clone();
@@ -446,6 +460,56 @@ impl ClientLockdownGuard {
     /// Explicitly tear down ALL lockdown components in guaranteed order.
     /// Called by both Drop and End Exam to ensure full restoration.
     /// This is idempotent — calling it multiple times is safe.
+    /// Fast in-process teardown: releases in-memory hooks, handles, and locks (keyboard hook,
+    /// taskbar, WFP engine, clipboard guard, watchdog threads, foreground lock) in under 50ms,
+    /// deliberately deferring slow external commands (sc, net, registry sweeps, explorer launch)
+    /// to the independent Restoration Supervisor.
+    pub fn fast_teardown(&mut self) {
+        if self.restored {
+            return;
+        }
+        self.restored = true;
+        eprintln!("[CITADEL CLIENT] Fast in-process teardown started for supervisor handoff...");
+
+        self.stop_signal.store(true, Ordering::SeqCst);
+
+        if let Some(thread) = self.sensor_thread.take() {
+            let _ = thread.join();
+        }
+        if let Some(wd) = self._process_watchdog.take() {
+            drop(wd);
+        }
+        if let Some(fl) = self._foreground_lock.take() {
+            drop(fl);
+        }
+        if let Some(cg) = self._clipboard_guard.take() {
+            drop(cg);
+        }
+        if let Some(tp) = self._touchpad_lock.take() {
+            drop(tp);
+        }
+        if let Some(tb) = self._taskbar_lock.take() {
+            drop(tb);
+        }
+        if let Some(hk) = self._hotkey_handle.take() {
+            hk.stop();
+        }
+        if let Some(wfp) = self._wfp_engine.take() {
+            drop(wfp);
+        }
+        if let Some(sd) = self._secure_desktop.take() {
+            drop(sd);
+        }
+        if let Some(mut el) = self._explorer_lock.take() {
+            el.restore();
+        }
+        if let Some(bl) = self._bluetooth_lock.take() {
+            bl.restore();
+        }
+
+        eprintln!("[CITADEL CLIENT] Fast in-process teardown complete. Ready for supervisor handoff.");
+    }
+
     pub fn restore_all(&mut self) {
         if self.restored {
             eprintln!("[CITADEL CLIENT] restore_all() already executed, skipping.");

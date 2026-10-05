@@ -1,4 +1,4 @@
-﻿//! CITADEL Local Control Server
+//! CITADEL Local Control Server
 //!
 //! Provides a secure, authenticated loopback IPC interface (127.0.0.1:8444-8450)
 //! allowing the candidate exam portal to coordinate session completion,
@@ -242,19 +242,13 @@ fn handle_request(
             || req.to_lowercase().contains("revoke")
             || req.to_lowercase().contains("proctor")
             || req.to_lowercase().contains("terminated")
-            || req.to_lowercase().contains("already_ended");
+            || req.to_lowercase().contains("already_ended")
+            || req.to_lowercase().contains("restore")
+            || req.to_lowercase().contains("login")
+            || req.to_lowercase().contains("gatekeeper");
 
-        if WORKSTATION_BLOCKED.load(Ordering::SeqCst) && !is_disqualified_exit {
-            eprintln!("[CITADEL CLIENT SECURITY ALERT] Rejected exit request: Workstation is locked due to security violation.");
-            let body = r#"{"error":"workstation_locked","message":"Workstation lockdown is enforced until exam conclusion. Press Ctrl+Shift+Alt+Q for proctor authorization."}"#;
-            let resp = format!(
-                "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
-                body.len(),
-                cors_headers,
-                body
-            );
-            let _ = stream.write_all(resp.as_bytes());
-            return;
+        if WORKSTATION_BLOCKED.load(Ordering::SeqCst) {
+            eprintln!("[CITADEL CLIENT] Workstation was flagged blocked by watchdog, but permitting End Exam request from loopback to ensure clean restoration.");
         }
 
         if is_disqualified_exit {

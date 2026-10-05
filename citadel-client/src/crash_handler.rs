@@ -84,6 +84,45 @@ pub fn run_bounded(program: &str, args: &[&str], timeout_ms: u64) {
 /// already alive opens a new File Explorer window instead of restoring the
 /// desktop, so unconditional spawns stack duplicate windows across repeated
 /// crash-restore cycles.
+
+pub fn get_lockdown_marker_path() -> std::path::PathBuf {
+    if let Ok(progdata) = std::env::var("ProgramData") {
+        let p = std::path::Path::new(&progdata).join("Citadel").join("state");
+        let _ = std::fs::create_dir_all(&p);
+        p.join("lockdown_active.json")
+    } else {
+        std::env::temp_dir().join("citadel_lockdown_active.json")
+    }
+}
+
+pub fn is_other_citadel_client_running(own_pid: u32) -> bool {
+    unsafe {
+        if let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) {
+            let mut entry = PROCESSENTRY32W::default();
+            entry.dwSize = std::mem::size_of::<PROCESSENTRY32W>() as u32;
+            if Process32FirstW(snapshot, &mut entry).is_ok() {
+                loop {
+                    let exe_name = String::from_utf16_lossy(&entry.szExeFile)
+                        .trim_matches(char::from(0))
+                        .to_lowercase();
+                    if (exe_name == "citadel-client.exe" || (exe_name.starts_with("citadel-client") && exe_name.ends_with(".exe")))
+                        && entry.th32ProcessID != own_pid
+                        && entry.th32ProcessID != 0
+                    {
+                        let _ = CloseHandle(snapshot);
+                        return true;
+                    }
+                    if Process32NextW(snapshot, &mut entry).is_err() {
+                        break;
+                    }
+                }
+            }
+            let _ = CloseHandle(snapshot);
+        }
+    }
+    false
+}
+
 pub fn relaunch_explorer_shell() {
     let mut running = false;
     unsafe {
@@ -115,6 +154,23 @@ pub fn relaunch_explorer_shell() {
 
 pub fn emergency_restore_system() {
     eprintln!("[CITADEL EMERGENCY] Initiating failsafe system restoration...");
+
+    // Write crash recovery marker for supervisor / reboot audit
+    let own_pid = unsafe { windows::Win32::System::Threading::GetCurrentProcessId() };
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let marker = serde_json::json!({
+        "pid": own_pid,
+        "timestamp": timestamp,
+        "event": "emergency_restore_system"
+    });
+    let program_data = std::env::var("ProgramData").unwrap_or_else(|_| r"C:\ProgramData".to_string());
+    let marker_dir = std::path::Path::new(&program_data).join("Citadel");
+    let _ = std::fs::create_dir_all(&marker_dir);
+    let marker_path = marker_dir.join("crash_recovery.json");
+    let _ = std::fs::write(marker_path, marker.to_string());
 
     // 1. Restore/delete registry locks
     let keys = [
@@ -191,61 +247,17 @@ pub fn emergency_restore_system() {
     // 3. Restart explorer.exe (idempotent: only when no shell instance is alive)
     relaunch_explorer_shell();
 
-    // 4. Restore Bluetooth and WLAN (bounded waits — never stall crash recovery)
+    // 4. Restore Bluetooth and WLAN (bounded waits â€” never stall crash recovery)
     run_bounded("sc", &["config", "bthserv", "start=", "auto"], 5000);
     run_bounded("net", &["start", "bthserv"], 5000);
     run_bounded("sc", &["config", "WlanSvc", "start=", "auto"], 5000);
     run_bounded("net", &["start", "WlanSvc"], 5000);
 
-    // 5. Restore Precision Touchpad multi-finger gestures
-    let touchpad_subkey = to_wide(r"Software\Microsoft\Windows\CurrentVersion\PrecisionTouchPad");
-    unsafe {
-        let mut hkey = HKEY::default();
-        if RegOpenKeyExW(
-            HKEY_CURRENT_USER,
-            PCWSTR(touchpad_subkey.as_ptr()),
-            0,
-            KEY_WRITE,
-            &mut hkey,
-        ).is_ok() {
-            let stale_zero_keys = [
-                "ThreeFingerSlideUp",
-                "ThreeFingerSlideDown",
-                "ThreeFingerSlideLeft",
-                "ThreeFingerSlideRight",
-                "ThreeFingerTap",
-                "FourFingerSlideUp",
-                "FourFingerSlideDown",
-                "FourFingerSlideLeft",
-                "FourFingerSlideRight",
-                "FourFingerTap",
-                "ThreeFingerDownEnabled",
-                "FourFingerDownEnabled",
-            ];
-            for &k in &stale_zero_keys {
-                let kw = to_wide(k);
-                let _ = RegDeleteValueW(hkey, PCWSTR(kw.as_ptr()));
-            }
-            let enabled_bytes = 1u32.to_le_bytes();
-            for &k in &[
-                "ThreeFingerSlideEnabled",
-                "ThreeFingerTapEnabled",
-                "FourFingerSlideEnabled",
-                "FourFingerTapEnabled",
-            ] {
-                let kw = to_wide(k);
-                let _ = windows::Win32::System::Registry::RegSetValueExW(
-                    hkey,
-                    PCWSTR(kw.as_ptr()),
-                    0,
-                    windows::Win32::System::Registry::REG_DWORD,
-                    Some(&enabled_bytes),
-                );
-            }
-            let _ = RegCloseKey(hkey);
-        }
-    }
+    // 5. Restore Precision Touchpad multi-finger gestures from pre-exam snapshot
+    crate::kiosk_window::TouchpadLock::restore_touchpad_gestures();
 
+    let marker_path = get_lockdown_marker_path();
+    let _ = std::fs::remove_file(marker_path);
     eprintln!("[CITADEL EMERGENCY] Failsafe restoration executed.");
 }
 

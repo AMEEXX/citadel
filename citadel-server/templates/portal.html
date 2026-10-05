@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="/static/fonts/citadel-fonts.css">
   <title>CITADEL — Code Assessment Portal</title>
   <script src="/static/ace.bundle.js"></script>
+  <script src="/static/citadel-restore.js"></script>
   <style>
     /* ─── COLOR SYSTEM & TYPOGRAPHY TOKENS ─── */
     :root {
@@ -1469,6 +1470,12 @@
       </p>
       <div id="conclusion-status-badge" style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: var(--text-sm); font-weight: var(--weight-semibold); padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: var(--font-mono);">
         Terminating Citadel processes &amp; Restoring Laptop...
+      </div>
+      <div id="manual-restore-fallback" style="display: none; margin-top: 10px; margin-bottom: 16px; padding: 12px; background: rgba(251, 146, 60, 0.08); border: 1px solid rgba(251, 146, 60, 0.25); border-radius: 6px; text-align: center;">
+        <div style="font-size: 12px; color: #fed7aa; margin-bottom: 8px;">If your laptop still feels restricted (taskbar hidden, gestures disabled), run the emergency restore tool:</div>
+        <a href="/download/RESTORE_MY_LAPTOP.bat" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; background: #ea580c; color: #ffffff; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: 600; font-family: var(--font-mono);">
+          ⚡ Download RESTORE_MY_LAPTOP.bat
+        </a>
       </div>
       <p style="color: var(--text-dim); font-size: var(--text-xs); font-family: var(--font-mono); margin-bottom: 20px;">
         All shortcuts (Win+R, Win+Shift+S, Alt+Tab, PrtScn) and Explorer shell are restored.
@@ -3166,17 +3173,10 @@ ${data.details || ''}`;
     let LOCAL_CONTROL_PORT = 8444;
 
     async function detectLocalControlPort() {
-      for (let p = 8444; p <= 8450; p++) {
-        try {
-          const controller = new AbortController();
-          const tid = setTimeout(() => controller.abort(), 400);
-          const res = await fetch(`http://127.0.0.1:${p}/health`, { signal: controller.signal });
-          clearTimeout(tid);
-          if (res.ok) {
-            LOCAL_CONTROL_PORT = p;
-            return p;
-          }
-        } catch (e) {}
+      if (typeof window.detectLocalControlPort === 'function') {
+        const p = await window.detectLocalControlPort();
+        if (p) LOCAL_CONTROL_PORT = p;
+        return p;
       }
       return null;
     }
@@ -3234,123 +3234,31 @@ ${data.details || ''}`;
         confirmBtn.innerText = "Restoring Laptop & Destroying Processes...";
       }
 
-      // 1. ALWAYS notify exam server FIRST (marks candidate "Logged Out" so citadel-client
-      //    polling session_control will get should_exit=true and trigger recovery supervisor)
-      try {
-        await fetch('/api/v1/client/kill-all-lockdown', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidate_id: CANDIDATE_ID || 'terminal-exit',
-            reason: 'Candidate clicked End Exam and submitted session'
-          })
-        });
-      } catch (e) {}
-
-      // 2. ALWAYS notify exam server of logout
       isExplicitEndExam = true;
-      try {
-        await fetch('/api/v1/integrity/logout', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            candidate_id: CANDIDATE_ID || 'terminal-exit',
-            reason: 'Candidate clicked End Exam and submitted session'
-          })
-        });
-      } catch (e) {}
 
-      // 3. Show conclusion screen immediately
-      closeEndExamModal();
+      // Show conclusion screen immediately
       const isDisq = isDisqualified || document.getElementById('disqualified-overlay')?.style.display === 'flex';
       if (!isDisq) {
         const conclusion = document.getElementById('conclusion-screen');
         if (conclusion) conclusion.style.display = 'flex';
+        const candRegModal = document.getElementById('candidate-reg-modal');
+        if (candRegModal) candRegModal.style.display = 'none';
       }
       updateUniversalExitAffordance();
 
-      const statusEl = document.getElementById('conclusion-status-badge');
-
-      // 4. Best-effort: Try to also hit the local citadel-client directly for immediate restore
-      const port = await detectLocalControlPort();
-      if (port) {
-        if (statusEl) {
-          statusEl.innerText = "Restoring Workstation... Waiting for Supervisor Verification...";
-        }
-        try {
-          const res = await fetch(`http://127.0.0.1:${port}/api/v1/client/end-exam`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
-            },
-            body: JSON.stringify({
-              auth_token: ACTIVE_AUTH_TOKEN,
-              candidate_id: CANDIDATE_ID || 'terminal-exit',
-              already_ended: isTerminalState
-            })
-          });
-        } catch (e) {}
-
-        // 5. Poll supervisor status handoff on loopback
-        for (let attempt = 0; attempt < 25; attempt++) {
-          await new Promise(r => setTimeout(r, 600));
-          try {
-            const res = await fetch(`http://127.0.0.1:${port}/restore-status`);
-            if (res.ok) {
-              const data = await res.json();
-              if (data && data.verified) {
-                break;
-              }
-            }
-          } catch (e) {
-            if (attempt > 6) break;
-          }
-        }
-
-        if (statusEl) {
-          statusEl.innerText = "All Citadel processes destroyed \u2014 Verified 100% Restored.";
-          statusEl.style.borderColor = "#38a169";
-          statusEl.style.color = "#86efac";
-        }
-      } else {
-        // No local citadel-client found. Server-side is already notified above,
-        // so the client's session_control polling will pick up should_exit=true
-        // and trigger recovery automatically (like disqualify flow).
-        if (statusEl) {
-          statusEl.innerText = "Server notified. Citadel client will auto-restore via session polling...";
-        }
-        // Wait a few seconds for client polling to kick in
-        for (let attempt = 0; attempt < 10; attempt++) {
-          await new Promise(r => setTimeout(r, 1500));
-          // Try to detect if client comes up (it might have been blocked temporarily)
-          const retryPort = await detectLocalControlPort();
-          if (retryPort) {
-            try {
-              await fetch(`http://127.0.0.1:${retryPort}/api/v1/client/end-exam`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
-                },
-                body: JSON.stringify({
-                  auth_token: ACTIVE_AUTH_TOKEN,
-                  candidate_id: CANDIDATE_ID || 'terminal-exit',
-                  already_ended: true
-                })
-              });
-            } catch (e) {}
-            break;
-          }
-        }
-        if (statusEl) {
-          statusEl.innerText = "Session concluded. Workstation restore signal sent.";
-          statusEl.style.borderColor = "#38a169";
-          statusEl.style.color = "#86efac";
-        }
+      if (typeof window.citadelRestore === 'function') {
+        await window.citadelRestore({
+          statusEl: document.getElementById('conclusion-status-badge'),
+          isForced: isForced,
+          isTerminalState: isTerminalState,
+          candidateId: CANDIDATE_ID,
+          authToken: ACTIVE_AUTH_TOKEN,
+          isProduction: isProductionMode,
+          remainingSeconds: remainingSeconds
+        });
       }
 
-      // 6. Best-effort close
+      // Best effort close
       setTimeout(() => {
         try { window.close(); } catch(e) {}
         try { window.open('', '_self').close(); } catch(e) {}
