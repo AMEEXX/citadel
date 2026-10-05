@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::io::{Read, Write};
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -156,16 +157,28 @@ fn resolve_server_endpoint(cli_ip: Option<Ipv4Addr>, port: u16) -> (Ipv4Addr, u1
     (Ipv4Addr::new(172, 60, 10, 12), port)
 }
 
-fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16, auth_token: Option<&str>) -> Result<bool, std::io::Error> {
+fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16, auth_token: Option<&str>, candidate_id: Option<&str>) -> Result<bool, std::io::Error> {
     let addr = SocketAddr::from((server_ip, server_port));
     let mut stream = TcpStream::connect_timeout(&addr, Duration::from_millis(300))?;
     let _ = stream.set_read_timeout(Some(Duration::from_millis(400)));
     let _ = stream.set_write_timeout(Some(Duration::from_millis(400)));
 
-    let query_str = if let Some(tok) = auth_token {
-        format!("?token={}", tok)
-    } else {
+    let mut query_parts = Vec::new();
+    if let Some(cid) = candidate_id {
+        if !cid.is_empty() {
+            query_parts.push(format!("candidate_id={}", cid));
+        }
+    }
+    if let Some(tok) = auth_token {
+        if !tok.is_empty() {
+            query_parts.push(format!("token={}", tok));
+        }
+    }
+
+    let query_str = if query_parts.is_empty() {
         String::new()
+    } else {
+        format!("?{}", query_parts.join("&"))
     };
 
     let req = format!(
@@ -228,8 +241,13 @@ fn ensure_explorer_running() {
 
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    log_event("[CITADEL CLIENT] Process started");
     let args: Vec<String> = std::env::args().collect();
+    if args.iter().any(|a| a == "--supervisor" || a == "--recovery") {
+        citadel_client::run_supervisor();
+        return Ok(());
+    }
+
+    log_event("[CITADEL CLIENT] Process started");
 
     // 1. Mandatory Administrator Privilege Check & Interactive UAC Auto-Escalation Loop
     // The Citadel client MUST ONLY run with elevated Administrator privileges.
@@ -426,7 +444,8 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         poll_counter += 1;
         if poll_counter % 2 == 0 {
             let auth_tok = guard.auth_token.as_deref();
-            if let Ok(should_exit) = poll_server_exit_status(server_ip, server_port, auth_tok) {
+            let cand_id = local_control.as_ref().and_then(|lc| lc.get_candidate_id());
+            if let Ok(should_exit) = poll_server_exit_status(server_ip, server_port, auth_tok, cand_id.as_deref()) {
                 if should_exit {
                     log_event("[EXIT CHANNEL 3] Exam server instructed session termination! Initiating full laptop restoration...");
                     break;
@@ -469,6 +488,7 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
     let _ = kiosk_child.kill();
 
     // B. Explicitly stop local control server
+    let bound_port = local_control.as_ref().map(|lc| lc.port).unwrap_or(8444);
     drop(local_control);
 
     // C. Explicitly tear down all client security guard locks (Keyboard hooks, Taskbars, WFP, Bluetooth, etc.)
@@ -480,19 +500,39 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
     // E. Ensure Windows Explorer shell is active
     ensure_explorer_running();
 
-    // E2. Directly trigger RESTORE_MY_LAPTOP.bat with inherited Administrator privileges
-    let bat_candidates = [
-        "RESTORE_MY_LAPTOP.bat",
-        r".\RESTORE_MY_LAPTOP.bat",
-        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\RESTORE_MY_LAPTOP.bat",
-    ];
-    for bat in bat_candidates {
-        if std::path::Path::new(bat).exists() {
-            eprintln!("[CITADEL CLIENT] Directly invoking RESTORE_MY_LAPTOP.bat with Administrator elevation...");
-            let _ = std::process::Command::new("cmd.exe")
-                .args(["/c", "start", "", bat])
-                .spawn();
-            break;
+    // E2. Spawn the Authoritative Restoration Supervisor detached
+    let current_exe = std::env::current_exe().ok();
+    let mut supervisor_spawned = false;
+
+    if let Some(ref exe_path) = current_exe {
+        eprintln!("[CITADEL CLIENT] Spawning self-hosted Restoration Supervisor: {:?}", exe_path);
+        let spawn_res = std::process::Command::new(exe_path)
+            .args(["--supervisor", "--origin", "end-exam", "--port", &bound_port.to_string()])
+            .creation_flags(0x08000000 | 0x00000200) // CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+            .spawn();
+        if spawn_res.is_ok() {
+            supervisor_spawned = true;
+        }
+    }
+
+    if !supervisor_spawned {
+        let bat_candidates = [
+            "citadel-recovery.exe",
+            r".\citadel-recovery.exe",
+            r"bin\citadel-recovery.exe",
+            "RESTORE_MY_LAPTOP.bat",
+            r".\RESTORE_MY_LAPTOP.bat",
+            r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\RESTORE_MY_LAPTOP.bat",
+        ];
+        for bat in bat_candidates {
+            if std::path::Path::new(bat).exists() {
+                eprintln!("[CITADEL CLIENT] Directly invoking fallback supervisor: {}", bat);
+                let _ = std::process::Command::new("cmd.exe")
+                    .args(["/c", "start", "", bat])
+                    .creation_flags(0x08000000)
+                    .spawn();
+                break;
+            }
         }
     }
 
@@ -502,7 +542,7 @@ Running in an unprivileged or degraded 'less control' mode is strictly prohibite
         .output();
 
     eprintln!("[CITADEL CLIENT] ========================================================");
-    eprintln!("[CITADEL CLIENT] PROCESS DESTRUCTION COMPLETE: ZERO CITADEL PROCESSES REMAIN.");
+    eprintln!("[CITADEL CLIENT] PROCESS DESTRUCTION HANDOFF: SUPERVISOR ACTIVE.");
     eprintln!("[CITADEL CLIENT] ========================================================");
 
     drop(guard);

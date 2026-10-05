@@ -165,6 +165,7 @@ pub struct TokenSession {
     pub client_version: String,
     pub machine_guid: Option<String>,
     pub created_at: chrono::DateTime<chrono::Utc>,
+    pub candidate_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -337,6 +338,7 @@ impl AppState {
                         client_version: "restored".to_string(),
                         machine_guid: None,
                         created_at: chrono::Utc::now(),
+                        candidate_id: Some(cid.clone()),
                     },
                 );
             }
@@ -425,6 +427,7 @@ impl Default for AppState {
                         client_version: "restored".to_string(),
                         machine_guid: None,
                         created_at: chrono::Utc::now(),
+                        candidate_id: Some(cid.clone()),
                     },
                 );
             }
@@ -544,6 +547,8 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/", get(portal_or_gatekeeper_handler))
         .route("/exam", get(portal_handler))
         .route("/download/citadel-client.exe", get(download_client_handler))
+        .route("/download/citadel-recovery.exe", get(download_recovery_handler))
+        .route("/download/RESTORE_MY_LAPTOP.bat", get(download_restore_bat_handler))
         .route("/static/ace.bundle.js", get(serve_ace_bundle_handler))
         .route("/static/*path", get(serve_static_handler))
         .route("/architecture", get(architecture_handler))
@@ -1242,7 +1247,13 @@ async fn client_session_control_handler(
         if !cid.is_empty() { Some(cid.clone()) } else { None }
     } else if let Some(ref tok) = q.token {
         let cand_states = state.candidate_states.lock().unwrap();
-        cand_states.iter().find(|(_, c)| c.session_token == *tok).map(|(id, _)| id.clone())
+        let from_states = cand_states.iter().find(|(_, c)| c.session_token == *tok).map(|(id, _)| id.clone());
+        if from_states.is_some() {
+            from_states
+        } else {
+            let tokens = state.authorized_tokens.lock().unwrap();
+            tokens.get(tok).and_then(|s| s.candidate_id.clone())
+        }
     } else {
         None
     };
@@ -1262,16 +1273,18 @@ async fn client_session_control_handler(
             }
         }
 
-        let cands = state.candidates.lock().unwrap();
-        let cand_opt = cands.get(cid).or_else(|| {
-            cands.iter().find(|(k, _)| k.eq_ignore_ascii_case(cid)).map(|(_, c)| c)
-        });
+        let cand_status = {
+            let cands = state.candidates.lock().unwrap();
+            if let Some(cand) = cands.get(cid).or_else(|| cands.iter().find(|(k, _)| k.eq_ignore_ascii_case(cid)).map(|(_, c)| c)) {
+                Some(cand.status.clone())
+            } else {
+                let states = state.candidate_states.lock().unwrap();
+                states.get(cid).or_else(|| states.iter().find(|(k, _)| k.eq_ignore_ascii_case(cid)).map(|(_, c)| c)).map(|c| c.status.clone())
+            }
+        };
 
-        if let Some(cand) = cand_opt {
-            // Disqualified candidates MUST exit immediately and have workstation restored!
-            // Regardless of whether in Production or Testing mode and irrespective of remaining exam time,
-            // when a candidate is disqualified or removed, release lockdown and remove candidate out immediately.
-            if cand.status == "Disqualified" {
+        if let Some(ref status) = cand_status {
+            if status == "Disqualified" {
                 return Json(SessionControlResponse {
                     should_exit: true,
                     reason: "Candidate disqualified: session terminated and workstation unlocked immediately".to_string(),
@@ -1279,19 +1292,18 @@ async fn client_session_control_handler(
                 });
             }
 
-            // Normal submitted candidate who completed session within permitted window:
-            if cand.status == "Submitted" || cand.status == "Logged Out" {
+            if status == "Submitted" || status == "Logged Out" || status == "Concluded" {
                 return Json(SessionControlResponse {
                     should_exit: true,
                     reason: "Candidate session concluded".to_string(),
-                    status: cand.status.clone(),
+                    status: status.clone(),
                 });
             }
 
             return Json(SessionControlResponse {
                 should_exit: false,
                 reason: "".to_string(),
-                status: cand.status.clone(),
+                status: status.clone(),
             });
         }
     }
@@ -1395,6 +1407,7 @@ async fn client_handshake_handler(
         client_version: payload.client_version,
         machine_guid: payload.machine_guid,
         created_at: now,
+        candidate_id: None,
     };
 
     let mut tokens = state.authorized_tokens.lock().unwrap();
@@ -1566,6 +1579,62 @@ async fn download_client_handler(headers: HeaderMap) -> Result<Response, StatusC
                 .header(
                     header::CONTENT_DISPOSITION,
                     r#"attachment; filename="citadel-client.exe""#,
+                )
+                .body(Body::from(bytes))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            return Ok(res);
+        }
+    }
+
+    Err(StatusCode::NOT_FOUND)
+}
+
+async fn download_recovery_handler() -> Result<Response, StatusCode> {
+    let candidates = [
+        "bin/citadel-recovery.exe",
+        "citadel-recovery.exe",
+        "target/release/citadel-recovery.exe",
+        "target/debug/citadel-recovery.exe",
+        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\bin\citadel-recovery.exe",
+        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\target\release\citadel-recovery.exe",
+        "/home/amitlinux/DevProjects/citadel-design/bin/citadel-recovery.exe",
+        "/home/amitlinux/DevProjects/citadel-design/target/release/citadel-recovery.exe",
+    ];
+
+    for path in &candidates {
+        if let Ok(bytes) = std::fs::read(path) {
+            let res = Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/vnd.microsoft.portable-executable")
+                .header(
+                    header::CONTENT_DISPOSITION,
+                    r#"attachment; filename="citadel-recovery.exe""#,
+                )
+                .body(Body::from(bytes))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            return Ok(res);
+        }
+    }
+
+    Err(StatusCode::NOT_FOUND)
+}
+
+async fn download_restore_bat_handler() -> Result<Response, StatusCode> {
+    let candidates = [
+        "scripts/windows/RESTORE_MY_LAPTOP.bat",
+        "RESTORE_MY_LAPTOP.bat",
+        r"\\wsl.localhost\Ubuntu\home\amitlinux\DevProjects\citadel-design\scripts\windows\RESTORE_MY_LAPTOP.bat",
+        "/home/amitlinux/DevProjects/citadel-design/scripts/windows/RESTORE_MY_LAPTOP.bat",
+    ];
+
+    for path in &candidates {
+        if let Ok(bytes) = std::fs::read(path) {
+            let res = Response::builder()
+                .status(StatusCode::OK)
+                .header(header::CONTENT_TYPE, "application/x-bat")
+                .header(
+                    header::CONTENT_DISPOSITION,
+                    r#"attachment; filename="RESTORE_MY_LAPTOP.bat""#,
                 )
                 .body(Body::from(bytes))
                 .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
@@ -2433,8 +2502,16 @@ async fn candidate_login_handler(
         client_version: payload.client_version.unwrap_or_else(|| "portal-web".to_string()),
         machine_guid: None,
         created_at: now,
+        candidate_id: Some(candidate_id.clone()),
     };
     state.authorized_tokens.lock().unwrap().insert(token.clone(), token_session);
+
+    if let Some(h) = headers.get("X-Citadel-Auth-Token").and_then(|v| v.to_str().ok()) {
+        let mut tok_map = state.authorized_tokens.lock().unwrap();
+        if let Some(s) = tok_map.get_mut(h) {
+            s.candidate_id = Some(candidate_id.clone());
+        }
+    }
 
     // 5. Candidate state lookup & resumption calculation
     let mut cand_states = state.candidate_states.lock().unwrap();

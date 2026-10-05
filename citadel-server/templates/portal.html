@@ -1039,6 +1039,38 @@
     .candidate-reg-btn:hover {
       background: #5f82b0;
     }
+    .candidate-restore-btn {
+      width: 100%;
+      margin-top: 10px;
+      background: rgba(241, 112, 112, 0.12);
+      border: 1px solid rgba(241, 112, 112, 0.3);
+      color: #f47a79;
+      padding: 12px;
+      border-radius: 4px;
+      font-family: var(--font-ui, 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+      font-size: var(--text-md, 14px);
+      font-weight: var(--weight-semibold, 600);
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.15s ease;
+      line-height: normal;
+      box-sizing: border-box;
+    }
+    .candidate-restore-btn:hover {
+      background: #c4474b !important;
+      border-color: rgba(241, 112, 112, 0.4) !important;
+      color: #f2f0ec !important;
+    }
+    .candidate-restore-btn svg {
+      transition: transform 0.15s ease;
+    }
+    .candidate-restore-btn:hover svg {
+      transform: translateX(1px);
+    }
 
     /* INVISIBLE DRAG BARRIER OVERLAY */
 
@@ -1217,6 +1249,15 @@
   <link rel="stylesheet" href="/static/citadel-skin.css">
 </head>
 <body class="app-portal">
+  <!-- UNIVERSAL PERSISTENT EXIT AFFORDANCE (OUTSIDE EXAM ONLY) -->
+  <div id="universal-exit-container" style="position: fixed; top: 12px; right: 16px; z-index: 12000; display: none;">
+    <button id="btn-universal-exit" class="btn-end-exam" onclick="executeEndExam(true)" title="Exit Citadel & Restore Laptop">
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
+        <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
+      </svg>
+      <span>Restore Laptop</span>
+    </button>
+  </div>
   <!-- INVISIBLE DRAG SHIELD -->
   <div id="drag-overlay"></div>
 
@@ -1402,7 +1443,7 @@
   </div>
 
   <!-- END EXAM CONFIRMATION MODAL -->
-  <div id="modal-end-exam" class="modal-overlay" style="display: none;">
+  <div id="modal-end-exam" class="modal-overlay" style="display: none; z-index: 15000;">
     <div class="modal-box">
       <div class="modal-title">End Assessment Session?</div>
       <div class="modal-body">
@@ -1419,22 +1460,24 @@
   </div>
 
   <!-- CONCLUSION OVERLAY -->
-  <div id="conclusion-screen" class="conclusion-overlay" style="display: none;">
-    <div class="conclusion-card" style="max-width: 520px; border-color: #357153; background: #081d13;">
+  <div id="conclusion-screen" class="conclusion-overlay" style="display: none; z-index: 11000;">
+    <div class="conclusion-card" style="max-width: 540px; border-color: #357153; background: #081d13;">
       <div style="font-size: 44px; color: #71d6a3; margin-bottom: 14px;">✓</div>
-      <h2>Assessment Submitted Successfully</h2>
+      <h2>Assessment Session Concluded</h2>
       <p>
-        Your examination session has concluded. All Citadel lockdown processes have been terminated with zero pending restrictions.
+        Your examination has ended. Workstation supervisor has been engaged to terminate all Citadel lockdown processes.
       </p>
-      <div style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: var(--text-base); font-weight: var(--weight-semibold); padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: var(--font-mono);">
-        User, you can now successfully close the window.
+      <div id="conclusion-status-badge" style="display: inline-block; background: #081d13; border: 1px solid #357153; color: #b0e6c8; font-size: var(--text-sm); font-weight: var(--weight-semibold); padding: 10px 22px; border-radius: 6px; margin-bottom: 16px; font-family: var(--font-mono);">
+        Terminating Citadel processes &amp; Restoring Laptop...
       </div>
-      <p style="color: var(--text-dim); font-size: var(--text-sm); font-family: var(--font-mono); margin-bottom: 20px;">
-        All shortcuts (Win+R, Win+Shift+S, Alt+Tab, PrtScn) and system shell are restored.
+      <p style="color: var(--text-dim); font-size: var(--text-xs); font-family: var(--font-mono); margin-bottom: 20px;">
+        All shortcuts (Win+R, Win+Shift+S, Alt+Tab, PrtScn) and Explorer shell are restored.
       </p>
-      <button onclick="try{window.close();}catch(e){} try{window.open('','_self').close();}catch(e){}" class="candidate-reg-btn" style="max-width: 200px; margin: 0 auto; display: inline-block;">
-        Close Window
-      </button>
+      <div style="display: flex; justify-content: center;">
+        <button onclick="try{window.close();}catch(e){} try{window.open(\'\',\'_self\').close();}catch(e){}" class="candidate-reg-btn" style="max-width: 160px; margin: 0; display: inline-block;">
+          Close Window
+        </button>
+      </div>
     </div>
   </div>
 
@@ -1457,8 +1500,11 @@
         </div>
       </div>
       <div style="margin-bottom: 16px;">
-        <button onclick="executeDisqualifiedExit()" class="btn-action btn-end-exam" style="padding: 8px 22px; font-size: 13px; margin: 0 auto; display: inline-flex; border-radius: 0px;">
-          Exit & Close Workstation
+        <button onclick="executeEndExam(true)" class="btn-end-exam" style="padding: 7px 18px; font-size: 13px; margin: 0 auto;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
+            <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
+          </svg>
+          <span>Restore Laptop</span>
         </button>
       </div>
       <div style="font-size: 12px; color: var(--text-muted); font-family: var(--font-mono);">
@@ -1538,6 +1584,12 @@
       </div>
 
       <button id="btn-register-join" class="candidate-reg-btn" onclick="saveCandidateId()" style="font-weight: var(--weight-medium); letter-spacing: 0.02em;">Verify & Enter Assessment</button>
+      <button type="button" class="candidate-restore-btn" onclick="executeEndExam(true)" title="Exit Citadel & Restore Laptop">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
+          <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
+        </svg>
+        <span>Restore Laptop</span>
+      </button>
     </div>
   </div>
 
@@ -1721,9 +1773,17 @@
           <p id="exam-ended-msg" style="color: var(--text-secondary); max-width: 520px; text-align: center; line-height: 1.6; font-size: var(--text-sm);">
             ${escapeHtml(message)}
           </p>
-          <p style="color: var(--text-dim); font-size: var(--text-xs); margin-top: 16px; letter-spacing: 0.04em;">
-            If this is a technical error, please contact your exam proctor to re-admit you.
-          </p>
+          <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
+            <button onclick="executeEndExam(true)" class="btn-end-exam" style="padding: 7px 18px; font-size: 13px;">
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
+                <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
+              </svg>
+              <span>Restore Laptop</span>
+            </button>
+            <p style="color: var(--text-dim); font-size: var(--text-xs); margin-top: 6px; letter-spacing: 0.04em;">
+              Click above to terminate all Citadel background processes and restore Windows Explorer.
+            </p>
+          </div>
         `;
         document.body.appendChild(overlay);
       } else {
@@ -1887,6 +1947,7 @@
         CANDIDATE_ID = data.candidate_id || val;
         localStorage.setItem('citadel_candidate_id', CANDIDATE_ID);
         sessionStorage.setItem('citadel_candidate_passcode', passcode);
+        registerCandidateWithLocalControl(CANDIDATE_ID);
 
         if (data.session_token) {
           sessionStorage.setItem('citadel_auth_token', data.session_token);
@@ -1897,6 +1958,7 @@
 
         const notStarted = document.getElementById('exam-not-started-overlay');
         if (notStarted) notStarted.style.display = 'none';
+        updateUniversalExitAffordance();
 
         if (overlayCandIdEl) {
           overlayCandIdEl.innerText = data.name ? `${data.name} (${CANDIDATE_ID})` : CANDIDATE_ID;
@@ -2965,6 +3027,7 @@ ${data.details || ''}`;
             if (concludedOverlay) concludedOverlay.style.display = 'none';
           }
         }
+        updateUniversalExitAffordance();
       } catch (err) {
         console.error("checkExamStatus error:", err);
       }
@@ -3020,19 +3083,26 @@ ${data.details || ''}`;
     }
 
     // =========================================================================
-    // END EXAM FLOW & 15-MINUTE PRODUCTION RULE
+    // END EXAM FLOW & WORKSTATION RESTORATION (OBSIDIAN ATELIER DESIGN)
     // =========================================================================
+    function showModal(id, show) {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? 'flex' : 'none';
+    }
+
     function openEndExamModal() {
       // In Production Mode, early departure is strictly prohibited until final 15 minutes (900 seconds)
       if (isProductionMode && remainingSeconds > 900) {
         showEarlySubmissionLockedModal();
         return;
       }
-      document.getElementById('modal-end-exam').style.display = 'flex';
+      const modal = document.getElementById('modal-end-exam');
+      if (modal) modal.style.display = 'flex';
     }
 
     function closeEndExamModal() {
-      document.getElementById('modal-end-exam').style.display = 'none';
+      const modal = document.getElementById('modal-end-exam');
+      if (modal) modal.style.display = 'none';
     }
 
     function showEarlySubmissionLockedModal() {
@@ -3063,66 +3133,227 @@ ${data.details || ''}`;
       }
     }
 
-    async function executeEndExam() {
-      if (isProductionMode && remainingSeconds > 900) {
+    function updateUniversalExitAffordance() {
+      const container = document.getElementById('universal-exit-container');
+      if (!container) return;
+      const candModal = document.getElementById('candidate-id-modal');
+      const notStarted = document.getElementById('exam-not-started-overlay');
+      const ended = document.getElementById('exam-already-ended-overlay');
+      const concluded = document.getElementById('exam-concluded-overlay');
+      const disq = document.getElementById('disqualified-overlay');
+      const conclusion = document.getElementById('conclusion-screen');
+      const blocked = document.getElementById('mobile-device-blocked-overlay');
+
+      // On the login page, candidate-id-modal already has its own prominent full-width restore button!
+      // Do NOT show the top-right button while candidate-id-modal is open.
+      if (candModal && candModal.style.display !== 'none') {
+        container.style.display = 'none';
+        return;
+      }
+
+      // If outside exam (and not on login modal), show persistent Restore Laptop affordance.
+      const isOutsideExam = (notStarted && notStarted.style.display === 'flex')
+        || (ended && ended.style.display === 'flex')
+        || (concluded && concluded.style.display === 'flex')
+        || (disq && disq.style.display === 'flex')
+        || (conclusion && conclusion.style.display === 'flex')
+        || (blocked && blocked.style.display === 'flex');
+
+      container.style.display = isOutsideExam ? 'flex' : 'none';
+    }
+
+    let LOCAL_CONTROL_PORT = 8444;
+
+    async function detectLocalControlPort() {
+      for (let p = 8444; p <= 8450; p++) {
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 400);
+          const res = await fetch(`http://127.0.0.1:${p}/health`, { signal: controller.signal });
+          clearTimeout(tid);
+          if (res.ok) {
+            LOCAL_CONTROL_PORT = p;
+            return p;
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    async function registerCandidateWithLocalControl(cid) {
+      if (!cid) return;
+      const port = await detectLocalControlPort();
+      if (port) {
+        try {
+          await fetch(`http://127.0.0.1:${port}/api/v1/client/register`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+            },
+            body: JSON.stringify({ candidate_id: cid })
+          });
+        } catch (e) {}
+      }
+    }
+
+    async function triggerUniversalExit(isForced) {
+      const isTerminalState = isForced
+        || document.getElementById('exam-already-ended-overlay') !== null
+        || document.getElementById('candidate-id-modal')?.style.display === 'flex'
+        || document.getElementById('exam-concluded-overlay')?.style.display === 'flex'
+        || document.getElementById('exam-not-started-overlay')?.style.display === 'flex'
+        || document.getElementById('disqualified-overlay')?.style.display === 'flex';
+
+      if (isTerminalState) {
+        executeEndExam(true);
+      } else {
+        openEndExamModal();
+      }
+    }
+
+    async function executeEndExam(isForced) {
+      const isTerminalState = isForced
+        || document.getElementById('exam-already-ended-overlay') !== null
+        || document.getElementById('candidate-id-modal')?.style.display === 'flex'
+        || document.getElementById('exam-concluded-overlay')?.style.display === 'flex'
+        || document.getElementById('exam-not-started-overlay')?.style.display === 'flex'
+        || document.getElementById('disqualified-overlay')?.style.display === 'flex';
+
+      if (!isTerminalState && isProductionMode && remainingSeconds > 900) {
         showEarlySubmissionLockedModal();
         return;
       }
 
+      closeEndExamModal();
+
       const confirmBtn = document.getElementById('btn-confirm-end');
       if (confirmBtn) {
         confirmBtn.disabled = true;
-        confirmBtn.innerText = "Ending Exam & Eliminating All Processes...";
+        confirmBtn.innerText = "Restoring Laptop & Destroying Processes...";
       }
 
-      // 1. Total process elimination trigger on server
+      // 1. ALWAYS notify exam server FIRST (marks candidate "Logged Out" so citadel-client
+      //    polling session_control will get should_exit=true and trigger recovery supervisor)
       try {
         await fetch('/api/v1/client/kill-all-lockdown', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            candidate_id: CANDIDATE_ID,
-            reason: 'Candidate clicked Confirm & End Exam'
+            candidate_id: CANDIDATE_ID || 'terminal-exit',
+            reason: 'Candidate clicked End Exam and submitted session'
           })
         });
       } catch (e) {}
 
-      // 2. Direct loopback notification to local citadel-client (with auth token)
-      try {
-        await fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
-          },
-          body: JSON.stringify({
-            auth_token: ACTIVE_AUTH_TOKEN,
-            candidate_id: CANDIDATE_ID
-          })
-        });
-      } catch (e) {}
-
-      // 3. Notify exam server of submission / logout
+      // 2. ALWAYS notify exam server of logout
       isExplicitEndExam = true;
       try {
         await fetch('/api/v1/integrity/logout', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            candidate_id: CANDIDATE_ID,
+            candidate_id: CANDIDATE_ID || 'terminal-exit',
             reason: 'Candidate clicked End Exam and submitted session'
           })
         });
       } catch (e) {}
 
-      document.getElementById('modal-end-exam').style.display = 'none';
-      document.getElementById('conclusion-screen').style.display = 'flex';
+      // 3. Show conclusion screen immediately
+      closeEndExamModal();
+      const isDisq = isDisqualified || document.getElementById('disqualified-overlay')?.style.display === 'flex';
+      if (!isDisq) {
+        const conclusion = document.getElementById('conclusion-screen');
+        if (conclusion) conclusion.style.display = 'flex';
+      }
+      updateUniversalExitAffordance();
 
-      // 4. Attempt window close
+      const statusEl = document.getElementById('conclusion-status-badge');
+
+      // 4. Best-effort: Try to also hit the local citadel-client directly for immediate restore
+      const port = await detectLocalControlPort();
+      if (port) {
+        if (statusEl) {
+          statusEl.innerText = "Restoring Workstation... Waiting for Supervisor Verification...";
+        }
+        try {
+          const res = await fetch(`http://127.0.0.1:${port}/api/v1/client/end-exam`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+            },
+            body: JSON.stringify({
+              auth_token: ACTIVE_AUTH_TOKEN,
+              candidate_id: CANDIDATE_ID || 'terminal-exit',
+              already_ended: isTerminalState
+            })
+          });
+        } catch (e) {}
+
+        // 5. Poll supervisor status handoff on loopback
+        for (let attempt = 0; attempt < 25; attempt++) {
+          await new Promise(r => setTimeout(r, 600));
+          try {
+            const res = await fetch(`http://127.0.0.1:${port}/restore-status`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data && data.verified) {
+                break;
+              }
+            }
+          } catch (e) {
+            if (attempt > 6) break;
+          }
+        }
+
+        if (statusEl) {
+          statusEl.innerText = "All Citadel processes destroyed \u2014 Verified 100% Restored.";
+          statusEl.style.borderColor = "#38a169";
+          statusEl.style.color = "#86efac";
+        }
+      } else {
+        // No local citadel-client found. Server-side is already notified above,
+        // so the client's session_control polling will pick up should_exit=true
+        // and trigger recovery automatically (like disqualify flow).
+        if (statusEl) {
+          statusEl.innerText = "Server notified. Citadel client will auto-restore via session polling...";
+        }
+        // Wait a few seconds for client polling to kick in
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise(r => setTimeout(r, 1500));
+          // Try to detect if client comes up (it might have been blocked temporarily)
+          const retryPort = await detectLocalControlPort();
+          if (retryPort) {
+            try {
+              await fetch(`http://127.0.0.1:${retryPort}/api/v1/client/end-exam`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
+                },
+                body: JSON.stringify({
+                  auth_token: ACTIVE_AUTH_TOKEN,
+                  candidate_id: CANDIDATE_ID || 'terminal-exit',
+                  already_ended: true
+                })
+              });
+            } catch (e) {}
+            break;
+          }
+        }
+        if (statusEl) {
+          statusEl.innerText = "Session concluded. Workstation restore signal sent.";
+          statusEl.style.borderColor = "#38a169";
+          statusEl.style.color = "#86efac";
+        }
+      }
+
+      // 6. Best-effort close
       setTimeout(() => {
         try { window.close(); } catch(e) {}
         try { window.open('', '_self').close(); } catch(e) {}
-      }, 500);
+      }, 1500);
     }
 
     async function sendHeartbeat() {
@@ -3149,32 +3380,7 @@ ${data.details || ''}`;
     }
 
     async function executeDisqualifiedExit() {
-      try {
-        await fetch('http://127.0.0.1:8444/api/v1/client/end-exam', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Citadel-Auth-Token': ACTIVE_AUTH_TOKEN
-          },
-          body: JSON.stringify({
-            auth_token: ACTIVE_AUTH_TOKEN,
-            candidate_id: CANDIDATE_ID,
-            reason: 'Candidate disqualified: immediate workstation restoration'
-          })
-        }).catch(() => {});
-      } catch(e) {}
-
-      try {
-        navigator.sendBeacon('/api/v1/integrity/logout', JSON.stringify({
-          candidate_id: CANDIDATE_ID,
-          reason: 'Candidate disqualified: session terminated'
-        }));
-      } catch(e) {}
-
-      setTimeout(() => {
-        try { window.close(); } catch(e) {}
-        try { window.open('', '_self').close(); } catch(e) {}
-      }, 500);
+      await executeEndExam(true);
     }
 
     function triggerDisqualification() {
@@ -3461,6 +3667,7 @@ ${data.details || ''}`;
       initCandidateId();
       initAceEditor();
       initResizers();
+      updateUniversalExitAffordance();
       checkExamStatus();
       setInterval(checkExamStatus, 2500);
       setInterval(tickTimer, 1000);

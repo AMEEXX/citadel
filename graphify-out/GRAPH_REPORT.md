@@ -1,17 +1,17 @@
-# Graph Report - citadel-design  (2026-10-03)
+# Graph Report - citadel-design  (2026-10-04)
 
 ## Corpus Check
-- 85 files · ~454,835 words
+- 87 files · ~467,145 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 17 file(s) not represented in the graph (top: (none) 4, .bat 4, .woff2 4)
 
 ## Summary
-- 1430 nodes · 2721 edges · 118 communities (70 shown, 48 thin omitted)
-- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 180 edges (avg confidence: 0.85)
+- 1446 nodes · 2822 edges · 121 communities (73 shown, 48 thin omitted)
+- Extraction: 93% EXTRACTED · 7% INFERRED · 0% AMBIGUOUS · INFERRED: 190 edges (avg confidence: 0.85)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `ab5c7283`
+- Built from commit: `6dadf0c6`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -31,7 +31,7 @@
 - 07 — LLD: Content Authoring, Upload, and Distribution
 - 08 — LLD: Load Balancing, Caching, and Workload Distribution
 - 04 — LLD: Network, Routing, and LAN
-- citadel-client/src/main.rs
+- crash_handler.rs
 - 🛡️ CITADEL — Offline Air-Gapped Assessment Platform & Hardened Lockdown Enclave
 - llm_detect.rs
 - 17 — Implementation Plan: Phase 0 (Lockdown Spike, Weeks 1-6)
@@ -41,13 +41,13 @@
 - pre_flight.rs
 - 06 — LLD: Judge and Sandbox
 - LocalControlServer
-- guard-svc/src/lib.rs
+- guard-svc/src/main.rs
 - 11 — LLD: Admin Console and Operations
-- recovery.rs
+- SecureDesktop
 - 13 — Security Threat Model
 - String
 - policy.rs
-- guard-svc/src/main.rs
+- recovery.rs
 - ExplorerLock
 - selora
 - 📚 CITADEL — System Architecture & Design Specification Suite
@@ -55,29 +55,29 @@
 - sync-archify.mjs
 - 15 — Senior Engineering Review & Hardened Lockdown (v2)
 - 09 — LLD: Reliability, Failover, and Disaster Recovery
-- security_coordinator.rs
+- RegistryLock
 - 14 — Implementation Roadmap
 - KeyboardHookHandle
 - Citadel Client - Security Architecture and Implementation Reference
-- is_elevated
+- security_coordinator.rs
 - package.json
 - 4. How Restrictions Work - Layer by Layer
 - 10 — LLD: Integrity Analytics and Proctoring
 - Completed & Verified Deliverables
 - net
 - 16 — Implementation Playbook: The Task Contract Standard
-- 2. Detection layers
+- citadel-client/src/main.rs
 - 12 — Capacity Planning and Bill of Materials
 - 2. Root Cause of All Failures - The Complete Diagnosis
 - check_listener_violations
 - Vec
-- duration
+- test_college_lan_isolation.rs
 - CITADEL Architecture: Golden Rule of Workstation Protection
 - 11. Network Security Architecture & Cryptographic Client Handshake
 - 19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating
 - Arc
 - 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
-- render_gatekeeper_html
+- guard-svc/src/lib.rs
 - wfp_policy.rs
 - guard-net
 - 15. Disqualification Immediate Removal & Workstation Restoration Design Flow
@@ -120,57 +120,60 @@
 - QuestionSummary
 - render_portal_html
 - Result
-- Router
+- is_elevated
 - Self
 - String
 - TaskbarLock
 - TouchpadLock
+- secure_desktop.rs
 - 14. 15-Minute Early Completion Enforcement in Production Mode
 - 17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography
 - 18. Roster Synchronization & Resilient Session Resumption Engine
 - bin/README.md
 - Ipv4Addr
+- render_gatekeeper_html
+- Router
 
 ## God Nodes (most connected - your core abstractions)
-1. `AppState` - 69 edges
-2. `is_admin_authorized()` - 31 edges
-3. `ClientLockdownGuard` - 29 edges
-4. `build_app()` - 26 edges
+1. `AppState` - 74 edges
+2. `is_admin_authorized()` - 36 edges
+3. `build_app()` - 29 edges
+4. `ClientLockdownGuard` - 29 edges
 5. `o()` - 23 edges
 6. `Citadel Client - Security Architecture and Implementation Reference` - 21 edges
 7. `e()` - 19 edges
 8. `WfpEngine` - 18 edges
 9. `main()` - 18 edges
-10. `build_app_with_state()` - 17 edges
+10. `save_candidate_state()` - 18 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `main()` --calls--> `install_keyboard_hook()`  [INFERRED]
   guard-verify/src/bin/fake_injected_keystrokes.rs → guard-svc/src/llm_detect.rs
-- `main()` --calls--> `scan_loopback_listeners()`  [INFERRED]
-  guard-verify/src/bin/loopback_scan_test.rs → guard-svc/src/llm_detect.rs
-- `main()` --calls--> `is_emergency_override_triggered()`  [INFERRED]
-  citadel-client/src/main.rs → citadel-client/src/hotkey_lock.rs
 - `main()` --calls--> `check_listener_violations()`  [INFERRED]
+  guard-verify/src/bin/loopback_scan_test.rs → guard-svc/src/llm_detect.rs
+- `main()` --calls--> `scan_loopback_listeners()`  [INFERRED]
   guard-verify/src/bin/loopback_scan_test.rs → guard-svc/src/llm_detect.rs
 - `Gatekeeper Kiosk Launcher Template (gatekeeper.html)` --references--> `render_gatekeeper_html()`  [EXTRACTED]
   citadel-server/templates/gatekeeper.html → citadel-server/src/ui.rs
+- `main()` --calls--> `is_emergency_override_triggered()`  [INFERRED]
+  citadel-client/src/main.rs → citadel-client/src/hotkey_lock.rs
 
 ## Import Cycles
 - None detected.
 
-## Communities (118 total, 48 thin omitted)
+## Communities (121 total, 48 thin omitted)
 
 ### Community 0 - "api.rs"
 Cohesion: 0.07
-Nodes (125): AtomicBool, CandidateResumeState, CandidateState, AddTestCasePayload, admin_add_hidden_case_handler(), admin_add_roster_candidate_handler(), admin_add_sample_case_handler(), admin_candidate_profile_handler() (+117 more)
+Nodes (134): AtomicBool, CandidateResumeState, CandidateState, AddTestCasePayload, admin_add_hidden_case_handler(), admin_add_roster_candidate_handler(), admin_add_sample_case_handler(), admin_bulk_delete_candidates_handler() (+126 more)
 
 ### Community 1 - "api_tests.rs"
-Cohesion: 0.07
-Nodes (51): Arc, axum, bodyext, citadel_server, build_app(), build_app_with_state(), BOGUS_PYTHON_CODE, CORRECT_PYTHON_TWO_SUM (+43 more)
+Cohesion: 0.06
+Nodes (57): axum, bodyext, citadel_server, build_app(), build_app_with_state(), Router, BOGUS_PYTHON_CODE, CORRECT_PYTHON_TWO_SUM (+49 more)
 
 ### Community 2 - "kiosk_window.rs"
 Cohesion: 0.08
-Nodes (41): BOOL, ClipboardGuard, enum_kiosk_wnd_proc(), EnumKioskWndCtx, find_all_descendants(), find_browser_executable(), find_child_process(), find_kiosk_window() (+33 more)
+Nodes (39): BOOL, ClipboardGuard, enum_kiosk_wnd_proc(), EnumKioskWndCtx, find_all_descendants(), find_browser_executable(), find_child_process(), find_kiosk_window() (+31 more)
 
 ### Community 3 - "hotkey_lock.rs"
 Cohesion: 0.06
@@ -197,8 +200,8 @@ Cohesion: 0.06
 Nodes (32): 01 — Software Design Document, 10. Traceability summary, 1.1 Problem statement, 1.2 In scope, 1.3 Explicitly out of scope for v1, 1.4 Explicit non-goals, 1. Purpose and scope, 2. Stakeholders and actors (+24 more)
 
 ### Community 9 - "persistence.rs"
-Cohesion: 0.18
-Nodes (26): atomic_write_json(), CandidateResumeState, CandidateState, ensure_directories(), ExamRoster, load_all_candidate_states(), load_candidate_state(), load_roster() (+18 more)
+Cohesion: 0.17
+Nodes (25): atomic_write_json(), CandidateResumeState, CandidateState, ensure_directories(), ExamRoster, load_all_candidate_states(), load_candidate_state(), load_roster() (+17 more)
 
 ### Community 10 - "WfpEngine"
 Cohesion: 0.13
@@ -220,9 +223,9 @@ Nodes (27): 08 — LLD: Load Balancing, Caching, and Workload Distribution, 10. 
 Cohesion: 0.08
 Nodes (26): 04 — LLD: Network, Routing, and LAN, 10. Summary of network design decisions, 1. The question, answered directly, 2.1 Addressing plan, 2.2 Physical topology (T2 reference, 600 seats wireless v2), 2.3 Switch configuration generated by CITADEL, 2. Network topology, 3.1 DHCP (`dnsmasq`, supervised by the appliance control plane) (+18 more)
 
-### Community 15 - "citadel-client/src/main.rs"
-Cohesion: 0.26
-Nodes (18): Box, citadel_client, ensure_explorer_running(), log_event(), main(), poll_server_exit_status(), probe_server_is_production(), prompt_elevation_retry_cancel() (+10 more)
+### Community 15 - "crash_handler.rs"
+Cohesion: 0.24
+Nodes (11): console_ctrl_handler(), emergency_restore_system(), install_crash_safety(), BOOL, Vec, to_wide(), osstr, osstrext (+3 more)
 
 ### Community 16 - "🛡️ CITADEL — Offline Air-Gapped Assessment Platform & Hardened Lockdown Enclave"
 Cohesion: 0.08
@@ -230,7 +233,7 @@ Nodes (26): 1. Architecture & Design Foundations, 1. Prerequisites, 2. Running t
 
 ### Community 17 - "llm_detect.rs"
 Cohesion: 0.12
-Nodes (14): AtomicUsize, get_iso8601_timestamp, INJECTED_KEYSTROKE_COUNT, is_injected_keystroke_flag(), keyboard_hook_proc(), LPARAM, LRESULT, WPARAM (+6 more)
+Nodes (13): AtomicUsize, get_iso8601_timestamp, INJECTED_KEYSTROKE_COUNT, install_keyboard_hook(), main(), main(), iphelper, Sync (+5 more)
 
 ### Community 18 - "17 — Implementation Plan: Phase 0 (Lockdown Spike, Weeks 1-6)"
 Cohesion: 0.08
@@ -249,8 +252,8 @@ Cohesion: 0.09
 Nodes (23): 1. Executive Summary, 2. Feature Comparison Matrix, 3. Mandatory UAC Elevation & Zero-Fallback Enforcement, 4. Network & API Access Control: Testing vs. Production Gating, 5.1 The 15-Minute Early Exit Rule (Production vs Testing), 5. Early Exam Exit & Conclusion Lifecycle, 6. Immediate Disqualification Removal & Laptop Restoration, 7. How to Run in Testing Mode (Safe for You) (+15 more)
 
 ### Community 22 - "pre_flight.rs"
-Cohesion: 0.17
-Nodes (20): DesktopEnumContext, DetectedApplication, enforce_clean_environment(), get_pid_to_exe_map(), HashMap, HashSet, String, Vec (+12 more)
+Cohesion: 0.15
+Nodes (22): DesktopEnumContext, DetectedApplication, enforce_clean_environment(), enum_desktop_windows_proc(), get_pid_to_exe_map(), HashMap, HashSet, LPARAM (+14 more)
 
 ### Community 23 - "06 — LLD: Judge and Sandbox"
 Cohesion: 0.09
@@ -260,33 +263,33 @@ Nodes (23): 06 — LLD: Judge and Sandbox, 10. Post-exam rejudge, 11. Sizing sum
 Cohesion: 0.18
 Nodes (16): extract_header(), handle_request(), is_origin_allowed(), LocalControlServer, Arc, AtomicBool, Mutex, Option (+8 more)
 
-### Community 25 - "guard-svc/src/lib.rs"
+### Community 25 - "guard-svc/src/main.rs"
 Cohesion: 0.17
-Nodes (13): format_log_line, format_log_line(), get_iso8601_timestamp(), GetSystemTime(), LOG_DIR, LOG_FILE, String, SERVICE_NAME (+5 more)
+Nodes (16): Arc, atomic, guard_svc, Result, write_custom_log(), write_guard_log(), get_target_server(), main() (+8 more)
 
 ### Community 26 - "11 — LLD: Admin Console and Operations"
 Cohesion: 0.10
 Nodes (20): 11 — LLD: Admin Console and Operations, 1. Admin console structure, 1. Security Lockdown Mode Switch, 2.1 Live Console Controls & Security Mode Gating, 2. Live Ops screen, 2. Real-Time Exam Live State Switch, 3. Exam lifecycle runbook, 4. Operator CLI (+12 more)
 
-### Community 28 - "recovery.rs"
-Cohesion: 0.06
-Nodes (43): is_process_running(), kill_processes_by_name(), main(), restore_registry_policies(), restore_services(), restore_taskbars(), Vec, to_wide() (+35 more)
+### Community 28 - "SecureDesktop"
+Cohesion: 0.20
+Nodes (9): Drop, HDESK, Result, Self, String, Vec, SecureDesktop, to_wide_null() (+1 more)
 
 ### Community 29 - "13 — Security Threat Model"
 Cohesion: 0.12
 Nodes (17): 13 — Security Threat Model, 1. Assets and adversaries, 2. STRIDE analysis, 3. Attack trees for the two threats that matter, 4. Residual risks, ranked, 5. Security requirements traceability, 6. What to tell a customer's security reviewer, Adversaries (+9 more)
 
 ### Community 30 - "String"
-Cohesion: 0.36
-Nodes (5): ExcludedWindowViolation, KeystrokeViolation, String, take_injected_keystroke_violations(), ViolationEvent
+Cohesion: 0.24
+Nodes (8): ExcludedWindowViolation, KeystrokeViolation, Mutex, Option, String, take_injected_keystroke_violations(), VIOLATION_SINK, ViolationEvent
 
 ### Community 31 - "policy.rs"
 Cohesion: 0.24
 Nodes (7): is_windows_system_process(), LockdownMode, LockdownPolicy, PROHIBITED_PROCESSES, HashSet, Option, Self
 
-### Community 32 - "guard-svc/src/main.rs"
-Cohesion: 0.18
-Nodes (15): atomic, guard_svc, Result, write_custom_log(), write_guard_log(), get_target_server(), main(), my_service_main() (+7 more)
+### Community 32 - "recovery.rs"
+Cohesion: 0.36
+Nodes (9): is_process_running(), kill_processes_by_name(), main(), restore_registry_policies(), restore_services(), restore_taskbars(), Vec, to_wide() (+1 more)
 
 ### Community 33 - "ExplorerLock"
 Cohesion: 0.16
@@ -313,28 +316,28 @@ Cohesion: 0.12
 Nodes (17): 15 — Senior Engineering Review & Hardened Lockdown (v2), 1. Executive verdict, 2. Reframing the threat correctly (this matters for where effort goes), 3. Bottlenecks (beyond what doc 09/12 already cover), 4. What's genuinely undecided today, 5. The attack catalogue — what's closed, what isn't, 6.1 New attestation checks (append to §3.3's table, A1-A15), 6.2 LOLBAS deny-list overlay (new subsection after §3.4) (+9 more)
 
 ### Community 39 - "09 — LLD: Reliability, Failover, and Disaster Recovery"
-Cohesion: 0.15
+Cohesion: 0.14
 Nodes (13): 09 — LLD: Reliability, Failover, and Disaster Recovery, 1. The durability chain, 2.1 Pair configuration, 2.2 Failover sequence (target RTO ≤ 90 s, NFR-8), 2.3 Split-brain prevention, 2. Appliance high availability, 3. Failure matrix, 4. Offline mode specification (+5 more)
 
-### Community 40 - "security_coordinator.rs"
-Cohesion: 0.29
-Nodes (8): ExplorerLock, install_crash_safety, localcontrolserver, RegistryLock, SecureDesktop, security, shellexecutew, sw_shownormal
+### Community 40 - "RegistryLock"
+Cohesion: 0.21
+Nodes (9): RegistryLock, Drop, Option, Result, Self, String, Vec, SavedRegEntry (+1 more)
 
 ### Community 41 - "14 — Implementation Roadmap"
 Cohesion: 0.17
 Nodes (11): 10. First 90 days, 14 — Implementation Roadmap, 1. Build order and its logic, 2. Phase 0 — Lockdown spike (6 weeks, 2 engineers), 3. Phase 1 — Core platform (14 weeks, 5 engineers), 4. Phase 2 — Scale and resilience (10 weeks, 6 engineers), 5. Phase 3 — Hardening (10 weeks, 6 engineers), 6. Phase 4 — Commercial readiness (8 weeks, 5 engineers) (+3 more)
 
 ### Community 42 - "KeyboardHookHandle"
-Cohesion: 0.22
-Nodes (8): install_keyboard_hook(), KeyboardHookHandle, Drop, JoinHandle, Mutex, Option, VIOLATION_SINK, main()
+Cohesion: 0.21
+Nodes (9): is_injected_keystroke_flag(), keyboard_hook_proc(), KeyboardHookHandle, Drop, JoinHandle, LPARAM, LRESULT, WPARAM (+1 more)
 
 ### Community 43 - "Citadel Client - Security Architecture and Implementation Reference"
 Cohesion: 0.18
 Nodes (11): 16.1 Root Cause of Blurry "Zoom Call" UI, 16.2 Implementation: Manifest Per-Monitor v2 Integration, 16. High-DPI Per-Monitor v2 Manifest & Native Rendering Architecture, 1. How Real Lockdown Browsers Work (SEB/MSB Research), 5. Startup Sequence, 6. Architecture Files, 7. Known Gotchas and Constraints, 8. Implementation Verification & Empirical Test Results (+3 more)
 
-### Community 44 - "is_elevated"
-Cohesion: 0.38
-Nodes (5): is_elevated(), test_destructive_lifecycle_opt_in_only(), test_elevation_check_safe(), test_mandatory_elevation_zero_fallback(), is_elevated
+### Community 44 - "security_coordinator.rs"
+Cohesion: 0.20
+Nodes (10): duration, ExplorerLock, install_crash_safety, io, localcontrolserver, RegistryLock, SecureDesktop, security (+2 more)
 
 ### Community 45 - "package.json"
 Cohesion: 0.20
@@ -345,8 +348,8 @@ Cohesion: 0.18
 Nodes (11): 4.10 Foreground Lock (ForegroundLock), 4.1 Keyboard Shortcut Blocking (hotkey_lock.rs), 4.2 Task Manager Disable, 4.3 Win Key Disable, 4.4 Sign-Out / Lock / Shutdown Disable, 4.5 Taskbar Hiding (TaskbarLock), 4.6 Explorer Shell Kill (ExplorerLock) - ELEVATED ONLY, 4.7 Network Lockdown - WFP (Windows Filtering Platform) - ELEVATED ONLY (+3 more)
 
 ### Community 47 - "10 — LLD: Integrity Analytics and Proctoring"
-Cohesion: 0.18
-Nodes (10): 10 — LLD: Integrity Analytics and Proctoring, 1.1 Event catalogue, 1.2 Volume and handling, 1. Telemetry event model, 3. Composite integrity score, 4. Proctor console, 5. Incident workflow, 6. Evidence pack (+2 more)
+Cohesion: 0.12
+Nodes (15): 10 — LLD: Integrity Analytics and Proctoring, 1.1 Event catalogue, 1.2 Volume and handling, 1. Telemetry event model, 2.1 Layer 1 — Deterministic rules (real time), 2.2 Layer 2 — Behavioural analytics (near real time, 60 s windows), 2.3 Layer 3 — Post-exam similarity analysis (FR-S7), 2.4 Layer 4 — Cohort anomaly detection (+7 more)
 
 ### Community 48 - "Completed & Verified Deliverables"
 Cohesion: 0.20
@@ -360,9 +363,9 @@ Nodes (9): build_app, discover_lan_ips(), main(), Box, Error, Result, Vec, IpAdd
 Cohesion: 0.20
 Nodes (9): 16 — Implementation Playbook: The Task Contract Standard, 1. Why this exists (the failure modes it prevents), 2. The Task Contract — the exact template, 3. The ten rules (apply these when *writing* a new task, not just when executing one), 4. Canonical glossary (pinned names — do not deviate, do not invent synonyms), 5. The Common-Mistakes QA Gate (run this against every completed task), 6. Task ID scheme (maps 1:1 onto doc 14's roadmap phases — no renumbering across documents), 7. Why only Phase 0 is written in full right now (+1 more)
 
-### Community 51 - "2. Detection layers"
-Cohesion: 0.40
-Nodes (5): 2.1 Layer 1 — Deterministic rules (real time), 2.2 Layer 2 — Behavioural analytics (near real time, 60 s windows), 2.3 Layer 3 — Post-exam similarity analysis (FR-S7), 2.4 Layer 4 — Cohort anomaly detection, 2. Detection layers
+### Community 51 - "citadel-client/src/main.rs"
+Cohesion: 0.26
+Nodes (18): Box, citadel_client, ensure_explorer_running(), log_event(), main(), poll_server_exit_status(), probe_server_is_production(), prompt_elevation_retry_cancel() (+10 more)
 
 ### Community 52 - "12 — Capacity Planning and Bill of Materials"
 Cohesion: 0.22
@@ -373,16 +376,16 @@ Cohesion: 0.25
 Nodes (8): 2. Root Cause of All Failures - The Complete Diagnosis, BUG #1 (FIXED): Silent UAC Bypass, BUG #2 (FIXED): Empty Guard Constructor, BUG #3 (FIXED): Security Gated Behind Elevation Check, BUG #4 (FIXED): Missing Application Manifest, BUG #5 (FIXED & VERIFIED): Browser Process Exits with Code 0, Sub-cause A: GPU flags cause immediate exit (PRIMARY), Sub-cause B: Edge multi-process delegation (SECONDARY)
 
 ### Community 54 - "check_listener_violations"
-Cohesion: 0.29
-Nodes (8): check_listener_violations(), test_allowlist_flags_unauthorized_ipv4_ports(), test_allowlist_flags_unauthorized_ipv6_ports(), test_allowlist_mixed_traffic(), test_allowlist_permits_designated_ports(), test_violation_log_line_format(), main(), tcplistener
+Cohesion: 0.48
+Nodes (6): check_listener_violations(), test_allowlist_flags_unauthorized_ipv4_ports(), test_allowlist_flags_unauthorized_ipv6_ports(), test_allowlist_mixed_traffic(), test_allowlist_permits_designated_ports(), test_violation_log_line_format()
 
 ### Community 55 - "Vec"
 Cohesion: 0.57
 Nodes (7): ListeningSocket, IpAddr, Result, Vec, scan_ipv4_loopback_listeners(), scan_ipv6_loopback_listeners(), scan_loopback_listeners()
 
-### Community 56 - "duration"
-Cohesion: 0.22
-Nodes (9): duration, main(), Duration, JoinHandle, start_mock_server(), try_connect(), io, SocketAddr (+1 more)
+### Community 56 - "test_college_lan_isolation.rs"
+Cohesion: 0.48
+Nodes (6): main(), Duration, JoinHandle, start_mock_server(), try_connect(), SocketAddr
 
 ### Community 57 - "CITADEL Architecture: Golden Rule of Workstation Protection"
 Cohesion: 0.25
@@ -400,9 +403,9 @@ Nodes (5): 19.1 Threat Model: Secondary Mobile Devices & Localhost Resolution Ga
 Cohesion: 0.50
 Nodes (4): 12.1 The Failure Mode of Static Process Blacklists, 12.2 The Citadel Dual-Layer Detection Architecture, 12.3 Automated Termination and Interactive Rescan Pipeline, 12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification
 
-### Community 62 - "render_gatekeeper_html"
-Cohesion: 0.50
-Nodes (4): render_gatekeeper_html(), String, Gatekeeper Kiosk Launcher Template (gatekeeper.html), test_ui_gatekeeper_and_mobile_blocked_rendering()
+### Community 62 - "guard-svc/src/lib.rs"
+Cohesion: 0.17
+Nodes (13): format_log_line, format_log_line(), get_iso8601_timestamp(), GetSystemTime(), LOG_DIR, LOG_FILE, String, SERVICE_NAME (+5 more)
 
 ### Community 65 - "guard-net"
 Cohesion: 0.83
@@ -428,6 +431,14 @@ Nodes (3): 10.1 Why the Previous Lockdown Stranded the Machine, 10.2 The Permane
 Cohesion: 0.67
 Nodes (3): 13.1 Threat & Architectural Audit, 13.2 The 4-Layer Zero-Fallback Elevation Architecture, 13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture
 
+### Community 107 - "is_elevated"
+Cohesion: 0.38
+Nodes (5): is_elevated(), test_destructive_lifecycle_opt_in_only(), test_elevation_check_safe(), test_mandatory_elevation_zero_fallback(), is_elevated
+
+### Community 112 - "secure_desktop.rs"
+Cohesion: 0.33
+Nodes (5): Path, generic_all, stationsanddesktops, sw_maximize, threading
+
 ### Community 113 - "14. 15-Minute Early Completion Enforcement in Production Mode"
 Cohesion: 0.67
 Nodes (3): 14. 15-Minute Early Completion Enforcement in Production Mode, 14.1 Operational Threat & Integrity Rationale, 14.2 Dual-Mode Architecture: Production vs. Testing
@@ -440,25 +451,29 @@ Nodes (3): 17.1 Zero-Layout-Shift Position Contract, 17.2 Air-Gapped Typography 
 Cohesion: 0.67
 Nodes (3): 18.1 Proctor Roster Management & Strict Whitelist Enforcement, 18.2 Session Resumption & Crash Resilience, 18. Roster Synchronization & Resilient Session Resumption Engine
 
+### Community 118 - "render_gatekeeper_html"
+Cohesion: 0.50
+Nodes (4): render_gatekeeper_html(), String, Gatekeeper Kiosk Launcher Template (gatekeeper.html), test_ui_gatekeeper_and_mobile_blocked_rendering()
+
 ## Knowledge Gaps
-- **450 isolated node(s):** `TOUCHPAD_REG_SUBKEY`, `_OLD_BLACKLIST`, `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM`, `WRONG_PYTHON_TWO_SUM` (+445 more)
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 651 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **451 isolated node(s):** `CORRECT_PYTHON_TWO_SUM`, `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM`, `WRONG_PYTHON_TWO_SUM`, `citadel-server` (+446 more)
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 652 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
 - **48 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Citadel Client - Security Architecture and Implementation Reference` connect `Citadel Client - Security Architecture and Implementation Reference` to `15. Disqualification Immediate Removal & Workstation Restoration Design Flow`, `20. UI Design System, Button Semantics & Boxy Action Geometry Synchrony`, `3. Fix Plan for BUG #5`, `10. Fail-Safe Protections & Dedicated Recovery Utility`, `13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture`, `19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating`, `4. How Restrictions Work - Layer by Layer`, `14. 15-Minute Early Completion Enforcement in Production Mode`, `17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography`, `18. Roster Synchronization & Resilient Session Resumption Engine`, `2. Root Cause of All Failures - The Complete Diagnosis`, `11. Network Security Architecture & Cryptographic Client Handshake`, `docs/README.md`, `12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification`?**
-  _High betweenness centrality (0.041) - this node is a cross-community bridge._
 - **Why does `Candidate Portal Template (portal.html)` connect `api.rs` to `kiosk_window.rs`, `ace.bundle.js`?**
-  _High betweenness centrality (0.032) - this node is a cross-community bridge._
-- **Why does `07 — LLD: Content Authoring, Upload, and Distribution` connect `07 — LLD: Content Authoring, Upload, and Distribution` to `docs/README.md`?**
-  _High betweenness centrality (0.026) - this node is a cross-community bridge._
-- **What connects `TOUCHPAD_REG_SUBKEY`, `_OLD_BLACKLIST`, `BOGUS_PYTHON_CODE` to the rest of the system?**
-  _450 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _High betweenness centrality (0.050) - this node is a cross-community bridge._
+- **Why does `04 — LLD: Network, Routing, and LAN` connect `04 — LLD: Network, Routing, and LAN` to `docs/README.md`?**
+  _High betweenness centrality (0.024) - this node is a cross-community bridge._
+- **Why does `Citadel Client - Security Architecture and Implementation Reference` connect `Citadel Client - Security Architecture and Implementation Reference` to `15. Disqualification Immediate Removal & Workstation Restoration Design Flow`, `20. UI Design System, Button Semantics & Boxy Action Geometry Synchrony`, `3. Fix Plan for BUG #5`, `10. Fail-Safe Protections & Dedicated Recovery Utility`, `13. Mandatory UAC Administrator Elevation & Zero-Fallback Architecture`, `19. Device Detection, Multi-Network Endpoint Discovery & Laptop Workstation Gating`, `4. How Restrictions Work - Layer by Layer`, `14. 15-Minute Early Completion Enforcement in Production Mode`, `17. Obsidian Atelier v1 Design System & Self-Hosted Offline Typography`, `18. Roster Synchronization & Resilient Session Resumption Engine`, `2. Root Cause of All Failures - The Complete Diagnosis`, `11. Network Security Architecture & Cryptographic Client Handshake`, `docs/README.md`, `12. Pre-Launch Application Termination, Desktop Window Enumeration & Strict Rescan Verification`?**
+  _High betweenness centrality (0.023) - this node is a cross-community bridge._
+- **What connects `CORRECT_PYTHON_TWO_SUM`, `BOGUS_PYTHON_CODE`, `CORRECT_PYTHON_TWO_SUM` to the rest of the system?**
+  _451 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `api.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.07480314960629922 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.07417346500644054 - nodes in this community are weakly interconnected._
 - **Should `api_tests.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.06821787414066631 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.06308610400682012 - nodes in this community are weakly interconnected._
 - **Should `kiosk_window.rs` be split into smaller, more focused modules?**
-  _Cohesion score 0.07773664727657324 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.08135593220338982 - nodes in this community are weakly interconnected._

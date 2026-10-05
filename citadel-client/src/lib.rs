@@ -1,10 +1,11 @@
-pub mod crash_handler;
+﻿pub mod crash_handler;
 pub mod explorer_lock;
 pub mod hotkey_lock;
 pub mod kiosk_window;
 pub mod local_control;
 pub mod policy;
 pub mod pre_flight;
+pub mod recovery_supervisor;
 pub mod registry_lock;
 pub mod secure_desktop;
 pub mod security_coordinator;
@@ -22,6 +23,7 @@ pub use kiosk_window::{
 pub use local_control::LocalControlServer;
 pub use policy::{LockdownMode, LockdownPolicy, PROHIBITED_PROCESSES};
 pub use pre_flight::{enforce_clean_environment, scan_prohibited_processes, terminate_prohibited_processes};
+pub use recovery_supervisor::run_supervisor;
 pub use registry_lock::RegistryLock;
 pub use secure_desktop::SecureDesktop;
 pub use security_coordinator::{elevate_self, is_elevated, ClientLockdownGuard};

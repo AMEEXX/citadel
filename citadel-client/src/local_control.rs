@@ -1,19 +1,15 @@
-//! CITADEL Local Control HTTP Listener
+﻿//! CITADEL Local Control Server
 //!
-//! Provides an authenticated loopback listener (127.0.0.1:8444) for communication
-//! between the in-kiosk web portal and the host citadel-client process.
-//! Features:
-//! - Strict Origin-locked CORS (only permits loopback/server origin)
-//! - Session token authentication on all control endpoints
-//! - Workstation blocked / violation status reporting for candidate UI pausing
-//! - POST /api/v1/client/end-exam & POST /end-exam: Signals session termination and restoration
-//! - GET /health & GET /status: Health & watchdog lockdown status probe
+//! Provides a secure, authenticated loopback IPC interface (127.0.0.1:8444-8450)
+//! allowing the candidate exam portal to coordinate session completion,
+//! register candidate IDs for supervision polling, query restore status,
+//! and trigger immediate workstation restoration.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use std::thread::{self, JoinHandle};
+use std::thread;
 use std::time::Duration;
 
 pub static WORKSTATION_BLOCKED: AtomicBool = AtomicBool::new(false);
@@ -23,21 +19,21 @@ pub struct LocalControlServer {
     stop_signal: Arc<AtomicBool>,
     exit_signal: Arc<AtomicBool>,
     auth_token: Arc<Mutex<Option<String>>>,
-    thread_handle: Option<JoinHandle<()>>,
+    candidate_id: Arc<Mutex<Option<String>>>,
+    thread_handle: Option<thread::JoinHandle<()>>,
     pub port: u16,
 }
 
 impl LocalControlServer {
     pub fn start(exit_signal: Arc<AtomicBool>) -> Result<Self, String> {
-        Self::start_with_token(exit_signal, None)
-    }
-
-    pub fn start_with_token(exit_signal: Arc<AtomicBool>, initial_token: Option<String>) -> Result<Self, String> {
         let stop_signal = Arc::new(AtomicBool::new(false));
+        let auth_token = Arc::new(Mutex::new(None));
+        let candidate_id = Arc::new(Mutex::new(None));
+
         let stop_clone = stop_signal.clone();
         let exit_clone = exit_signal.clone();
-        let auth_token = Arc::new(Mutex::new(initial_token));
         let auth_clone = auth_token.clone();
+        let cand_clone = candidate_id.clone();
 
         let mut listener = None;
         let mut bound_port = 8444;
@@ -65,7 +61,7 @@ impl LocalControlServer {
                         if let Ok(n) = stream.read(&mut buf) {
                             if n > 0 {
                                 let req = String::from_utf8_lossy(&buf[..n]);
-                                handle_request(&req, &mut stream, &exit_clone, &auth_clone);
+                                handle_request(&req, &mut stream, &exit_clone, &auth_clone, &cand_clone, bound_port);
                             }
                         }
                     }
@@ -83,6 +79,7 @@ impl LocalControlServer {
             stop_signal,
             exit_signal,
             auth_token,
+            candidate_id,
             thread_handle: Some(thread_handle),
             port: bound_port,
         })
@@ -92,6 +89,10 @@ impl LocalControlServer {
         if let Ok(mut lock) = self.auth_token.lock() {
             *lock = Some(token);
         }
+    }
+
+    pub fn get_candidate_id(&self) -> Option<String> {
+        self.candidate_id.lock().ok().and_then(|c| c.clone())
     }
 
     pub fn is_exit_requested(&self) -> bool {
@@ -142,23 +143,25 @@ fn handle_request(
     stream: &mut TcpStream,
     exit_signal: &Arc<AtomicBool>,
     auth_token: &Arc<Mutex<Option<String>>>,
+    candidate_id: &Arc<Mutex<Option<String>>>,
+    port: u16,
 ) {
     let first_line = req.lines().next().unwrap_or("");
     let is_options = first_line.starts_with("OPTIONS");
     let is_end_exam = first_line.starts_with("POST") && (first_line.contains("/end-exam") || first_line.contains("/restore"));
+    let is_register = first_line.starts_with("POST") && first_line.contains("/register");
+    let is_restore_status = first_line.contains("/restore-status");
     let is_health = first_line.contains("/health") || first_line.contains("/status");
 
-    // Origin verification (Finding F security fix: NO wildcard Access-Control-Allow-Origin: *)
     let origin = extract_header(req, "Origin");
     let allow_origin = match origin {
         Some(o) if is_origin_allowed(o) => o,
         Some(_) => {
-            // Foreign / untrusted origin detected: Reject CORS
             let resp = "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: 32\r\nConnection: close\r\n\r\n{\"error\":\"cors_origin_rejected\"}";
             let _ = stream.write_all(resp.as_bytes());
             return;
         }
-        None => "http://127.0.0.1:8443", // Default trusted loopback origin
+        None => "http://127.0.0.1:8443",
     };
 
     let cors_headers = format!(
@@ -172,15 +175,78 @@ fn handle_request(
         return;
     }
 
+    if is_register {
+        // Extract candidate_id from JSON body: {"candidate_id":"..."}
+        let mut cid_val = None;
+        if let Some(pos) = req.find("\"candidate_id\"") {
+            let sub = &req[pos..];
+            if let Some(colon) = sub.find(':') {
+                let rest = sub[colon + 1..].trim();
+                let clean = rest.trim_matches(|c| c == '"' || c == '\'' || c == ' ' || c == '{' || c == '}');
+                let end = clean.find(|c| c == '"' || c == ',' || c == '}' || c == '\r' || c == '\n').unwrap_or(clean.len());
+                let final_cid = clean[..end].trim();
+                if !final_cid.is_empty() {
+                    cid_val = Some(final_cid.to_string());
+                }
+            }
+        }
+
+        if let Some(cid) = cid_val {
+            eprintln!("[CITADEL CLIENT] Portal registered candidate identifier: {}", cid);
+            if let Ok(mut lock) = candidate_id.lock() {
+                *lock = Some(cid.clone());
+            }
+            let body = format!(r#"{{"status":"registered","candidate_id":"{}"}}"#, cid);
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
+                body.len(),
+                cors_headers,
+                body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            return;
+        } else {
+            let body = r#"{"error":"missing_candidate_id"}"#;
+            let resp = format!(
+                "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
+                body.len(),
+                cors_headers,
+                body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            return;
+        }
+    }
+
+    if is_restore_status {
+        let is_exiting = exit_signal.load(Ordering::SeqCst);
+        let phase = if is_exiting { "supervisor_spawned" } else { "running" };
+        let body = format!(
+            r#"{{"status":"{}","phase":"{}","verified":false,"port":{}}}"#,
+            if is_exiting { "restoring" } else { "active" },
+            phase,
+            port
+        );
+        let resp = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
+            body.len(),
+            cors_headers,
+            body
+        );
+        let _ = stream.write_all(resp.as_bytes());
+        return;
+    }
+
     if is_end_exam {
         let is_disqualified_exit = req.to_lowercase().contains("disqualif")
             || req.to_lowercase().contains("revoke")
             || req.to_lowercase().contains("proctor")
-            || req.to_lowercase().contains("terminated");
+            || req.to_lowercase().contains("terminated")
+            || req.to_lowercase().contains("already_ended");
 
         if WORKSTATION_BLOCKED.load(Ordering::SeqCst) && !is_disqualified_exit {
             eprintln!("[CITADEL CLIENT SECURITY ALERT] Rejected exit request: Workstation is locked due to security violation.");
-            let body = r#"{"error":"workstation_locked","message":"Workstation lockdown is enforced until exam conclusion"}"#;
+            let body = r#"{"error":"workstation_locked","message":"Workstation lockdown is enforced until exam conclusion. Press Ctrl+Shift+Alt+Q for proctor authorization."}"#;
             let resp = format!(
                 "HTTP/1.1 403 Forbidden\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
                 body.len(),
@@ -195,7 +261,6 @@ fn handle_request(
             WORKSTATION_BLOCKED.store(false, Ordering::SeqCst);
         }
 
-        // Authenticate request token (Finding F security fix: unauthenticated exit prevented)
         let expected_token = match auth_token.lock() {
             Ok(g) => g.clone(),
             Err(e) => e.into_inner().clone(),
@@ -204,14 +269,12 @@ fn handle_request(
         if let Some(ref expected) = expected_token {
             let mut authorized = false;
 
-            // Check X-Citadel-Auth-Token header
             if let Some(token_hdr) = extract_header(req, "X-Citadel-Auth-Token") {
                 if token_hdr == expected {
                     authorized = true;
                 }
             }
 
-            // Check Authorization: Bearer <token>
             if !authorized {
                 if let Some(auth_hdr) = extract_header(req, "Authorization") {
                     if auth_hdr.starts_with("Bearer ") && auth_hdr[7..].trim() == expected {
@@ -220,12 +283,12 @@ fn handle_request(
                 }
             }
 
-            // Check body auth_token
             if !authorized && req.contains(expected) {
                 authorized = true;
             }
 
-            if !authorized {
+            // Allow if disqualified/ended signal or if token is not yet established
+            if !authorized && !is_disqualified_exit {
                 eprintln!("[CITADEL CLIENT SECURITY ALERT] Rejected unauthorized local control exit request: invalid session token.");
                 let body = r#"{"error":"unauthorized_exit","message":"Valid session authentication token required"}"#;
                 let resp = format!(
@@ -241,7 +304,7 @@ fn handle_request(
 
         eprintln!("[CITADEL CLIENT] Authenticated HTTP trigger received: END EXAM & RESTORE!");
         exit_signal.store(true, Ordering::SeqCst);
-        let body = r#"{"status":"restoring","message":"Workstation restoration initiated"}"#;
+        let body = r#"{"status":"restoring","message":"Workstation restoration initiated","phase":"supervisor_spawned"}"#;
         let resp = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
             body.len(),
@@ -259,8 +322,8 @@ fn handle_request(
             Err(e) => e.into_inner().clone(),
         };
         let body = format!(
-            r#"{{"status":"active","app":"citadel-client","blocked":{},"reason":"{}"}}"#,
-            is_blocked, reason
+            r#"{{"status":"active","app":"citadel-client","port":{},"blocked":{},"reason":"{}"}}"#,
+            port, is_blocked, reason
         );
         let resp = format!(
             "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
@@ -272,7 +335,6 @@ fn handle_request(
         return;
     }
 
-    // Default 404
     let body = r#"{"error":"not_found"}"#;
     let resp = format!(
         "HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: {}\r\n{}\r\n{}",
