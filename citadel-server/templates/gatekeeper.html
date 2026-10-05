@@ -74,14 +74,14 @@
     .logo-badge {
       display: inline-block;
       background: #181716;
-      color: #dad0bf;
-      border: 1px solid var(--border-medium);
-      font-family: var(--font-mono);
-      font-weight: var(--weight-black);
-      font-size: var(--text-xs);
+      color: var(--accent-lang, #dad0bf);
+      border: 1px solid var(--border-medium, #2a2826);
+      font-family: var(--font-mono, 'Geist Mono', monospace);
+      font-weight: var(--weight-black, 800);
+      font-size: var(--text-xs, 11px);
       letter-spacing: 0.1em;
-      padding: 3px 12px;
-      border-radius: 4px;
+      padding: 3px 10px;
+      border-radius: 0px;
       margin-bottom: 16px;
     }
 
@@ -158,7 +158,7 @@
       font-weight: 600;
       font-size: 12px;
       padding: 5px 12px;
-      border-radius: 0px;
+      border-radius: 0px !important;
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
@@ -194,8 +194,8 @@
         <strong>This exam needs to be taken from a laptop.</strong> Mobile devices and tablets are not supported for secure proctored examinations. Please open this URL from your laptop workstation.
       </div>
     </div>
-    <div class="logo-badge">CITADEL RUNTIME</div>
-    <h1>CITADEL Assessment Appliance</h1>
+    <div class="logo-badge">CITADEL</div>
+    <h1>Assessment Pipeline</h1>
     <p>To take your examination on the isolated campus fleet, launch the Citadel Lockdown Client on your workstation.</p>
     <a href="/download/citadel-client.exe" class="download-btn">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
@@ -206,10 +206,10 @@
     </a>
     <a href="/exam" class="direct-link">Launch Web Assessment Directly (Testing Mode) &rarr;</a>
     <div style="margin-top: 14px; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
-      <a href="/download/citadel-recovery.exe" style="color: #f87171; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 4px; font-weight: 500;">
+      <a href="/download/citadel-recovery.exe" style="color: #f87171; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 0px; font-weight: 500;">
         🚑 Emergency Recovery (citadel-recovery.exe)
       </a>
-      <a href="/download/RESTORE_MY_LAPTOP.bat" style="color: #fb923c; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.25); border-radius: 4px; font-weight: 500;">
+      <a href="/download/RESTORE_MY_LAPTOP.bat" style="color: #fb923c; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.25); border-radius: 0px; font-weight: 500;">
         ⚡ Reset Laptop Script (.bat)
       </a>
     </div>

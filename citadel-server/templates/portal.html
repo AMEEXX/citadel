@@ -226,7 +226,7 @@
       font-weight: 600;
       font-size: 12px;
       padding: 5px 12px;
-      border-radius: 0px;
+      border-radius: 0px !important;
       cursor: pointer;
       text-decoration: none;
       display: inline-flex;
@@ -246,7 +246,7 @@
       border: 1px solid rgba(241, 112, 112, 0.3);
       color: #f47a79;
       padding: 5px 12px;
-      border-radius: 0px;
+      border-radius: 0px !important;
       font-size: 12px;
       font-weight: 600;
     }
@@ -1046,7 +1046,7 @@
       border: 1px solid rgba(241, 112, 112, 0.3);
       color: #f47a79;
       padding: 12px;
-      border-radius: 4px;
+      border-radius: 0px !important;
       font-family: var(--font-ui, 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
       font-size: var(--text-md, 14px);
       font-weight: var(--weight-semibold, 600);
@@ -1500,7 +1500,7 @@
         </div>
       </div>
       <div style="margin-bottom: 16px;">
-        <button onclick="executeEndExam(true)" class="btn-end-exam" style="padding: 7px 18px; font-size: 13px; margin: 0 auto;">
+        <button onclick="executeEndExam(true)" class="btn-end-exam" style="padding: 7px 18px; font-size: 13px; margin: 0 auto; border-radius: 0px;">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
             <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
           </svg>
@@ -1774,7 +1774,7 @@
             ${escapeHtml(message)}
           </p>
           <div style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; gap: 10px;">
-            <button onclick="executeEndExam(true)" class="btn-end-exam" style="padding: 7px 18px; font-size: 13px;">
+            <button onclick="executeEndExam(true)" class="btn-end-exam" style="padding: 7px 18px; font-size: 13px; border-radius: 0px;">
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
                 <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
               </svg>
