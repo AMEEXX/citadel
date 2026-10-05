@@ -543,6 +543,7 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/download/RESTORE_MY_LAPTOP.bat", get(download_restore_bat_handler))
         .route("/static/ace.bundle.js", get(serve_ace_bundle_handler))
         .route("/static/*path", get(serve_static_handler))
+        .route("/favicon.ico", get(serve_favicon_handler))
         .route("/architecture", get(architecture_handler))
         .route("/archify", get(architecture_handler))
         .route("/graph", get(graphify_handler))
@@ -2401,12 +2402,22 @@ async fn graphify_handler() -> Redirect {
     Redirect::temporary("/static/graph.html")
 }
 
+async fn serve_favicon_handler() -> Response {
+    serve_static_handler(axum::extract::Path("favicon.ico".to_string())).await
+}
+
 async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
     let clean_path = path.trim_start_matches('/');
     let content_type = if clean_path.ends_with(".js") {
         "application/javascript; charset=utf-8"
     } else if clean_path.ends_with(".css") {
         "text/css; charset=utf-8"
+    } else if clean_path.ends_with(".png") {
+        "image/png"
+    } else if clean_path.ends_with(".ico") {
+        "image/x-icon"
+    } else if clean_path.ends_with(".svg") {
+        "image/svg+xml"
     } else if clean_path.ends_with(".woff2") {
         "font/woff2"
     } else if clean_path.ends_with(".woff") {

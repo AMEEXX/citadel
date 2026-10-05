@@ -175,6 +175,11 @@
   </style>
   <link rel="stylesheet" href="/static/citadel-skin.css">
   <script src="/static/citadel-restore.js"></script>
+  <!-- Citadel Branded Favicons -->
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16x16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
 </head>
 <body class="app-gate">
   <!-- {{TESTING_ONLY_RESTORE_START}} -->
@@ -197,7 +202,10 @@
         <strong>This exam needs to be taken from a laptop.</strong> Mobile devices and tablets are not supported for secure proctored examinations. Please open this URL from your laptop workstation.
       </div>
     </div>
-    <div class="logo-badge">CITADEL</div>
+    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px;">
+      <img src="/static/citadel-badge.png" alt="Citadel" style="width: 32px; height: 32px; object-fit: contain; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5);" />
+      <div class="logo-badge" style="margin-bottom: 0;">CITADEL</div>
+    </div>
     <h1>Assessment Pipeline</h1>
     <p>To take your examination on the isolated campus fleet, launch the Citadel Lockdown Client on your workstation.</p>
     <a href="/download/citadel-client.exe" class="download-btn">

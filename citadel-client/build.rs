@@ -11,6 +11,7 @@ fn main() {
         let profile = std::env::var("PROFILE").unwrap_or_default();
         if profile == "release" {
             let mut res = winresource::WindowsResource::new();
+            res.set_icon("citadel.ico");
             res.set_manifest_file("citadel-client.manifest");
             res.set("FileDescription", "Citadel Assessment Lockdown Client");
             res.set("ProductName", "Citadel Examination Platform");
