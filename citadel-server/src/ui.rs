@@ -28,11 +28,26 @@ pub fn render_mobile_blocked_html() -> &'static str {
 pub fn render_gatekeeper_html(is_production: bool, is_mobile: bool) -> String {
     let raw = include_str!("../templates/gatekeeper.html");
     let mut page = if is_production {
-        // In Production Mode, remove the testing-mode bypass link entirely
-        raw.replace(
+        // In Production Mode: clean view with no bypass link, no restore laptop button, and no recovery .exe/.bat
+        let mut p = raw.replace(
             r#"<a href="/exam" class="direct-link">Launch Web Assessment Directly (Testing Mode) &rarr;</a>"#,
             r#"<div style="margin-bottom: 20px;"></div>"#,
-        )
+        );
+        if let (Some(s), Some(e)) = (
+            p.find("<!-- {{TESTING_ONLY_RESTORE_START}} -->"),
+            p.find("<!-- {{TESTING_ONLY_RESTORE_END}} -->"),
+        ) {
+            let end_tag = "<!-- {{TESTING_ONLY_RESTORE_END}} -->";
+            p.replace_range(s..e + end_tag.len(), "");
+        }
+        if let (Some(s), Some(e)) = (
+            p.find("<!-- {{TESTING_ONLY_RECOVERY_START}} -->"),
+            p.find("<!-- {{TESTING_ONLY_RECOVERY_END}} -->"),
+        ) {
+            let end_tag = "<!-- {{TESTING_ONLY_RECOVERY_END}} -->";
+            p.replace_range(s..e + end_tag.len(), "");
+        }
+        p
     } else {
         raw.to_string()
     };

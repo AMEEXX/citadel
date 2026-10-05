@@ -176,7 +176,8 @@
   <link rel="stylesheet" href="/static/citadel-skin.css">
 </head>
 <body class="app-gate">
-    <div style="position: fixed; top: 12px; right: 16px; z-index: 12000;">
+  <!-- {{TESTING_ONLY_RESTORE_START}} -->
+  <div id="gatekeeper-restore-container" style="position: fixed; top: 12px; right: 16px; z-index: 12000;">
     <button onclick="triggerGatekeeperRestore()" class="btn-end-exam" title="Restore Workstation & Exit Lockdown">
       <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink: 0;">
         <path fill-rule="evenodd" d="M10 12.5a.75.75 0 01-.75.75H2.5A1.75 1.75 0 01.75 11.5v-7A1.75 1.75 0 012.5 2.75h6.75a.75.75 0 010 1.5H2.5a.25.25 0 00-.25.25v7c0 .138.112.25.25.25h6.75a.75.75 0 01.75.75zm3.78-4.72a.75.75 0 000-1.06l-3-3a.75.75 0 10-1.06 1.06L11.44 6.5H6.75a.75.75 0 000 1.5h4.69l-1.72 1.72a.75.75 0 101.06 1.06l3-3z"></path>
@@ -184,6 +185,7 @@
       <span>Restore Laptop</span>
     </button>
   </div>
+  <!-- {{TESTING_ONLY_RESTORE_END}} -->
   <div class="card">
     <div id="mobile-warning-banner" class="mobile-warning" style="display: none; background: rgba(239, 68, 68, 0.12); border: 1px solid #ef4444; border-radius: 6px; padding: 14px 16px; margin-bottom: 20px; text-align: left;">
       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
@@ -205,7 +207,8 @@
       Download citadel-client.exe
     </a>
     <a href="/exam" class="direct-link">Launch Web Assessment Directly (Testing Mode) &rarr;</a>
-    <div style="margin-top: 14px; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+    <!-- {{TESTING_ONLY_RECOVERY_START}} -->
+    <div id="gatekeeper-emergency-recovery" style="margin-top: 14px; margin-bottom: 20px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
       <a href="/download/citadel-recovery.exe" style="color: #f87171; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); border-radius: 0px; font-weight: 500;">
         🚑 Emergency Recovery (citadel-recovery.exe)
       </a>
@@ -213,6 +216,7 @@
         ⚡ Reset Laptop Script (.bat)
       </a>
     </div>
+    <!-- {{TESTING_ONLY_RECOVERY_END}} -->
     <div class="inst">
       <div class="inst-heading">Instructions for Candidates:</div>
       <ol>
@@ -264,6 +268,13 @@
       const isExplicitMobile = /android|iphone|ipad|ipod|iemobile|opera mini|blackberry|mobile|tablet/i.test(ua);
       const isTouchCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches && !ua.includes('windows nt');
       const isMobile = isExplicitMobile || isTouchCoarse;
+
+      if (isProd) {
+        const restoreContainer = document.getElementById('gatekeeper-restore-container');
+        if (restoreContainer) restoreContainer.remove();
+        const emergencyRecovery = document.getElementById('gatekeeper-emergency-recovery');
+        if (emergencyRecovery) emergencyRecovery.remove();
+      }
 
       if (isProd && isMobile) {
         const banner = document.getElementById('mobile-warning-banner');
