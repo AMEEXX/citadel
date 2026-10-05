@@ -391,4 +391,17 @@
 .app-gate :is(h1, h2) { font-family: var(--font-display); font-weight: 400; letter-spacing: -.01em; color: #f2f0ec; }
 .app-gate :is(button, input, .badge, code, pre) { border-radius: 0; }
 .app-gate code, .app-gate pre { font-family: var(--font-mono, 'Geist Mono', monospace); }
+.app-gate .logo-badge {
+  background: transparent !important;
+  border: none !important;
+  border-color: transparent !important;
+  color: #f2f0ec !important;
+  font-family: var(--font-mono, 'Geist Mono', monospace) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: .16em !important;
+  text-transform: uppercase !important;
+  padding: 0 !important;
+  margin-bottom: 14px !important;
+}
 .app-gate > * { animation: cit-rise var(--dur-slow) var(--ease-out); }
