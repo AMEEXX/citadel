@@ -255,7 +255,7 @@
 }
 .app-recruiter .btn-live { font-weight: 600; letter-spacing: .08em; transition: background var(--dur-base) var(--ease-out), border-color var(--dur-base), transform var(--dur-fast); }
 .app-recruiter .btn-live:active { transform: translateY(1px); }
-.app-recruiter .sync-dot { position: relative; box-shadow: 0 0 6px rgba(111, 222, 167, .55); }
+.app-recruiter .sync-dot { position: relative; box-shadow: none; }
 .app-recruiter .sync-dot::after {
   content: ''; position: absolute; inset: 0; border-radius: 50%;
   background: #6fdea7; animation: cit-ping 2.4s var(--ease-out) infinite;

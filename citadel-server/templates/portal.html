@@ -1085,7 +1085,7 @@
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(219, 184, 126, 0.32);
       border-radius: 6px;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.92), 0 0 20px rgba(219, 184, 126, 0.08), 0 0 0 1px rgba(242, 240, 236, 0.03);
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.92), 0 0 0 1px rgba(242, 240, 236, 0.03);
       width: 320px;
       max-height: 240px;
       overflow-y: auto;
@@ -1188,7 +1188,7 @@
       backdrop-filter: blur(16px);
       -webkit-backdrop-filter: blur(16px);
       border: 1px solid rgba(219, 184, 126, 0.34);
-      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 24px rgba(219, 184, 126, 0.08), 0 0 0 1px rgba(242, 240, 236, 0.03);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(242, 240, 236, 0.03);
       border-radius: 6px;
       padding: 13px 22px;
       display: flex;
@@ -1198,13 +1198,10 @@
       user-select: none;
       min-width: 360px;
       max-width: 480px;
-      animation: mischiefGlow 3s ease infinite alternate;
+      /* glow animation removed */
     }
 
-    @keyframes mischiefGlow {
-      0% { border-color: rgba(219, 184, 126, 0.30); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 16px rgba(219, 184, 126, 0.06); }
-      100% { border-color: rgba(219, 184, 126, 0.50); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.9), 0 0 26px rgba(219, 184, 126, 0.12); }
-    }
+
 
     .mischief-warning-icon {
       font-size: 20px;
@@ -1270,7 +1267,6 @@
   <!-- HEADER -->
   <header>
     <div class="brand">
-      <img src="/static/citadel-badge.png" class="brand-logo" alt="Citadel" style="width: 22px; height: 22px; object-fit: contain; border-radius: 50%; box-shadow: 0 0 6px rgba(218, 208, 191, 0.4);" />
       <div class="logo-badge">CITADEL</div>
       <div class="exam-title-header">
         <span>Campus Assessment Contest 2026</span>
@@ -1530,7 +1526,7 @@
   <div id="exam-not-started-overlay" class="modal-overlay" style="display: none; background: #000000; z-index: 5000;">
     <div class="conclusion-card">
       <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(162, 186, 216, 0.1); border: 1px solid rgba(162, 186, 216, 0.25); color: #a2bad8; font-family: var(--font-mono); font-size: var(--text-xs); font-weight: var(--weight-semibold); padding: 4px 12px; border-radius: 4px; margin-bottom: 20px;">
-        <span style="width: 7px; height: 7px; background: #a2bad8; border-radius: 50%; box-shadow: 0 0 8px rgba(162, 186, 216, 0.4);"></span>
+        <span style="width: 7px; height: 7px; background: #a2bad8; border-radius: 50%; "></span>
         <span>AWAITING PROCTOR INITIATION</span>
       </div>
       <h2>Assessment Not Started</h2>
