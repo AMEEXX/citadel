@@ -80,6 +80,8 @@ pub struct CandidateState {
     pub started_at: Option<String>,
     pub last_seen: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_activity_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
     #[serde(default)]
     pub session_token: String,
@@ -127,6 +129,63 @@ pub fn ensure_directories(state_dir: &Path) -> io::Result<()> {
     fs::create_dir_all(state_dir.join("candidates"))?;
     fs::create_dir_all(state_dir.join("submissions"))?;
     fs::create_dir_all(state_dir.join("violations"))?;
+    fs::create_dir_all(state_dir.join("archive"))?;
+    Ok(())
+}
+
+pub fn archive_and_clear_sessions(state_dir: &Path, tag: &str) -> io::Result<()> {
+    let now_str = chrono::Utc::now().format("%Y%m%d_%H%M%S").to_string();
+    let archive_dir = state_dir.join("archive").join(format!("{}_{}", tag, now_str));
+    let _ = fs::create_dir_all(&archive_dir);
+
+    let candidates_dir = state_dir.join("candidates");
+    if candidates_dir.exists() {
+        let dest_cand = archive_dir.join("candidates");
+        let _ = fs::create_dir_all(&dest_cand);
+        if let Ok(entries) = fs::read_dir(&candidates_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(name) = path.file_name() {
+                        let _ = fs::rename(&path, dest_cand.join(name));
+                    }
+                }
+            }
+        }
+    }
+
+    let subs_dir = state_dir.join("submissions");
+    if subs_dir.exists() {
+        let dest_subs = archive_dir.join("submissions");
+        let _ = fs::create_dir_all(&dest_subs);
+        if let Ok(entries) = fs::read_dir(&subs_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(name) = path.file_name() {
+                        let _ = fs::rename(&path, dest_subs.join(name));
+                    }
+                }
+            }
+        }
+    }
+
+    let viols_dir = state_dir.join("violations");
+    if viols_dir.exists() {
+        let dest_viols = archive_dir.join("violations");
+        let _ = fs::create_dir_all(&dest_viols);
+        if let Ok(entries) = fs::read_dir(&viols_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() {
+                    if let Some(name) = path.file_name() {
+                        let _ = fs::rename(&path, dest_viols.join(name));
+                    }
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 

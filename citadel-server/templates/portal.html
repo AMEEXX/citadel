@@ -2380,6 +2380,7 @@
       });
 
       editor.session.on('change', () => {
+        window.__lastActivityEpoch = Date.now();
         if (samplePassed) {
           samplePassed = false;
           lockSubmitButton("Re-run Sample Cases");
@@ -3356,8 +3357,15 @@ ${data.details || ''}`;
       }, 1500);
     }
 
+    window.__lastActivityEpoch = Date.now();
+    window.addEventListener('keydown', () => { window.__lastActivityEpoch = Date.now(); }, true);
+    window.addEventListener('mousedown', () => { window.__lastActivityEpoch = Date.now(); }, true);
+    window.addEventListener('touchstart', () => { window.__lastActivityEpoch = Date.now(); }, true);
+    window.addEventListener('input', () => { window.__lastActivityEpoch = Date.now(); }, true);
+
     async function sendHeartbeat() {
       const activeQNum = activeQuestion ? activeQuestion.number : 1;
+      const idleSecs = Math.max(0, Math.floor((Date.now() - (window.__lastActivityEpoch || Date.now())) / 1000));
       try {
         const res = await fetch('/api/v1/integrity/heartbeat', {
           method: 'POST',
@@ -3368,6 +3376,7 @@ ${data.details || ''}`;
             is_window_focused: document.hasFocus(),
             is_tab_visible: document.visibilityState === 'visible',
             window_dimensions: `${window.innerWidth}x${window.innerHeight}`,
+            seconds_idle: idleSecs,
           })
         });
         if (res.ok) {

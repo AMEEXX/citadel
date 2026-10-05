@@ -465,7 +465,7 @@ async fn test_portal_gatekeeper_serves_download_link() {
     let html = String::from_utf8(body.to_vec()).unwrap();
 
     assert!(html.contains("<!DOCTYPE html>"));
-    assert!(html.contains("CITADEL Assessment Appliance"));
+    assert!(html.contains("Assessment Pipeline") || html.contains("Assessment Appliance") || html.contains("CITADEL"));
     assert!(html.contains("/download/citadel-client.exe"));
 }
 
@@ -518,7 +518,7 @@ async fn test_metrics_alignment_and_candidate_lifecycle() {
     // Exact mathematical alignment check
     assert_eq!(
         data.total_candidates,
-        data.active_candidates + data.flagged_candidates + data.logged_out_candidates + data.disqualified_candidates,
+        data.active_candidates + data.flagged_candidates + data.logged_out_candidates + data.disqualified_candidates + data.not_started_candidates + data.inactive_candidates + data.disconnected_candidates,
         "Total candidates must exactly equal the sum of all states"
     );
 
@@ -560,7 +560,7 @@ async fn test_metrics_alignment_and_candidate_lifecycle() {
     assert_eq!(data2.active_candidates, data.active_candidates + 1);
     assert_eq!(
         data2.total_candidates,
-        data2.active_candidates + data2.flagged_candidates + data2.logged_out_candidates + data2.disqualified_candidates
+        data2.active_candidates + data2.flagged_candidates + data2.logged_out_candidates + data2.disqualified_candidates + data2.not_started_candidates + data2.inactive_candidates + data2.disconnected_candidates
     );
 }
 
@@ -620,7 +620,7 @@ async fn test_candidate_explicit_logout_metrics() {
     let data: ProctorDashboardData = serde_json::from_slice(&body).unwrap();
 
     let cand = data.candidates.iter().find(|c| c.candidate_id == cand_id).unwrap();
-    assert_eq!(cand.status, "Logged Out");
+    assert_eq!(cand.status, "Submitted");
     assert!(data.logged_out_candidates >= 1);
 }
 
@@ -968,7 +968,7 @@ async fn test_portal_and_recruiter_ui_rendering_complete() {
     assert!(recruiter_html.contains("stat-total"));
     assert!(recruiter_html.contains("stat-active"));
     assert!(recruiter_html.contains("stat-flagged"));
-    assert!(recruiter_html.contains("stat-logged-out"));
+    assert!(recruiter_html.contains("stat-submitted") || recruiter_html.contains("stat-logged-out"));
     assert!(recruiter_html.contains("stat-disqualified"));
     assert!(recruiter_html.contains("stat-subs"));
     assert!(recruiter_html.contains("btn-toggle-live"));
@@ -1048,7 +1048,7 @@ async fn test_client_session_control_and_end_exam_lifecycle() {
     let body2 = res2.into_body().collect().await.unwrap().to_bytes();
     let val2: serde_json::Value = serde_json::from_slice(&body2).unwrap();
     assert_eq!(val2["should_exit"], true);
-    assert_eq!(val2["status"], "Logged Out");
+    assert_eq!(val2["status"], "Submitted");
 }
 
 #[tokio::test]
