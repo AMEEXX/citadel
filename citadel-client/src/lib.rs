@@ -1,4 +1,5 @@
-﻿pub mod crash_handler;
+pub mod session_watch;
+pub mod crash_handler;
 pub mod explorer_lock;
 pub mod hotkey_lock;
 pub mod kiosk_window;

@@ -2424,21 +2424,33 @@
     // =========================================================================
     async function fetchQuestions() {
       try {
-        const res = await fetch('/api/v1/questions');
-        if (!res.ok) return;
-        const summaries = await res.json();
-        if (!summaries || summaries.length === 0) return;
+        let fullQuestions = null;
+        try {
+          const bundleRes = await fetch('/api/v1/questions/bundle');
+          if (bundleRes.ok) {
+            fullQuestions = await bundleRes.json();
+          }
+        } catch (e) {
+          fullQuestions = null;
+        }
 
-        // Fetch full question detail for each
-        const fullQuestions = [];
-        for (const s of summaries) {
-          const qRes = await fetch(`/api/v1/questions/${s.id}`);
-          if (qRes.ok) {
-            const qData = await qRes.json();
-            fullQuestions.push(qData);
+        if (!fullQuestions || fullQuestions.length === 0) {
+          const res = await fetch('/api/v1/questions');
+          if (!res.ok) return;
+          const summaries = await res.json();
+          if (!summaries || summaries.length === 0) return;
+
+          fullQuestions = [];
+          for (const s of summaries) {
+            const qRes = await fetch(`/api/v1/questions/${s.id}`);
+            if (qRes.ok) {
+              const qData = await qRes.json();
+              fullQuestions.push(qData);
+            }
           }
         }
 
+        if (!fullQuestions || fullQuestions.length === 0) return;
         questionsList = fullQuestions;
         renderQuestionTabs();
         if (!activeQuestion && questionsList.length > 0) {
@@ -2988,59 +3000,83 @@ ${data.details || ''}`;
     // =========================================================================
     // EXAM STATUS, TIMER & LIVE CONTROL
     // =========================================================================
+    let examPollTimer = null, examES = null, lastExamEventAt = 0;
+    function startExamPolling() { if (!examPollTimer) examPollTimer = setInterval(checkExamStatus, 2500); }
+    function stopExamPolling()  { if (examPollTimer) { clearInterval(examPollTimer); examPollTimer = null; } }
+    function startExamStream() {
+      if (!('EventSource' in window)) { startExamPolling(); return; }
+      try { examES = new EventSource('/api/v1/events'); } catch (e) { startExamPolling(); return; }
+      examES.addEventListener('exam', ev => {
+        lastExamEventAt = Date.now();
+        stopExamPolling();
+        try { applyExamStatus(JSON.parse(ev.data)); } catch (e) {}
+      });
+      examES.onopen  = () => { lastExamEventAt = Date.now(); };
+      examES.onerror = () => { startExamPolling(); };
+    }
+    setInterval(() => { if (Date.now() - lastExamEventAt > 45000) startExamPolling(); }, 5000);
+
     async function checkExamStatus() {
       try {
         const res = await fetch('/api/v1/exam/status');
         if (!res.ok) return;
         const data = await res.json();
-
-        if (data.is_production !== undefined) {
-          isProductionMode = Boolean(data.is_production);
-          enforceDevicePolicy();
-        }
-
-        const notStartedOverlay = document.getElementById('exam-not-started-overlay');
-        const concludedOverlay = document.getElementById('exam-concluded-overlay');
-
-        if (data.is_live) {
-          examStartedOnce = true;
-          if (notStartedOverlay) notStartedOverlay.style.display = 'none';
-          if (concludedOverlay) concludedOverlay.style.display = 'none';
-
-          remainingSeconds = data.remaining_seconds;
-          updateTimerUI(remainingSeconds);
-
-          if (isDisqualified) {
-            executeDisqualifiedExit();
-            return;
-          }
-
-          if (questionsList.length === 0) {
-            await fetchQuestions();
-          }
-        } else {
-          if (isDisqualified) {
-            executeDisqualifiedExit();
-            return;
-          }
-
-          if (examStartedOnce || data.ended_at) {
-            // Exam was live and has ended
-            if (notStartedOverlay) notStartedOverlay.style.display = 'none';
-            if (concludedOverlay) concludedOverlay.style.display = 'flex';
-            lockSubmitButton("Exam Concluded");
-            const runBtn = document.getElementById('btn-run');
-            if (runBtn) runBtn.disabled = true;
-          } else {
-            // Exam has not started yet
-            if (notStartedOverlay) notStartedOverlay.style.display = 'flex';
-            if (concludedOverlay) concludedOverlay.style.display = 'none';
-          }
-        }
-        updateUniversalExitAffordance();
+        applyExamStatus(data);
       } catch (err) {
         console.error("checkExamStatus error:", err);
       }
+    }
+
+    async function applyExamStatus(data) {
+      if (data.is_production !== undefined) {
+        isProductionMode = Boolean(data.is_production);
+        enforceDevicePolicy();
+      }
+
+      const notStartedOverlay = document.getElementById('exam-not-started-overlay');
+      const concludedOverlay = document.getElementById('exam-concluded-overlay');
+
+      if (data.is_live) {
+        const wasNotLive = !examStartedOnce;
+        examStartedOnce = true;
+        if (notStartedOverlay) notStartedOverlay.style.display = 'none';
+        if (concludedOverlay) concludedOverlay.style.display = 'none';
+
+        remainingSeconds = data.remaining_seconds;
+        updateTimerUI(remainingSeconds);
+
+        if (isDisqualified) {
+          executeDisqualifiedExit();
+          return;
+        }
+
+        if (questionsList.length === 0) {
+          if (wasNotLive) {
+            setTimeout(() => { fetchQuestions(); }, Math.random() * 3000);
+          } else {
+            await fetchQuestions();
+          }
+        }
+      } else {
+        if (isDisqualified) {
+          executeDisqualifiedExit();
+          return;
+        }
+
+        if (examStartedOnce || data.ended_at) {
+          // Exam was live and has ended
+          if (notStartedOverlay) notStartedOverlay.style.display = 'none';
+          if (concludedOverlay) concludedOverlay.style.display = 'flex';
+          lockSubmitButton("Exam Concluded");
+          const runBtn = document.getElementById('btn-run');
+          if (runBtn) runBtn.disabled = true;
+        } else {
+          // Exam has not started yet
+          if (notStartedOverlay) notStartedOverlay.style.display = 'flex';
+          if (concludedOverlay) concludedOverlay.style.display = 'none';
+        }
+      }
+      updateUniversalExitAffordance();
     }
 
     function updateTimerUI(secs) {
@@ -3588,10 +3624,13 @@ ${data.details || ''}`;
       initResizers();
       updateUniversalExitAffordance();
       checkExamStatus();
-      setInterval(checkExamStatus, 2500);
+      startExamStream();
       setInterval(tickTimer, 1000);
-      sendHeartbeat();
-      setInterval(sendHeartbeat, 5000);
+      function hbLoop() {
+        sendHeartbeat();
+        setTimeout(hbLoop, 5000 * (0.85 + Math.random() * 0.3));
+      }
+      hbLoop();
     });
   </script>
 </body>

@@ -1196,14 +1196,16 @@
       if (isFetchingMetrics && !isManual) return;
       isFetchingMetrics = true;
       try {
-        const timestamp = Date.now();
-        const res = await fetch(`/api/v1/admin/metrics?key=${encodeURIComponent(AUTH_KEY)}&_t=${timestamp}`, {
-          cache: 'no-store',
+        const res = await fetch(`/api/v1/admin/metrics`, {
+          cache: 'no-cache',
           headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
+            'X-Admin-Key': AUTH_KEY
           }
         });
+        if (res.status === 304) {
+          // Unchanged - preserve existing DOM
+          return;
+        }
         if (!res.ok) {
           console.error("Failed to fetch metrics: " + res.status);
           const tbody = document.getElementById('candidate-table-body');
@@ -2401,7 +2403,16 @@
     });
 
     fetchMetrics();
-    setInterval(fetchMetrics, 3000);
+    setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchMetrics();
+      }
+    }, 3000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        fetchMetrics(true);
+      }
+    });
     // H2: Only animate a stat when its value actually changes
     function setStat(id, v) {
       const el = document.getElementById(id);

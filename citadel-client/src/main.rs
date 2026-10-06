@@ -1,13 +1,14 @@
 #![windows_subsystem = "windows"]
 
-use std::io::{Read, Write};
+use std::io::{BufReader, Read, Write};
 use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::net::{Ipv4Addr, SocketAddr, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use citadel_client::session_watch::{read_http_response, parse_session_control_exit};
 use citadel_client::{
     crash_handler::{emergency_restore_system, relaunch_explorer_shell},
     elevate_self, enforce_clean_environment, is_elevated, is_emergency_override_triggered,
@@ -155,6 +156,97 @@ fn resolve_server_endpoint(cli_ip: Option<Ipv4Addr>, port: u16) -> (Ipv4Addr, u1
     //    Â§5 step 2 â€” no interactive endpoint prompt on the startup path).
     log_event("[CITADEL CLIENT] No exam server candidate reachable. Falling back to campus default; reachability gate will report.");
     (Ipv4Addr::new(172, 60, 10, 12), port)
+}
+
+
+fn start_session_watch(
+    server_ip: Ipv4Addr,
+    server_port: u16,
+    auth_token: Option<String>,
+    candidate_id_handle: Option<Arc<Mutex<Option<String>>>>,
+    server_exit: Arc<AtomicBool>,
+    stop_watch: Arc<AtomicBool>,
+) -> std::thread::JoinHandle<()> {
+    std::thread::spawn(move || {
+        let mut last_status = "Active".to_string();
+        let mut backoff_ms = 250u64;
+
+        while !stop_watch.load(Ordering::Relaxed) && !server_exit.load(Ordering::Relaxed) {
+            let addr = SocketAddr::from((server_ip, server_port));
+            let stream_res = TcpStream::connect_timeout(&addr, Duration::from_millis(300));
+            let stream = match stream_res {
+                Ok(s) => s,
+                Err(_) => {
+                    let cand_id = candidate_id_handle.as_ref().and_then(|h| h.lock().ok().and_then(|c| c.clone()));
+                    if let Ok(true) = poll_server_exit_status(server_ip, server_port, auth_token.as_deref(), cand_id.as_deref()) {
+                        server_exit.store(true, Ordering::SeqCst);
+                        return;
+                    }
+                    let jitter = 0.75 + (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_millis() as f64 % 500.0) / 1000.0;
+                    let sleep_ms = ((backoff_ms as f64) * jitter) as u64;
+                    std::thread::sleep(Duration::from_millis(sleep_ms));
+                    backoff_ms = (backoff_ms * 2).min(2000);
+                    continue;
+                }
+            };
+
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
+            let _ = stream.set_write_timeout(Some(Duration::from_millis(500)));
+            let mut reader = BufReader::new(stream);
+            backoff_ms = 250;
+
+            while !stop_watch.load(Ordering::Relaxed) && !server_exit.load(Ordering::Relaxed) {
+                let cand_id = candidate_id_handle.as_ref().and_then(|h| h.lock().ok().and_then(|c| c.clone()));
+                let mut query_parts = vec!["wait=25".to_string(), format!("since={}", last_status)];
+                if let Some(ref cid) = cand_id {
+                    if !cid.is_empty() {
+                        query_parts.push(format!("candidate_id={}", cid));
+                    }
+                }
+                if let Some(ref tok) = auth_token {
+                    if !tok.is_empty() {
+                        query_parts.push(format!("token={}", tok));
+                    }
+                }
+
+                let req = format!(
+                    "GET /api/v1/client/session-control?{} HTTP/1.1\r\nHost: {}:{}\r\nConnection: keep-alive\r\n\r\n",
+                    query_parts.join("&"),
+                    server_ip,
+                    server_port
+                );
+
+                if reader.get_mut().write_all(req.as_bytes()).is_err() {
+                    break;
+                }
+
+                match read_http_response(&mut reader) {
+                    Ok(body) => {
+                        let (should_exit, status) = parse_session_control_exit(&body);
+                        if should_exit {
+                            server_exit.store(true, Ordering::SeqCst);
+                            return;
+                        }
+                        last_status = status;
+                    }
+                    Err(_) => {
+                        break;
+                    }
+                }
+            }
+
+            let cand_id = candidate_id_handle.as_ref().and_then(|h| h.lock().ok().and_then(|c| c.clone()));
+            if let Ok(true) = poll_server_exit_status(server_ip, server_port, auth_token.as_deref(), cand_id.as_deref()) {
+                server_exit.store(true, Ordering::SeqCst);
+                return;
+            }
+
+            let jitter = 0.75 + (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().subsec_millis() as f64 % 500.0) / 1000.0;
+            let sleep_ms = ((backoff_ms as f64) * jitter) as u64;
+            std::thread::sleep(Duration::from_millis(sleep_ms));
+            backoff_ms = (backoff_ms * 2).min(2000);
+        }
+    })
 }
 
 fn poll_server_exit_status(server_ip: Ipv4Addr, server_port: u16, auth_token: Option<&str>, candidate_id: Option<&str>) -> Result<bool, std::io::Error> {
@@ -447,7 +539,18 @@ Please close any existing exam windows or run RESTORE_MY_LAPTOP.bat, then restar
     let mut consecutive_dead_checks = 0;
     let mut consecutive_window_dead_checks = 0;
     let mut window_ever_seen = false;
-    let mut poll_counter = 0;
+
+    let server_exit = Arc::new(AtomicBool::new(false));
+    let stop_watch = Arc::new(AtomicBool::new(false));
+    let cand_id_handle = local_control.as_ref().map(|lc| lc.get_candidate_id_handle());
+    let _session_watch_handle = start_session_watch(
+        server_ip,
+        server_port,
+        guard.auth_token.clone(),
+        cand_id_handle,
+        server_exit.clone(),
+        stop_watch.clone(),
+    );
 
     loop {
         // Channel 1: Direct trigger from "End Exam" button on web portal (via 127.0.0.1:8444)
@@ -473,17 +576,10 @@ Please close any existing exam windows or run RESTORE_MY_LAPTOP.bat, then restar
             }
         }
 
-        // Channel 3: Poll server session control status (checks if candidate logged out, disqualified, or exam ended)
-        poll_counter += 1;
-        if poll_counter % 2 == 0 {
-            let auth_tok = guard.auth_token.as_deref();
-            let cand_id = local_control.as_ref().and_then(|lc| lc.get_candidate_id());
-            if let Ok(should_exit) = poll_server_exit_status(server_ip, server_port, auth_tok, cand_id.as_deref()) {
-                if should_exit {
-                    log_event("[EXIT CHANNEL 3] Exam server instructed session termination! Initiating full laptop restoration...");
-                    break;
-                }
-            }
+        // Channel 3: Server session control status (updated via long-polling session_watch thread)
+        if server_exit.load(Ordering::SeqCst) {
+            log_event("[EXIT CHANNEL 3] Exam server instructed session termination! Initiating full laptop restoration...");
+            break;
         }
 
         // Channel 4: Kiosk browser process alive check & Plan 25 Channel R3 Window-death detection
@@ -523,6 +619,7 @@ Please close any existing exam windows or run RESTORE_MY_LAPTOP.bat, then restar
         std::thread::sleep(Duration::from_millis(500));
     }
 
+    stop_watch.store(true, Ordering::Relaxed);
     // 7. COMPREHENSIVE LAPTOP RESTORATION (Plan 21 F-1 & F-2):
     // Reordered for immediate handoff: Supervisor is spawned FIRST with live status server,
     // while client performs sub-50ms in-process teardown. Slow service and registry sweeps

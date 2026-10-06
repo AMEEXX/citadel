@@ -33,6 +33,21 @@ pub struct JudgeResult {
     pub sample_diffs: Option<Vec<TestCaseDiff>>,
 }
 
+impl JudgeResult {
+    pub fn internal_error(msg: &str) -> Self {
+        Self {
+            status: "Runtime Error".to_string(),
+            passed_cases: 0,
+            total_cases: 0,
+            score: 0,
+            runtime_ms: 0,
+            memory_mb: 0.0,
+            details: msg.to_string(),
+            sample_diffs: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TestCaseDiff {
     pub case_number: u32,

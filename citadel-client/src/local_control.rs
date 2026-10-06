@@ -95,6 +95,10 @@ impl LocalControlServer {
         self.candidate_id.lock().ok().and_then(|c| c.clone())
     }
 
+    pub fn get_candidate_id_handle(&self) -> Arc<Mutex<Option<String>>> {
+        self.candidate_id.clone()
+    }
+
     pub fn is_exit_requested(&self) -> bool {
         self.exit_signal.load(Ordering::SeqCst)
     }

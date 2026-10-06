@@ -9,26 +9,53 @@
 //! 4. Gatekeeper: Candidate download instructions.
 //! 5. Mobile Blocked: Dedicated prompt informing candidates that a laptop is strictly required in production mode.
 
+use std::sync::OnceLock;
+
+fn rewrite_versioned_assets(raw: &str) -> String {
+    let mut out = raw.to_string();
+    for (name, asset) in crate::assets::registry().iter() {
+        let unversioned = format!("/static/{}", name);
+        let versioned = format!("/static/{}?v={}", name, asset.hash8);
+        out = out.replace(&unversioned, &versioned);
+    }
+    out
+}
+
 pub fn render_portal_html() -> &'static str {
-    include_str!("../templates/portal.html")
+    static PORTAL: OnceLock<String> = OnceLock::new();
+    PORTAL.get_or_init(|| {
+        rewrite_versioned_assets(include_str!("../templates/portal.html"))
+    })
 }
 
 pub fn render_recruiter_lms_html() -> &'static str {
-    include_str!("../templates/recruiter.html")
+    static RECRUITER: OnceLock<String> = OnceLock::new();
+    RECRUITER.get_or_init(|| {
+        rewrite_versioned_assets(include_str!("../templates/recruiter.html"))
+    })
 }
 
 pub fn render_admin_denied_html() -> &'static str {
-    include_str!("../templates/denied.html")
+    static DENIED: OnceLock<String> = OnceLock::new();
+    DENIED.get_or_init(|| {
+        rewrite_versioned_assets(include_str!("../templates/denied.html"))
+    })
 }
 
 pub fn render_mobile_blocked_html() -> &'static str {
-    include_str!("../templates/mobile_blocked.html")
+    static MOBILE: OnceLock<String> = OnceLock::new();
+    MOBILE.get_or_init(|| {
+        rewrite_versioned_assets(include_str!("../templates/mobile_blocked.html"))
+    })
 }
 
 pub fn render_gatekeeper_html(is_production: bool, is_mobile: bool) -> String {
-    let raw = include_str!("../templates/gatekeeper.html");
+    static GK_BASE: OnceLock<String> = OnceLock::new();
+    let raw = GK_BASE.get_or_init(|| {
+        rewrite_versioned_assets(include_str!("../templates/gatekeeper.html"))
+    });
+
     let mut page = if is_production {
-        // In Production Mode: clean view with no bypass link, no restore laptop button, and no recovery .exe/.bat
         let mut p = raw.replace(
             r#"<a href="/exam" class="direct-link">Launch Web Assessment Directly (Testing Mode) &rarr;</a>"#,
             r#"<div style="margin-bottom: 20px;"></div>"#,
@@ -49,17 +76,15 @@ pub fn render_gatekeeper_html(is_production: bool, is_mobile: bool) -> String {
         }
         p
     } else {
-        raw.to_string()
+        raw.clone()
     };
 
-    // Inject is_production flag into client-side script
     page = page.replace(
         "/* {{IS_PRODUCTION_FLAG}} */ false",
         if is_production { "true" } else { "false" },
     );
 
     if is_production && is_mobile {
-        // Make mobile warning banner visible on server render
         page = page.replace(
             r#"id="mobile-warning-banner" class="mobile-warning" style="display: none;"#,
             r#"id="mobile-warning-banner" class="mobile-warning" style="display: block;"#,

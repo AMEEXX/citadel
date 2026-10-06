@@ -1,3 +1,6 @@
+pub mod events;
+pub mod assets;
+pub mod persist_queue;
 pub mod api;
 pub mod judge;
 pub mod persistence;

@@ -7,11 +7,11 @@ use std::path::PathBuf;
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, RwLock};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use axum::{
     body::Body,
     extract::{Path, Query, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{header, HeaderMap, HeaderValue, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{delete, get, post},
     Json, Router,
@@ -19,7 +19,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use tower_http::cors::{Any, CorsLayer};
 
-use crate::judge::{evaluate_submission, TestCaseDiff};
+use crate::judge::{evaluate_submission, JudgeResult, TestCaseDiff};
 use crate::questions::{
     get_all_questions, get_exam_info, get_question_summaries, sanitize_for_candidate, ExamInfo,
     Question, QuestionSummary, TestCase,
@@ -301,9 +301,63 @@ pub struct AppState {
     pub admin_key: String,
     pub is_production: Arc<AtomicBool>,
     pub authorized_tokens: Arc<Mutex<HashMap<String, TokenSession>>>,
+    pub judge_slots: Arc<tokio::sync::Semaphore>,
+    pub persist: crate::persist_queue::PersistQueue,
+    pub token_index: Arc<RwLock<HashMap<String, String>>>,
+    pub dash_version: Arc<AtomicU64>,
+    pub exam_tx: tokio::sync::watch::Sender<Arc<ExamStatusResponse>>,
+    pub session_tx: tokio::sync::watch::Sender<u64>,
+    pub question_bundle: Arc<RwLock<Option<(bytes::Bytes, axum::http::HeaderValue)>>>,
+    pub sse_slots: Arc<tokio::sync::Semaphore>,
+    pub longpoll_slots: Arc<tokio::sync::Semaphore>,
 }
 
 impl AppState {
+    pub fn touch(&self) {
+        self.dash_version.fetch_add(1, Ordering::SeqCst);
+    }
+
+    pub fn publish_exam_status(&self) {
+        let live_lock = self.exam_live.read().unwrap();
+        let total_secs = (live_lock.duration_minutes as i64) * 60;
+        let mut remaining_seconds = 0u64;
+        if live_lock.is_live {
+            if let Some(ref started_str) = live_lock.started_at {
+                if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                    let now = chrono::Utc::now();
+                    let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                    remaining_seconds = total_secs.saturating_sub(elapsed) as u64;
+                } else {
+                    remaining_seconds = total_secs as u64;
+                }
+            } else {
+                remaining_seconds = total_secs as u64;
+            }
+        }
+        let resp = ExamStatusResponse {
+            is_live: live_lock.is_live,
+            started_at: live_lock.started_at.clone(),
+            remaining_seconds,
+            total_duration_minutes: live_lock.duration_minutes,
+            ended_at: live_lock.ended_at.clone(),
+            is_production: self.is_production.load(Ordering::SeqCst),
+            early_exit_min_remaining_seconds: 900,
+        };
+        let _ = self.exam_tx.send_replace(Arc::new(resp));
+        self.touch();
+    }
+
+    pub fn bump_session(&self) {
+        let cur = *self.session_tx.borrow();
+        let _ = self.session_tx.send_replace(cur.wrapping_add(1));
+    }
+
+    pub fn invalidate_bundle(&self) {
+        if let Ok(mut lock) = self.question_bundle.write() {
+            *lock = None;
+        }
+    }
+
     pub fn new_with_dir(state_dir: PathBuf) -> Self {
         let admin_key = std::env::var("CITADEL_ADMIN_KEY")
             .unwrap_or_else(|_| "citadel-recruiter-key-2026".to_string());
@@ -318,6 +372,16 @@ impl AppState {
 
         let exam_passcode = std::env::var("CITADEL_EXAM_PASSCODE")
             .unwrap_or_else(|_| "CITADEL2026".to_string());
+        let default_judge_slots = std::thread::available_parallelism()
+            .map(|n| n.get().saturating_sub(2).max(1))
+            .unwrap_or(1);
+        let judge_slots_count = std::env::var("CITADEL_JUDGE_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(default_judge_slots);
+        let judge_slots = Arc::new(tokio::sync::Semaphore::new(judge_slots_count));
+        let persist = crate::persist_queue::PersistQueue::new(state_dir.clone());
+
 
         let _ = crate::persistence::ensure_directories(&state_dir);
         let _ = crate::persistence::archive_and_clear_sessions(&state_dir, "server_start");
@@ -347,6 +411,21 @@ impl AppState {
             }
         }
 
+        let initial_resp = Arc::new(ExamStatusResponse {
+            is_live: initial_live,
+            started_at: if initial_live { Some(chrono::Utc::now().to_rfc3339()) } else { None },
+            remaining_seconds: if initial_live { 5400 } else { 0 },
+            total_duration_minutes: 90,
+            ended_at: None,
+            is_production: is_prod_val,
+            early_exit_min_remaining_seconds: 900,
+        });
+        let (exam_tx, _) = tokio::sync::watch::channel(initial_resp);
+        let (session_tx, _) = tokio::sync::watch::channel(0u64);
+        let question_bundle = Arc::new(RwLock::new(None));
+        let sse_slots = Arc::new(tokio::sync::Semaphore::new(2000));
+        let longpoll_slots = Arc::new(tokio::sync::Semaphore::new(2000));
+
         AppState {
             candidates: Arc::new(Mutex::new(candidates_map)),
             candidate_states: Arc::new(Mutex::new(HashMap::new())),
@@ -365,6 +444,15 @@ impl AppState {
             admin_key,
             is_production: Arc::new(AtomicBool::new(is_prod_val)),
             authorized_tokens: Arc::new(Mutex::new(HashMap::new())),
+            judge_slots,
+            persist,
+            token_index: Arc::new(RwLock::new(HashMap::new())),
+            dash_version: Arc::new(AtomicU64::new(1)),
+            exam_tx,
+            session_tx,
+            question_bundle,
+            sse_slots,
+            longpoll_slots,
         }
     }
 }
@@ -384,7 +472,14 @@ impl Default for AppState {
 
         let exam_passcode = std::env::var("CITADEL_EXAM_PASSCODE")
             .unwrap_or_else(|_| "CITADEL2026".to_string());
-
+        let default_judge_slots = std::thread::available_parallelism()
+            .map(|n| n.get().saturating_sub(2).max(1))
+            .unwrap_or(1);
+        let judge_slots_count = std::env::var("CITADEL_JUDGE_CONCURRENCY")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(default_judge_slots);
+        let judge_slots = Arc::new(tokio::sync::Semaphore::new(judge_slots_count));
         let state_dir = std::env::var("CITADEL_STATE_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|_| {
@@ -396,6 +491,7 @@ impl Default for AppState {
                     PathBuf::from("./state")
                 }
             });
+        let persist = crate::persist_queue::PersistQueue::new(state_dir.clone());
 
         let _ = crate::persistence::ensure_directories(&state_dir);
         let _ = crate::persistence::archive_and_clear_sessions(&state_dir, "server_start");
@@ -431,6 +527,21 @@ impl Default for AppState {
             state_dir.display()
         );
 
+        let initial_resp = Arc::new(ExamStatusResponse {
+            is_live: initial_live,
+            started_at: if initial_live { Some(chrono::Utc::now().to_rfc3339()) } else { None },
+            remaining_seconds: if initial_live { 5400 } else { 0 },
+            total_duration_minutes: 90,
+            ended_at: None,
+            is_production: is_prod_val,
+            early_exit_min_remaining_seconds: 900,
+        });
+        let (exam_tx, _) = tokio::sync::watch::channel(initial_resp);
+        let (session_tx, _) = tokio::sync::watch::channel(0u64);
+        let question_bundle = Arc::new(RwLock::new(None));
+        let sse_slots = Arc::new(tokio::sync::Semaphore::new(2000));
+        let longpoll_slots = Arc::new(tokio::sync::Semaphore::new(2000));
+
         AppState {
             candidates: Arc::new(Mutex::new(candidates_map)),
             candidate_states: Arc::new(Mutex::new(HashMap::new())),
@@ -449,6 +560,15 @@ impl Default for AppState {
             admin_key,
             is_production: Arc::new(AtomicBool::new(is_prod_val)),
             authorized_tokens: Arc::new(Mutex::new(HashMap::new())),
+            judge_slots,
+            persist,
+            token_index: Arc::new(RwLock::new(HashMap::new())),
+            dash_version: Arc::new(AtomicU64::new(1)),
+            exam_tx,
+            session_tx,
+            question_bundle,
+            sse_slots,
+            longpoll_slots,
         }
     }
 }
@@ -523,6 +643,85 @@ pub fn is_admin_authorized(headers: &HeaderMap, query: &HashMap<String, String>,
     false
 }
 
+async fn questions_bundle_handler(
+    headers: HeaderMap,
+    Query(query): Query<HashMap<String, String>>,
+    State(state): State<AppState>,
+) -> Response {
+    if !is_request_authorized(&headers, &query, &state) {
+        return StatusCode::FORBIDDEN.into_response();
+    }
+    let is_live = state.exam_live.read().unwrap().is_live;
+    if !is_live {
+        return (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, HeaderValue::from_static("application/json")),
+                (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache")),
+            ],
+            "[]",
+        ).into_response();
+    }
+
+    if let Some((ref bytes, ref etag)) = *state.question_bundle.read().unwrap() {
+        if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH) {
+            if if_none_match == etag {
+                return (
+                    StatusCode::NOT_MODIFIED,
+                    [
+                        (header::ETAG, etag.clone()),
+                        (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache")),
+                    ],
+                ).into_response();
+            }
+        }
+        return (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, HeaderValue::from_static("application/json")),
+                (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache")),
+                (header::ETAG, etag.clone()),
+            ],
+            bytes.clone(),
+        ).into_response();
+    }
+
+    let sanitized: Vec<Question> = {
+        let questions = state.questions.read().unwrap();
+        questions.iter().cloned().map(sanitize_for_candidate).collect()
+    };
+    let json_bytes = bytes::Bytes::from(serde_json::to_vec(&sanitized).unwrap_or_default());
+    let hash = blake3::hash(&json_bytes);
+    let etag_str = format!("\"b3-{}\"", &hash.to_hex().as_str()[..16]);
+    let etag = HeaderValue::from_str(&etag_str).unwrap();
+
+    if let Ok(mut lock) = state.question_bundle.write() {
+        *lock = Some((json_bytes.clone(), etag.clone()));
+    }
+
+    if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH) {
+        if if_none_match == &etag {
+            return (
+                StatusCode::NOT_MODIFIED,
+                [
+                    (header::ETAG, etag),
+                    (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache")),
+                ],
+            ).into_response();
+        }
+    }
+
+    (
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, HeaderValue::from_static("application/json")),
+            (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache")),
+            (header::ETAG, etag),
+        ],
+        json_bytes,
+    ).into_response()
+}
+
 pub fn build_app() -> Router {
     build_app_with_state(AppState::default())
 }
@@ -531,7 +730,8 @@ pub fn build_app_with_state(state: AppState) -> Router {
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_headers(Any)
+        .max_age(std::time::Duration::from_secs(600));
 
     let router = Router::new()
         // Candidate Portal & Gatekeeper Routes
@@ -552,6 +752,8 @@ pub fn build_app_with_state(state: AppState) -> Router {
         .route("/health", get(health_handler))
         .route("/api/v1/exam/info", get(exam_info_handler))
         .route("/api/v1/exam/status", get(exam_status_handler))
+        .route("/api/v1/events", get(crate::events::events_handler))
+        .route("/api/v1/questions/bundle", get(questions_bundle_handler))
         .route("/api/v1/questions", get(list_questions_handler))
         .route("/api/v1/questions/:id", get(get_question_handler))
         .route("/api/v1/submissions", post(submit_code_handler))
@@ -611,7 +813,30 @@ pub fn build_app_with_state(state: AppState) -> Router {
         disconnect_watchdog_loop(watchdog_state).await;
     });
 
-    router
+    let compression_enabled = std::env::var("CITADEL_NET_COMPRESSION")
+        .map(|v| v != "0")
+        .unwrap_or(true);
+
+    if compression_enabled {
+        use tower_http::compression::predicate::{NotForContentType, Predicate, SizeAbove};
+        use tower_http::compression::CompressionLayer;
+        use tower_http::CompressionLevel;
+
+        let predicate = SizeAbove::new(1024)
+            .and(NotForContentType::const_new("text/event-stream"))
+            .and(NotForContentType::const_new("application/vnd.microsoft.portable-executable"))
+            .and(NotForContentType::IMAGES)
+            .and(NotForContentType::const_new("font/"));
+
+        router.layer(
+            CompressionLayer::new()
+                .gzip(true)
+                .quality(CompressionLevel::Fastest)
+                .compress_when(predicate),
+        )
+    } else {
+        router
+    }
 }
 
 // ============================================================================
@@ -772,37 +997,60 @@ async fn exam_info_handler() -> Json<ExamInfo> {
 }
 
 async fn exam_status_handler(State(state): State<AppState>) -> Json<ExamStatusResponse> {
-    let mut live_lock = state.exam_live.write().unwrap();
-    let total_secs = (live_lock.duration_minutes as i64) * 60;
-    let mut remaining_seconds = 0u64;
+    let (is_live, started_at, duration_minutes, ended_at, remaining_seconds, should_expire) = {
+        let live_lock = state.exam_live.read().unwrap();
+        let total_secs = (live_lock.duration_minutes as i64) * 60;
+        let mut rem = 0u64;
+        let mut expire = false;
 
-    if live_lock.is_live {
-        if let Some(ref started_str) = live_lock.started_at {
-            if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
-                let now = chrono::Utc::now();
-                let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
-                if elapsed >= total_secs {
-                    // Time expired! Automatically conclude exam
-                    live_lock.is_live = false;
-                    live_lock.ended_at = Some(now.to_rfc3339());
-                    remaining_seconds = 0;
+        if live_lock.is_live {
+            if let Some(ref started_str) = live_lock.started_at {
+                if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                    let now = chrono::Utc::now();
+                    let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                    if elapsed >= total_secs {
+                        expire = true;
+                        rem = 0;
+                    } else {
+                        rem = (total_secs - elapsed) as u64;
+                    }
                 } else {
-                    remaining_seconds = (total_secs - elapsed) as u64;
+                    rem = total_secs as u64;
                 }
             } else {
-                remaining_seconds = total_secs as u64;
+                rem = total_secs as u64;
             }
-        } else {
-            remaining_seconds = total_secs as u64;
         }
-    }
+
+        (live_lock.is_live, live_lock.started_at.clone(), live_lock.duration_minutes, live_lock.ended_at.clone(), rem, expire)
+    };
+
+    let (final_live, final_started, final_ended, final_remaining) = if should_expire && is_live {
+        let mut write_lock = state.exam_live.write().unwrap();
+        let total_secs = (write_lock.duration_minutes as i64) * 60;
+        let now = chrono::Utc::now();
+        if write_lock.is_live {
+            if let Some(ref started_str) = write_lock.started_at {
+                if let Ok(started_time) = chrono::DateTime::parse_from_rfc3339(started_str) {
+                    let elapsed = (now - started_time.with_timezone(&chrono::Utc)).num_seconds();
+                    if elapsed >= total_secs {
+                        write_lock.is_live = false;
+                        write_lock.ended_at = Some(now.to_rfc3339());
+                    }
+                }
+            }
+        }
+        (write_lock.is_live, write_lock.started_at.clone(), write_lock.ended_at.clone(), 0u64)
+    } else {
+        (is_live, started_at, ended_at, remaining_seconds)
+    };
 
     Json(ExamStatusResponse {
-        is_live: live_lock.is_live,
-        started_at: live_lock.started_at.clone(),
-        remaining_seconds,
-        total_duration_minutes: live_lock.duration_minutes,
-        ended_at: live_lock.ended_at.clone(),
+        is_live: final_live,
+        started_at: final_started,
+        remaining_seconds: final_remaining,
+        total_duration_minutes: duration_minutes,
+        ended_at: final_ended,
         is_production: state.is_production.load(Ordering::SeqCst),
         early_exit_min_remaining_seconds: 900,
     })
@@ -865,7 +1113,7 @@ async fn submit_code_handler(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<AppState>,
     Json(payload): Json<SubmissionRequest>,
-) -> impl IntoResponse {
+) -> Response {
     if !is_request_authorized(&headers, &params, &state) {
         return (
             StatusCode::FORBIDDEN,
@@ -930,12 +1178,13 @@ async fn submit_code_handler(
     }
 
     // 2. Fetch target question
-    let questions = state.questions.read().unwrap();
-    let question = match questions.iter().find(|q| q.id == payload.question_id) {
-        Some(q) => q.clone(),
-        None => return StatusCode::NOT_FOUND.into_response(),
+    let question = {
+        let questions = state.questions.read().unwrap();
+        match questions.iter().find(|q| q.id == payload.question_id) {
+            Some(q) => q.clone(),
+            None => return StatusCode::NOT_FOUND.into_response(),
+        }
     };
-    drop(questions);
 
     // 3. Select test cases: Sample Run vs Final Submission
     let (eval_cases, max_points) = if payload.is_sample_run {
@@ -946,14 +1195,22 @@ async fn submit_code_handler(
         (all_cases, question.points)
     };
 
-    // 4. REAL Subprocess Execution via Judge Sandbox (Python / C++ / Java)
-    let judge_res = evaluate_submission(
-        &payload.language,
-        &payload.source_code,
-        &eval_cases,
-        payload.is_sample_run,
-        max_points,
-    );
+    // 4. REAL Subprocess Execution via Judge Sandbox (Bulkhead: spawn_blocking + Semaphore)
+    let permit = match state.judge_slots.clone().acquire_owned().await {
+        Ok(p) => p,
+        Err(_) => return StatusCode::SERVICE_UNAVAILABLE.into_response(),
+    };
+
+    let (lang, src, cases) = (payload.language.clone(), payload.source_code.clone(), eval_cases);
+    let is_sample = payload.is_sample_run;
+
+    let judge_res = match tokio::task::spawn_blocking(move || {
+        let _p = permit; // Released when blocking job finishes, even on panic
+        evaluate_submission(&lang, &src, &cases, is_sample, max_points)
+    }).await {
+        Ok(res) => res,
+        Err(_) => JudgeResult::internal_error("Judge worker task panicked"),
+    };
 
     let sub_id = format!("sub-{}", chrono::Utc::now().timestamp_millis());
     let sub_record = SubmissionRecord {
@@ -1228,6 +1485,8 @@ async fn logout_handler(
         }
     }
 
+    state.bump_session();
+    state.touch();
     StatusCode::OK
 }
 
@@ -1242,6 +1501,8 @@ pub struct SessionControlResponse {
 pub struct SessionControlQuery {
     pub candidate_id: Option<String>,
     pub token: Option<String>,
+    pub wait: Option<u64>,
+    pub since: Option<String>,
 }
 
 
@@ -1263,22 +1524,30 @@ async fn client_force_restore_handler(
         );
     }
 
-    let mut tokens = state.authorized_tokens.lock().unwrap();
-    if let Some(session) = tokens.get_mut(token) {
-        session.force_exit = true;
-        session.force_exit_at = Some(chrono::Utc::now());
-        eprintln!(
-            "[CITADEL SERVER] Plan 25 Channel R1: Force restore scheduled for token '{}' (Reason: {})",
-            token,
-            payload.reason.as_deref().unwrap_or("Candidate/Portal Restore click")
-        );
-        (
-            StatusCode::OK,
-            Json(serde_json::json!({
-                "status": "ok",
-                "message": "Workstation restore queued for client polling"
-            })),
-        )
+    let res = {
+        let mut tokens = state.authorized_tokens.lock().unwrap();
+        if let Some(session) = tokens.get_mut(token) {
+            session.force_exit = true;
+            session.force_exit_at = Some(chrono::Utc::now());
+            eprintln!(
+                "[CITADEL SERVER] Plan 25 Channel R1: Force restore scheduled for token '{}' (Reason: {})",
+                token,
+                payload.reason.as_deref().unwrap_or("Candidate/Portal Restore click")
+            );
+            Some((
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "status": "ok",
+                    "message": "Workstation restore queued for client polling"
+                })),
+            ))
+        } else {
+            None
+        }
+    };
+    if let Some(ok_resp) = res {
+        state.bump_session();
+        ok_resp
     } else {
         eprintln!("[CITADEL SERVER SECURITY] Rejected force restore for unrecognized token: {}", token);
         (
@@ -1288,10 +1557,10 @@ async fn client_force_restore_handler(
     }
 }
 
-async fn client_session_control_handler(
-    State(state): State<AppState>,
-    Query(q): Query<SessionControlQuery>,
-) -> Json<SessionControlResponse> {
+fn compute_session_control(
+    state: &AppState,
+    q: &SessionControlQuery,
+) -> SessionControlResponse {
     // 1. Check if proctor concluded the whole exam for everyone, OR exam timer expired
     let live = state.exam_live.read().unwrap();
     let total_secs = (live.duration_minutes as i64) * 60;
@@ -1310,11 +1579,11 @@ async fn client_session_control_handler(
     }
 
     if exam_over_for_all {
-        return Json(SessionControlResponse {
+        return SessionControlResponse {
             should_exit: true,
             reason: "Exam concluded for all candidates".to_string(),
             status: "Concluded".to_string(),
-        });
+        };
     }
 
     // Plan 25 Channel R1: Server-driven force-restore via handshake token (pre-login & all states)
@@ -1330,11 +1599,11 @@ async fn client_session_control_handler(
                 session.force_exit = false; // consume trigger
                 if is_valid {
                     eprintln!("[CITADEL SERVER] Plan 25 Channel R1 returning force-restore for token: {}", tok);
-                    return Json(SessionControlResponse {
+                    return SessionControlResponse {
                         should_exit: true,
                         reason: "Workstation restore requested via server".to_string(),
                         status: "Restoring".to_string(),
-                    });
+                    };
                 }
             }
         }
@@ -1344,13 +1613,18 @@ async fn client_session_control_handler(
     let target_cid = if let Some(ref cid) = q.candidate_id {
         if !cid.is_empty() { Some(cid.clone()) } else { None }
     } else if let Some(ref tok) = q.token {
-        let cand_states = state.candidate_states.lock().unwrap();
-        let from_states = cand_states.iter().find(|(_, c)| c.session_token == *tok).map(|(id, _)| id.clone());
-        if from_states.is_some() {
-            from_states
+        let from_index = state.token_index.read().unwrap().get(tok).cloned();
+        if from_index.is_some() {
+            from_index
         } else {
-            let tokens = state.authorized_tokens.lock().unwrap();
-            tokens.get(tok).and_then(|s| s.candidate_id.clone())
+            let cand_states = state.candidate_states.lock().unwrap();
+            let from_states = cand_states.iter().find(|(_, c)| c.session_token == *tok).map(|(id, _)| id.clone());
+            if from_states.is_some() {
+                from_states
+            } else {
+                let tokens = state.authorized_tokens.lock().unwrap();
+                tokens.get(tok).and_then(|s| s.candidate_id.clone())
+            }
         }
     } else {
         None
@@ -1362,11 +1636,11 @@ async fn client_session_control_handler(
             let roster = state.roster.read().unwrap();
             if !roster.candidates.is_empty() {
                 if let Err((_status, code, _msg)) = check_candidate_roster(cid, &roster) {
-                    return Json(SessionControlResponse {
+                    return SessionControlResponse {
                         should_exit: true,
                         reason: format!("Candidate access revoked in roster ({})", code),
                         status: "Disqualified".to_string(),
-                    });
+                    };
                 }
             }
         }
@@ -1383,35 +1657,75 @@ async fn client_session_control_handler(
 
         if let Some(ref status) = cand_status {
             if status == "Disqualified" {
-                return Json(SessionControlResponse {
+                return SessionControlResponse {
                     should_exit: true,
                     reason: "Candidate disqualified: session terminated and workstation unlocked immediately".to_string(),
                     status: "Disqualified".to_string(),
-                });
+                };
             }
 
             if status == "Submitted" || status == "Logged Out" || status == "Concluded" {
-                return Json(SessionControlResponse {
+                return SessionControlResponse {
                     should_exit: true,
                     reason: "Candidate session concluded".to_string(),
                     status: status.clone(),
-                });
+                };
             }
 
-            return Json(SessionControlResponse {
+            return SessionControlResponse {
                 should_exit: false,
                 reason: "".to_string(),
                 status: status.clone(),
-            });
+            };
         }
     }
 
     // 3. General workstation status (exam is still live)
-    Json(SessionControlResponse {
+    SessionControlResponse {
         should_exit: false,
         reason: "".to_string(),
         status: "Active".to_string(),
-    })
+    }
+}
+
+async fn client_session_control_handler(
+    State(state): State<AppState>,
+    Query(q): Query<SessionControlQuery>,
+) -> Json<SessionControlResponse> {
+    let wait_secs = q.wait.unwrap_or(0).min(25);
+    let longpoll_enabled = std::env::var("CITADEL_NET_LONGPOLL")
+        .map(|v| v != "0")
+        .unwrap_or(true);
+
+    if wait_secs == 0 || !longpoll_enabled {
+        return Json(compute_session_control(&state, &q));
+    }
+
+    let _permit = match state.longpoll_slots.clone().try_acquire_owned() {
+        Ok(p) => p,
+        Err(_) => return Json(compute_session_control(&state, &q)),
+    };
+
+    let mut session_rx = state.session_tx.subscribe();
+    let initial = compute_session_control(&state, &q);
+
+    if initial.should_exit {
+        return Json(initial);
+    }
+    if let Some(ref since) = q.since {
+        if &initial.status != since {
+            return Json(initial);
+        }
+    }
+
+    tokio::select! {
+        _ = tokio::time::sleep(tokio::time::Duration::from_secs(wait_secs)) => {
+            Json(compute_session_control(&state, &q))
+        }
+        _ = session_rx.changed() => {
+            Json(compute_session_control(&state, &q))
+        }
+    }
 }
 
 async fn kill_all_lockdown_handler(
@@ -1572,6 +1886,7 @@ async fn toggle_admin_mode_handler(
     let prev = state.is_production.load(Ordering::SeqCst);
     let new_val = !prev;
     state.is_production.store(new_val, Ordering::SeqCst);
+    state.publish_exam_status();
     let count = state.authorized_tokens.lock().unwrap().len();
     eprintln!("[CITADEL SERVER] Administrator toggled server security mode to: {}", if new_val { "PRODUCTION" } else { "TESTING" });
     Ok(Json(AdminModeResponse {
@@ -1863,11 +2178,16 @@ async fn admin_go_live_handler(
     }
     *state.candidates.lock().unwrap() = fresh_candidates;
 
-    let mut live_lock = state.exam_live.write().unwrap();
-    live_lock.is_live = true;
-    live_lock.started_at = Some(chrono::Utc::now().to_rfc3339());
-    live_lock.ended_at = None;
-    Ok(Json(live_lock.clone()))
+    let res = {
+        let mut live_lock = state.exam_live.write().unwrap();
+        live_lock.is_live = true;
+        live_lock.started_at = Some(chrono::Utc::now().to_rfc3339());
+        live_lock.ended_at = None;
+        live_lock.clone()
+    };
+    state.publish_exam_status();
+    state.bump_session();
+    Ok(Json(res))
 }
 
 async fn admin_stop_live_handler(
@@ -1878,10 +2198,15 @@ async fn admin_stop_live_handler(
     if !is_admin_authorized(&headers, &query, &state) {
         return Err(StatusCode::FORBIDDEN);
     }
-    let mut live_lock = state.exam_live.write().unwrap();
-    live_lock.is_live = false;
-    live_lock.ended_at = Some(chrono::Utc::now().to_rfc3339());
-    Ok(Json(live_lock.clone()))
+    let res = {
+        let mut live_lock = state.exam_live.write().unwrap();
+        live_lock.is_live = false;
+        live_lock.ended_at = Some(chrono::Utc::now().to_rfc3339());
+        live_lock.clone()
+    };
+    state.publish_exam_status();
+    state.bump_session();
+    Ok(Json(res))
 }
 
 async fn admin_metrics_handler(
@@ -1891,6 +2216,24 @@ async fn admin_metrics_handler(
 ) -> Response {
     if !is_admin_authorized(&headers, &query, &state) {
         return StatusCode::FORBIDDEN.into_response();
+    }
+
+    let etag_val = format!(
+        "\"m-{}-{}\"",
+        state.dash_version.load(Ordering::SeqCst),
+        chrono::Utc::now().timestamp() / 3
+    );
+
+    if let Some(if_none_match) = headers.get(header::IF_NONE_MATCH).and_then(|v| v.to_str().ok()) {
+        if if_none_match == etag_val {
+            return (
+                StatusCode::NOT_MODIFIED,
+                [
+                    (header::ETAG, HeaderValue::from_str(&etag_val).unwrap()),
+                    (header::CACHE_CONTROL, HeaderValue::from_static("private, no-cache")),
+                ],
+            ).into_response();
+        }
     }
 
     let mut cands_lock = state.candidates.lock().unwrap();
@@ -1974,8 +2317,9 @@ async fn admin_metrics_handler(
 
     (
         [
-            (axum::http::header::CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0"),
-            (axum::http::header::PRAGMA, "no-cache"),
+            (axum::http::header::CONTENT_TYPE, "application/json"),
+            (axum::http::header::CACHE_CONTROL, "private, no-cache"),
+            (axum::http::header::ETAG, &etag_val),
         ],
         Json(ProctorDashboardData {
             total_candidates,
@@ -2050,6 +2394,8 @@ async fn admin_disqualify_candidate_handler(
 
         // Candidate will receive Disqualified on their next heartbeat or session-control poll
         // and will exit and restore their laptop immediately in both Production and Testing modes.
+        state.touch();
+        state.bump_session();
         StatusCode::OK
     } else {
         StatusCode::NOT_FOUND
@@ -2096,6 +2442,8 @@ async fn admin_readmit_candidate_handler(
     }
 
     if found {
+        state.touch();
+        state.bump_session();
         Ok(Json(serde_json::json!({
             "status": "success",
             "candidate_id": actual_id,
@@ -2134,6 +2482,7 @@ async fn admin_create_question_handler(
     if !is_admin_authorized(&headers, &query, &state) {
         return Err(StatusCode::FORBIDDEN);
     }
+    state.invalidate_bundle();
 
     let mut questions = state.questions.write().unwrap();
     let num = questions.len() + 1;
@@ -2290,6 +2639,11 @@ async fn admin_candidate_profile_handler(
     if !is_admin_authorized(&headers, &query, &state) {
         return Err(StatusCode::FORBIDDEN);
     }
+    state.invalidate_bundle();
+    state.invalidate_bundle();
+    state.invalidate_bundle();
+    state.invalidate_bundle();
+    state.invalidate_bundle();
 
     let cand = {
         let cands = state.candidates.lock().unwrap();
@@ -2384,14 +2738,20 @@ async fn admin_delete_question_handler(
     }
 }
 
-async fn serve_ace_bundle_handler() -> impl axum::response::IntoResponse {
-    (
-        [(
-            axum::http::header::CONTENT_TYPE,
-            "application/javascript; charset=utf-8",
-        )],
-        include_str!("../static/ace.bundle.js"),
-    )
+async fn serve_ace_bundle_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    let is_versioned = params.contains_key("v");
+    if let Some(asset) = crate::assets::registry().get("ace.bundle.js") {
+        crate::assets::respond(asset, &headers, is_versioned)
+    } else {
+        (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "application/javascript; charset=utf-8")],
+            include_bytes!("../static/ace.bundle.js").as_slice(),
+        ).into_response()
+    }
 }
 
 async fn architecture_handler() -> Redirect {
@@ -2402,12 +2762,51 @@ async fn graphify_handler() -> Redirect {
     Redirect::temporary("/static/graph.html")
 }
 
-async fn serve_favicon_handler() -> Response {
-    serve_static_handler(axum::extract::Path("favicon.ico".to_string())).await
+async fn serve_favicon_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+) -> Response {
+    let is_versioned = params.contains_key("v");
+    if let Some(asset) = crate::assets::registry().get("favicon.ico") {
+        crate::assets::respond(asset, &headers, is_versioned)
+    } else {
+        (
+            StatusCode::OK,
+            [(axum::http::header::CONTENT_TYPE, "image/x-icon")],
+            include_bytes!("../static/favicon.ico").as_slice(),
+        ).into_response()
+    }
 }
 
-async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<String>) -> Response {
+async fn serve_static_handler(
+    headers: HeaderMap,
+    Query(params): Query<HashMap<String, String>>,
+    axum::extract::Path(path): axum::extract::Path<String>,
+) -> Response {
     let clean_path = path.trim_start_matches('/');
+    let is_versioned = params.contains_key("v");
+
+    // Fast-path: Precompressed asset registry with BLAKE3 ETag (Task 26-T2.1)
+    if let Some(asset) = crate::assets::registry().get(clean_path) {
+        return crate::assets::respond(asset, &headers, is_versioned);
+    }
+
+    // Security Check (SEC-1 Task 26-T1.1):
+    // 1. Reject if clean_path contains backslash, colon, null byte, or starts with '/'
+    if clean_path.contains('\\') || clean_path.contains(':') || clean_path.contains('\0') || clean_path.starts_with('/') {
+        return (StatusCode::NOT_FOUND, "Static file not found").into_response();
+    }
+
+    // 2. All components must be Normal (rejects '..', '.', RootDir, Prefix)
+    let p = std::path::Path::new(clean_path);
+    if !p.components().all(|c| matches!(c, std::path::Component::Normal(_))) {
+        return (StatusCode::NOT_FOUND, "Static file not found").into_response();
+    }
+
+    // 3. Extension allow-list for disk serving:
+    let allowed_exts = ["js", "css", "woff2", "woff", "ttf", "html", "json", "png", "ico", "svg"];
+    let has_allowed_ext = p.extension().and_then(|e| e.to_str()).map(|ext| allowed_exts.contains(&ext)).unwrap_or(false);
+
     let content_type = if clean_path.ends_with(".js") {
         "application/javascript; charset=utf-8"
     } else if clean_path.ends_with(".css") {
@@ -2432,25 +2831,33 @@ async fn serve_static_handler(axum::extract::Path(path): axum::extract::Path<Str
         "application/octet-stream"
     };
 
-    let candidates = [
-        PathBuf::from("citadel-server/static").join(clean_path),
-        PathBuf::from("static").join(clean_path),
-        PathBuf::from("../static").join(clean_path),
-        PathBuf::from("graphify-out").join(clean_path),
-        PathBuf::from("../graphify-out").join(clean_path),
-    ];
+    if has_allowed_ext {
+        let roots = [
+            "citadel-server/static",
+            "static",
+            "../static",
+            "graphify-out",
+            "../graphify-out",
+        ];
 
-    for file_path in &candidates {
-        if file_path.exists() && file_path.is_file() {
-            if let Ok(bytes) = std::fs::read(file_path) {
-                return (
-                    StatusCode::OK,
-                    [
-                        (axum::http::header::CONTENT_TYPE, content_type),
-                        (axum::http::header::CACHE_CONTROL, "public, max-age=31536000"),
-                    ],
-                    bytes,
-                ).into_response();
+        for root_str in &roots {
+            let root_buf = PathBuf::from(root_str);
+            if let Ok(canon_root) = root_buf.canonicalize() {
+                let candidate = root_buf.join(clean_path);
+                if let Ok(canon_candidate) = candidate.canonicalize() {
+                    if canon_candidate.starts_with(&canon_root) && canon_candidate.is_file() {
+                        if let Ok(bytes) = std::fs::read(&canon_candidate) {
+                            return (
+                                StatusCode::OK,
+                                [
+                                    (axum::http::header::CONTENT_TYPE, content_type),
+                                    (axum::http::header::CACHE_CONTROL, "public, max-age=31536000"),
+                                ],
+                                bytes,
+                            ).into_response();
+                        }
+                    }
+                }
             }
         }
     }
@@ -2547,6 +2954,7 @@ async fn admin_get_passcode_handler(
     if !is_admin_authorized(&headers, &query, &state) {
         return Err(StatusCode::FORBIDDEN);
     }
+    state.invalidate_bundle();
     let p = state.exam_passcode.read().unwrap();
     Ok(Json(ExamPasscodeResponse { passcode: p.clone() }))
 }
@@ -2743,6 +3151,7 @@ async fn candidate_login_handler(
         force_exit_at: None,
     };
     state.authorized_tokens.lock().unwrap().insert(token.clone(), token_session);
+    state.token_index.write().unwrap().insert(token.clone(), candidate_id.clone());
 
     if let Some(h) = headers.get("X-Citadel-Auth-Token").and_then(|v| v.to_str().ok()) {
         let mut tok_map = state.authorized_tokens.lock().unwrap();
@@ -2916,7 +3325,7 @@ async fn candidate_login_handler(
     }
 
     cand_states.insert(candidate_id.clone(), new_state.clone());
-    let _ = save_candidate_state(&state.state_dir, &new_state);
+    state.persist.enqueue(new_state.clone());
 
     let mut resp = Json(CandidateLoginResponse {
         status: "created".to_string(),

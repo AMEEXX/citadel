@@ -86,7 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("========================================================================");
 
     let app = build_app();
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app).tcp_nodelay(true).await?;
 
     Ok(())
 }

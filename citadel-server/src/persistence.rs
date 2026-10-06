@@ -412,6 +412,7 @@ mod tests {
             session_token: "tok-123".to_string(),
             state_version: 1,
             last_synced_at: "2026-09-28T10:15:00Z".to_string(),
+            last_activity_at: None,
             exit_reason: None,
             exit_details: None,
             exit_timestamp: None,
