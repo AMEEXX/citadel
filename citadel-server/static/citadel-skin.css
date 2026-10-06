@@ -391,17 +391,36 @@
 .app-gate :is(h1, h2) { font-family: var(--font-display); font-weight: 400; letter-spacing: -.01em; color: #f2f0ec; }
 .app-gate :is(button, input, .badge, code, pre) { border-radius: 0; }
 .app-gate code, .app-gate pre { font-family: var(--font-mono, 'Geist Mono', monospace); }
+.app-gate .brand-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.app-gate .brand-badge-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  border-radius: 50%;
+  box-shadow: 0 0 14px rgba(230, 167, 0, 0.45);
+  display: block;
+  flex-shrink: 0;
+}
 .app-gate .logo-badge {
   background: transparent !important;
   border: none !important;
   border-color: transparent !important;
-  color: #f2f0ec !important;
-  font-family: var(--font-mono, 'Geist Mono', monospace) !important;
-  font-size: 12px !important;
-  font-weight: 700 !important;
-  letter-spacing: .16em !important;
+  color: var(--text-primary, #f2f0ec) !important;
+  font-family: var(--font-ui, 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif) !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .14em !important;
   text-transform: uppercase !important;
   padding: 0 !important;
-  margin-bottom: 14px !important;
+  margin: 0 !important;
+  line-height: 1 !important;
+  display: inline-flex !important;
+  align-items: center !important;
 }
 .app-gate > * { animation: cit-rise var(--dur-slow) var(--ease-out); }

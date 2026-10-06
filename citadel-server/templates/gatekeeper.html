@@ -71,18 +71,38 @@
       box-shadow: 0 20px 50px rgba(0, 0, 0, 0.85);
     }
 
+    .brand-row {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .brand-badge-img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      border-radius: 50%;
+      box-shadow: 0 0 14px rgba(230, 167, 0, 0.45);
+      display: block;
+      flex-shrink: 0;
+    }
+
     .logo-badge {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
       background: transparent;
       border: none;
       color: #f2f0ec;
-      font-family: var(--font-mono, 'Geist Mono', monospace);
-      font-weight: 700;
-      font-size: 12px;
-      letter-spacing: 0.16em;
+      font-family: var(--font-ui, 'Geist', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, sans-serif);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
       padding: 0;
-      margin-bottom: 14px;
+      margin: 0;
+      line-height: 1;
     }
 
     h1 {
@@ -202,9 +222,9 @@
         <strong>This exam needs to be taken from a laptop.</strong> Mobile devices and tablets are not supported for secure proctored examinations. Please open this URL from your laptop workstation.
       </div>
     </div>
-    <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 12px;">
-      <img src="/static/citadel-badge.png" alt="Citadel" style="width: 32px; height: 32px; object-fit: contain; border-radius: 50%; box-shadow: 0 0 14px rgba(230, 167, 0, 0.45);" />
-      <div class="logo-badge" style="margin-bottom: 0;">CITADEL</div>
+    <div class="brand-row">
+      <img src="/static/citadel-badge.png" alt="Citadel" class="brand-badge-img" />
+      <span class="logo-badge">CITADEL</span>
     </div>
     <h1>Assessment Pipeline</h1>
     <p>To take your examination on the isolated campus fleet, launch the Citadel Lockdown Client on your workstation.</p>
