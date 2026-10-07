@@ -1981,7 +1981,7 @@ async fn download_server_txt_handler(headers: HeaderMap) -> Result<Response, Sta
     let host_header = headers
         .get(header::HOST)
         .and_then(|h| h.to_str().ok())
-        .unwrap_or("172.60.10.12:8443");
+        .unwrap_or("127.0.0.1:8443");
     let content = format!("http://{}\n", host_header.trim());
     let res = Response::builder()
         .status(StatusCode::OK)
@@ -1996,7 +1996,11 @@ async fn download_server_txt_handler(headers: HeaderMap) -> Result<Response, Sta
     Ok(res)
 }
 
-async fn download_client_handler(_headers: HeaderMap) -> Result<Response, StatusCode> {
+async fn download_client_handler(headers: HeaderMap) -> Result<Response, StatusCode> {
+    let host_header = headers
+        .get(header::HOST)
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("127.0.0.1:8443");
 
     let candidates = [
         "citadel-client.exe",
@@ -2014,8 +2018,16 @@ async fn download_client_handler(_headers: HeaderMap) -> Result<Response, Status
     ];
 
     for path in &candidates {
-        if let Ok(bytes) = std::fs::read(path) {
-            // Plan 22 P1: Serve pristine release binary without PE trailer overlay to ensure stable SHA256 and avoid Defender !ml heuristic
+        if let Ok(mut bytes) = std::fs::read(path) {
+            // Dynamic trailer embedding: Embed the actual host endpoint from which the client was downloaded.
+            // When launched on candidate workstations, citadel-client immediately parses this trailer
+            // and connects to the active exam server on the LAN with zero manual IP configuration.
+            let config_trailer = format!(
+                "\n---CITADEL_CONFIG_START---\nENDPOINT={}\n---CITADEL_CONFIG_END---\n",
+                host_header.trim()
+            );
+            bytes.extend_from_slice(config_trailer.as_bytes());
+
             let res = Response::builder()
                 .status(StatusCode::OK)
                 .header(header::CONTENT_TYPE, "application/vnd.microsoft.portable-executable")
